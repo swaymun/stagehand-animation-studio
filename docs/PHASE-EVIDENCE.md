@@ -43,6 +43,8 @@ The local smoke result verified:
 - 38 mutating tools expose the concurrency/retry contract; a stale pose command returns `REVISION_CONFLICT`, and a repeated rename replays at the same revision.
 - Human asset-style editor and agent `set_asset_style` update: PASS.
 - Agent partial render-settings update preserves 1080p before an explicit reset to 720p: PASS.
+- Agent `inspect_frame` at 125 ms returns deterministic scene state and 720×405 render metadata: PASS.
+- Agent `export_frame` produced a 720×405 PNG download (`38,521` bytes): PASS.
 - Human prop X edit: `63.0`.
 - Agent prop keyframe at explicit time and Pop in preset: PASS.
 - Undo/redo revisions: PASS.
@@ -57,7 +59,7 @@ The local smoke result verified:
 STAGEHAND_URL=https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site npm run smoke
 ```
 
-Result: PASS. The hosted run verified the same 51-tool injected bridge, stale-write conflict, idempotent replay, asset-style update, partial render-settings preservation, prop workflow, two-scene WebM download, synchronized Storyboard/Board context, clarified motion copy, clean Preview state, and zero page errors. This is labeled a Playwright fallback: the public Site did not expose live WebMCP enumeration to the available runner, so it does not prove that ChatGPT’s production host enumerates the tools.
+Result: PASS. The hosted run verified the same 51-tool injected bridge, stale-write conflict, idempotent replay, frame inspection, PNG frame download, asset-style update, partial render-settings preservation, prop workflow, two-scene WebM download, synchronized Storyboard/Board context, clarified motion copy, clean Preview state, and zero page errors. This is labeled a Playwright fallback: the public Site did not expose live WebMCP enumeration to the available runner, so it does not prove that ChatGPT’s production host enumerates the tools.
 
 ## UI roast and fixes
 

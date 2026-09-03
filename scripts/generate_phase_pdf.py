@@ -61,7 +61,7 @@ story = [
     p("Verification", heading),
     p("Local gate:", body),
     p("npm run format<br/>npm run lint<br/>npm run build<br/>git diff --check<br/>npm run smoke", code),
-    p("Local and hosted smoke both passed with 51 registered tools, 38 guarded mutations, stale-write conflict, idempotent replay, asset-style parity, timeline retiming, imported-prop animation, undo/redo, a two-scene WebM download, synchronized Storyboard/Preview state, and zero page errors.", body),
+    p("Local and hosted smoke both passed with 51 registered tools, 38 guarded mutations, stale-write conflict, idempotent replay, frame inspection, PNG frame download, asset-style parity, timeline retiming, imported-prop animation, undo/redo, a two-scene WebM download, synchronized Storyboard/Preview state, and zero page errors.", body),
     PageBreak(),
 ]
 

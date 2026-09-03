@@ -129,6 +129,15 @@ const bridge = await page.evaluate(async () => {
     characterId: 'alice',
     pose: 'point',
   });
+  const inspected = await call('inspect_frame', { timeMs: 125 });
+  if (
+    !inspected.ok ||
+    inspected.timeMs !== 125 ||
+    inspected.renderSize?.width !== 720 ||
+    inspected.renderSize?.height !== 405
+  ) {
+    throw new Error(`frame inspection mismatch: ${JSON.stringify(inspected)}`);
+  }
   const render1080 = await call('set_render_settings', {
     preset: '1080p',
     fps: 24,
@@ -212,6 +221,12 @@ const bridge = await page.evaluate(async () => {
       revision: renamedReplay.revision,
     },
     posed: { ok: posed.ok, revision: posed.revision },
+    inspected: {
+      ok: inspected.ok,
+      timeMs: inspected.timeMs,
+      width: inspected.renderSize?.width,
+      height: inspected.renderSize?.height,
+    },
     renderSettings: {
       preserved1080:
         renderFpsOnly.width === 1920 && renderFpsOnly.height === 1080,
@@ -250,6 +265,17 @@ const downloadPath = await download.path();
 const downloadBytes = downloadPath
   ? (await import('node:fs/promises'))
       .stat(downloadPath)
+      .then((file) => file.size)
+  : 0;
+const frameDownloadPromise = page.waitForEvent('download', { timeout: 15000 });
+const frameExported = await page.evaluate(() =>
+  window.__stagehandTools.get('export_frame').execute({}),
+);
+const frameDownload = await frameDownloadPromise;
+const frameDownloadPath = await frameDownload.path();
+const frameDownloadedBytes = frameDownloadPath
+  ? (await import('node:fs/promises'))
+      .stat(frameDownloadPath)
       .then((file) => file.size)
   : 0;
 const volume = page.locator('.audio-volume-control input').first();
@@ -304,6 +330,13 @@ const result = {
     downloadedBytes: await downloadBytes,
     suggestedFilename: download.suggestedFilename(),
   },
+  frameExport: {
+    ok: frameExported.ok,
+    width: frameExported.width,
+    height: frameExported.height,
+    downloadedBytes: await frameDownloadedBytes,
+    suggestedFilename: frameDownload.suggestedFilename(),
+  },
   humanAudioVolume: await volume.inputValue(),
   humanPropX,
   storyboardCards,
@@ -322,6 +355,10 @@ if (
   !result.timelineDrag.moved ||
   !bridge.audio.ok ||
   bridge.audio.volume !== 0.03 ||
+  !bridge.inspected.ok ||
+  bridge.inspected.timeMs !== 125 ||
+  bridge.inspected.width !== 720 ||
+  bridge.inspected.height !== 405 ||
   !bridge.renderSettings.preserved1080 ||
   !bridge.renderSettings.reset720 ||
   bridge.prop.before !== 1 ||
@@ -341,6 +378,11 @@ if (
   rendered.durationMs < 1000 ||
   !bridge.secondScene.ok ||
   rendered.bytes <= 0 ||
+  !frameExported.ok ||
+  frameExported.width !== 720 ||
+  frameExported.height !== 405 ||
+  frameDownloadedBytes <= 0 ||
+  !frameDownload.suggestedFilename().endsWith('.png') ||
   result.humanAudioVolume !== '0.02' ||
   storyboardCards !== 3 ||
   preview.banner !== 1 ||
