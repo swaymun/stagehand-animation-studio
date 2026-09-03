@@ -104,6 +104,7 @@ const bridge = await page.evaluate(async () => {
   const undone = await call('undo_command');
   const redone = await call('redo_command');
   const duration = await call('set_scene_duration', { durationMs: 500 });
+  const secondScene = await call('add_scene', { title: 'Smoke Outro' });
   return {
     toolCount: tools.size,
     initial: { revision: initial.revision, canUndo: initial.canUndo },
@@ -120,6 +121,10 @@ const bridge = await page.evaluate(async () => {
     undone: { ok: undone.ok, revision: undone.revision },
     redone: { ok: redone.ok, revision: redone.revision },
     duration: { ok: duration.ok, durationMs: duration.durationMs },
+    secondScene: {
+      ok: secondScene.ok,
+      sceneCount: secondScene.scene ? 2 : 0,
+    },
   };
 });
 
@@ -196,6 +201,9 @@ if (
   !bridge.undone.ok ||
   !bridge.redone.ok ||
   !rendered.ok ||
+  rendered.sceneCount !== 2 ||
+  rendered.durationMs < 1000 ||
+  !bridge.secondScene.ok ||
   rendered.bytes <= 0 ||
   result.humanAudioVolume !== '0.02' ||
   storyboardCards !== 3 ||
