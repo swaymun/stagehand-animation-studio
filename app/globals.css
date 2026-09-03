@@ -1364,17 +1364,29 @@ button {
   line-height: 17px;
 }
 .key {
+  width: 22px;
+  height: 22px;
+  position: absolute;
+  top: 3px;
+  z-index: 4;
+  transform: translateX(-50%);
+  border-radius: 3px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: none;
+}
+.key::after {
+  content: '';
   width: 7px;
   height: 7px;
   position: absolute;
-  top: 11px;
-  z-index: 4;
-  transform: translateX(-50%) rotate(45deg);
+  top: 7.5px;
+  left: 7.5px;
+  transform: rotate(45deg);
   border-radius: 1px;
-  padding: 0;
-  border: 0;
-  cursor: pointer;
-  touch-action: none;
+  background: currentColor;
 }
 .draggable-key {
   cursor: grab;
@@ -1384,26 +1396,23 @@ button {
 }
 .key:hover,
 .key:focus-visible {
-  width: 10px;
-  height: 10px;
-  top: 9px;
   outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
 .key-blue {
-  background: var(--blue);
+  color: var(--blue);
 }
 .key-coral {
-  background: var(--coral);
+  color: var(--coral);
 }
 .key-teal {
-  background: #53958b;
+  color: #53958b;
 }
 .key-yellow {
-  background: #c99a35;
+  color: #c99a35;
 }
 .key-violet {
-  background: var(--violet);
+  color: var(--violet);
 }
 .playhead {
   width: 1px;
