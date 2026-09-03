@@ -1,4 +1,67 @@
 import { chromium } from 'playwright';
+import { deflateSync } from 'node:zlib';
+
+function crc32(buffer) {
+  let crc = 0xffffffff;
+  for (const byte of buffer) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1)
+      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+  }
+  return Buffer.from([
+    (crc ^ 0xffffffff) >>> 24,
+    (crc ^ 0xffffffff) >>> 16,
+    (crc ^ 0xffffffff) >>> 8,
+    crc ^ 0xffffffff,
+  ]);
+}
+
+function pngChunk(type, data) {
+  const typeBuffer = Buffer.from(type);
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length);
+  return Buffer.concat([
+    length,
+    typeBuffer,
+    data,
+    crc32(Buffer.concat([typeBuffer, data])),
+  ]);
+}
+
+function widePngFixture() {
+  const width = 400;
+  const height = 100;
+  const stride = width * 4 + 1;
+  const raw = Buffer.alloc(height * stride);
+  const colors = [
+    [239, 107, 87, 255],
+    [52, 118, 143, 255],
+    [242, 184, 75, 255],
+    [131, 82, 145, 255],
+  ];
+  for (let y = 0; y < height; y += 1) {
+    const row = y * stride;
+    for (let x = 0; x < width; x += 1) {
+      const color = colors[Math.min(3, Math.floor(x / 100))];
+      const pixel = row + 1 + x * 4;
+      raw[pixel] = color[0];
+      raw[pixel + 1] = color[1];
+      raw[pixel + 2] = color[2];
+      raw[pixel + 3] = color[3];
+    }
+  }
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8;
+  header[9] = 6;
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    pngChunk('IHDR', header),
+    pngChunk('IDAT', deflateSync(raw)),
+    pngChunk('IEND', Buffer.alloc(0)),
+  ]);
+}
 
 const baseUrl = process.env.STAGEHAND_URL ?? 'http://localhost:3000';
 const browser = await chromium.launch({ headless: true });
@@ -98,6 +161,21 @@ await page
   .locator('select[aria-label="Role for smoke-prop"]')
   .selectOption('accent');
 await page.waitForTimeout(80);
+await page.getByRole('button', { name: 'Import pose sheet · auto' }).click();
+await page.locator('input[aria-label="Import image asset"]').setInputFiles({
+  name: 'smoke-sheet.png',
+  mimeType: 'image/png',
+  buffer: widePngFixture(),
+});
+await page.getByText('smoke-sheet', { exact: true }).waitFor({ timeout: 5000 });
+await page.waitForTimeout(120);
+const poseSheet = await page
+  .locator('.asset-copy small')
+  .filter({ hasText: '4-pose sheet' })
+  .count();
+if (poseSheet !== 1) {
+  throw new Error(`wide pose sheet was not auto-detected: ${poseSheet}`);
+}
 const unnamedNumberInputs = await page
   .locator('input[type="number"]')
   .evaluateAll((inputs) =>
@@ -422,6 +500,7 @@ const result = {
   },
   humanAudioVolume,
   humanPropX,
+  poseSheet,
   storyboardCards,
   sequencePreview: {
     advanced: previewSceneBefore !== previewSceneAfter,
@@ -466,6 +545,7 @@ if (
   bridge.assetStyle.treatment !== 'inked' ||
   bridge.assetStyle.palette?.join(',') !== 'amber,coral' ||
   result.humanPropX !== '63.0' ||
+  result.poseSheet !== 1 ||
   !bridge.undone.ok ||
   !bridge.redone.ok ||
   !rendered.ok ||

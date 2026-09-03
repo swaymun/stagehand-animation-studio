@@ -9,7 +9,7 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement �
 - Verified source commit: `819b5504e3b94fb67931605260900324d9885f59`
 - Public Site: [stagehand-animation-studio.saimun-h-shahee.chatgpt.site](https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site)
 - Sites version: `76`
-- Scope at this checkpoint: structured per-asset visual direction, clarified motion actions, revision-safe and idempotent WebMCP mutations, partial render-settings preservation, synchronized Storyboard/Board navigation, review-first Preview with editing controls removed, readable two-line scene labels, semantic heading/dialog landmarks, accessible transform controls, and the existing imported-prop/sequence coverage.
+- Scope at this checkpoint: structured per-asset visual direction, clarified motion actions, revision-safe and idempotent WebMCP mutations, partial render-settings preservation, synchronized Storyboard/Board navigation, review-first Preview with editing controls removed, readable two-line scene labels, semantic heading/dialog landmarks, accessible transform controls, wide four-column pose-sheet detection, and imported-prop/sequence coverage.
 
 ## Implement
 
@@ -59,6 +59,7 @@ The local smoke result verified:
 - Help dialog: labelled heading and `aria-modal="true"` landmark present; close action works.
 - Reload recovery: renamed two-scene project and imported asset restored from local storage: PASS.
 - Sequence Preview: playback advanced from Scene 02 to Scene 01 across the 500 ms scene boundary: PASS.
+- Wide pose-sheet import: 400×100 PNG auto-detected as a four-column sheet and bound to the selected rig: PASS.
 
 ## Hosted verification
 
@@ -66,7 +67,7 @@ The local smoke result verified:
 STAGEHAND_URL=https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site npm run smoke
 ```
 
-Result: PASS. The hosted run verified the same 51-tool injected bridge, stale-write conflict, idempotent replay, frame inspection, PNG frame download, asset-style update, partial render-settings preservation, prop workflow, two-scene WebM download, sequence Preview scene transition, synchronized Storyboard/Board context, clarified motion copy, clean Preview state with global editing controls removed, readable scene-label layout, semantic `h1`, labelled Help modal, reload recovery, and zero page errors. This is labeled a Playwright fallback: the public Site did not expose live WebMCP enumeration to the available runner, so it does not prove that ChatGPT’s production host enumerates the tools.
+Result: PASS. The hosted run verified the same 51-tool injected bridge, stale-write conflict, idempotent replay, frame inspection, PNG frame download, wide pose-sheet auto-detection, asset-style update, partial render-settings preservation, prop workflow, two-scene WebM download, sequence Preview scene transition, synchronized Storyboard/Board context, clarified motion copy, clean Preview state with global editing controls removed, readable scene-label layout, semantic `h1`, labelled Help modal, reload recovery, and zero page errors. This is labeled a Playwright fallback: the public Site did not expose live WebMCP enumeration to the available runner, so it does not prove that ChatGPT’s production host enumerates the tools.
 
 ## UI roast and fixes
 
