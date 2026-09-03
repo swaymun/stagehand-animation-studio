@@ -697,6 +697,29 @@ button {
   white-space: nowrap;
   font-size: 8px;
 }
+.asset-bind-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 3px;
+  color: #8f867c;
+  font-size: 8px;
+}
+.asset-bind-control select {
+  min-width: 0;
+  max-width: 112px;
+  padding: 3px 4px;
+  border: 1px solid #e3d9cc;
+  border-radius: 4px;
+  color: var(--ink);
+  background: #fffdf8;
+  font-size: 8px;
+}
+.asset-bind-control select:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
 .asset-brief {
   width: 100%;
   min-height: 34px;

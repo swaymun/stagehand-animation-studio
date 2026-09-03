@@ -4024,6 +4024,31 @@ export default function Home() {
       });
     }, `Remove asset ${asset.label}`);
   };
+  const bindAssetToCharacter = (asset: Asset, characterId: string) => {
+    if (asset.kind !== 'rigged-character' || !asset.dataUrl) {
+      setNotice('Import character art before binding it to a rig');
+      return;
+    }
+    if (!characterId) {
+      commit((next) => {
+        next.characters.forEach((item) => {
+          if (item.assetId === asset.id) item.assetId = undefined;
+        });
+      }, `Unbind ${asset.label}`);
+      return;
+    }
+    const character = project.characters.find(
+      (item) => item.id === characterId,
+    );
+    if (!character) return;
+    commit((next) => {
+      next.characters.forEach((item) => {
+        if (item.assetId === asset.id) item.assetId = undefined;
+      });
+      const target = next.characters.find((item) => item.id === characterId);
+      if (target) target.assetId = asset.id;
+    }, `Bind ${asset.label} to ${character.name}`);
+  };
   const addAudioCue = (kind: Exclude<AudioCueKind, 'music'>) => {
     const start = project.currentTime;
     const end = Math.min(
@@ -5072,6 +5097,29 @@ export default function Home() {
                           ? ` · bound to ${project.characters.find((character) => character.assetId === asset.id)?.name}`
                           : ''}
                       </small>
+                      {asset.kind === 'rigged-character' && asset.dataUrl && (
+                        <label className="asset-bind-control">
+                          <span>Rig binding</span>
+                          <select
+                            aria-label={`Bind ${asset.label} to rig`}
+                            value={
+                              project.characters.find(
+                                (character) => character.assetId === asset.id,
+                              )?.id ?? ''
+                            }
+                            onChange={(event) =>
+                              bindAssetToCharacter(asset, event.target.value)
+                            }
+                          >
+                            <option value="">Unbound</option>
+                            {project.characters.map((character) => (
+                              <option value={character.id} key={character.id}>
+                                {character.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      )}
                       <textarea
                         className="asset-brief"
                         aria-label={`Brief for ${asset.label}`}
