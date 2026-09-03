@@ -129,6 +129,26 @@ const bridge = await page.evaluate(async () => {
     characterId: 'alice',
     pose: 'point',
   });
+  const render1080 = await call('set_render_settings', {
+    preset: '1080p',
+    fps: 24,
+  });
+  const renderFpsOnly = await call('set_render_settings', { fps: 12 });
+  if (
+    !render1080.ok ||
+    render1080.width !== 1920 ||
+    !renderFpsOnly.ok ||
+    renderFpsOnly.width !== 1920 ||
+    renderFpsOnly.height !== 1080
+  ) {
+    throw new Error(
+      `partial render settings update lost resolution: ${JSON.stringify({ render1080, renderFpsOnly })}`,
+    );
+  }
+  const render720 = await call('set_render_settings', {
+    preset: '720p',
+    fps: 12,
+  });
   const audio = await call('update_audio_cue', {
     cueId: 'music-low',
     volume: 0.03,
@@ -192,6 +212,12 @@ const bridge = await page.evaluate(async () => {
       revision: renamedReplay.revision,
     },
     posed: { ok: posed.ok, revision: posed.revision },
+    renderSettings: {
+      preserved1080:
+        renderFpsOnly.width === 1920 && renderFpsOnly.height === 1080,
+      reset720:
+        render720.ok && render720.width === 720 && render720.height === 405,
+    },
     audio: { ok: audio.ok, volume: audio.cue?.volume },
     prop: {
       id: prop.id,
@@ -296,6 +322,8 @@ if (
   !result.timelineDrag.moved ||
   !bridge.audio.ok ||
   bridge.audio.volume !== 0.03 ||
+  !bridge.renderSettings.preserved1080 ||
+  !bridge.renderSettings.reset720 ||
   bridge.prop.before !== 1 ||
   !bridge.prop.keyframe.ok ||
   bridge.prop.keyframe.x !== 64 ||

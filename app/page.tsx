@@ -2644,7 +2644,12 @@ export default function Home() {
       (input) => {
         const current = projectRef.current;
         const fps = input.fps === undefined ? current.fps : input.fps;
-        const preset = input.preset === undefined ? '720p' : input.preset;
+        const preset =
+          input.preset === undefined
+            ? current.renderWidth >= 1920
+              ? '1080p'
+              : '720p'
+            : input.preset;
         if (
           (fps !== 12 && fps !== 24) ||
           (preset !== '720p' && preset !== '1080p')
