@@ -6,10 +6,10 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement �
 
 - Date: 2026-09-03
 - Private source: [github.com/swaymun/stagehand-animation-studio](https://github.com/swaymun/stagehand-animation-studio)
-- Verified source commit: `c28911081af6a7f611bb684cf84235637ece04e7`
-- Deployed runtime commit: `2312388c03d4f245378fe9ec667cd246852859c3`
+- Verified source commit: `216672e1b4dfd715bbed2991815f4f84860148ba`
+- Deployed runtime commit: `216672e1b4dfd715bbed2991815f4f84860148ba`
 - Public Site: [stagehand-animation-studio.saimun-h-shahee.chatgpt.site](https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site)
-- Sites version: `94`
+- Sites version: `98`
 - Scope at this checkpoint: a 15-second six-beat canonical starter arc with expanded captions, poses, camera beats, and non-voice cues, plus renderer-applied per-asset visual treatments, palette chips and stage/library placement, manifest-derived asset usage state, immediate style defaults for new/imported assets, human audio cue timing controls, clarified motion actions, revision-safe and idempotent WebMCP mutations, partial render-settings preservation, synchronized human/agent playhead reads, semantic scene speed retiming across timed tracks, synchronized Storyboard/Board navigation, review-first Preview with editing controls removed, readable two-line scene labels, semantic heading/dialog landmarks, accessible transform controls, wide four-column pose-sheet detection, imported-prop/sequence coverage, a calmer Animate/Storyboard editor shell, semantic timeline event bands with optional raw-keyframe details, compact header overflow actions, on-demand validation, and mobile project/Inspector drawers.
 
 ## Implement
@@ -44,7 +44,9 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement �
 - The timeline now presents camera, pose, prop, dialogue, music, and SFX events as semantic bands by default; raw keyframe diamonds remain available through Show details so precise editing is preserved without making implementation noise the first read.
 - Validation, WebMCP tool counts, starter-kit copy, revision numbers, and explanatory status cards are no longer permanent workspace chrome; validation remains available to the command path and export blocks on error-level issues.
 - On small screens the project rail and Inspector are drawer surfaces opened from More actions; the timeline retains a minimum readable editing width without forcing the whole document to overflow.
-- At split-browser widths up to 1200px, the Inspector is closed by default and opens as an overlay drawer from More actions, while the scene rail and stage keep the available width focused on editing.
+- At split-browser widths up to 1200px, the Inspector is closed by default and opens as an overlay drawer from a visible mode-bar action or More actions, while the scene rail and stage keep the available width focused on editing.
+- The stage now preserves the 16:9 export frame at every editor width, removes permanent canvas debug labels, and pillarboxes the artwork when the split pane is wider than the composition.
+- Compact timeline controls wrap into a second row below 900px, while scene kebab actions overlay the card so two-line scene titles remain readable.
 
 ## Local verification
 
@@ -92,6 +94,8 @@ The local smoke result verified:
 - Semantic timeline presentation: the local and hosted shells render named Camera/Pose/Dialogue/Music/SFX event bands by default, and the Show details disclosure restores draggable raw keyframe controls: PASS.
 - Responsive shell: 390px Playwright inspection reports equal body/document widths and the More actions menu can open the Inspector drawer without page overflow: PASS.
 - Split-pane shell: 960px Playwright inspection reports equal body/document widths, a closed-by-default Inspector, a visible Open Inspector action, no redundant project-drawer action, a working Inspector drawer, and a 770px stage: PASS.
+- Compact geometry: 960px Playwright inspection reports a 1.77775 canvas ratio, a 900px internal timeline surface, and no document overflow; the narrower 799px layout wraps timeline actions without truncation: PASS.
+- Inspector drawer lifecycle: 960px Playwright inspection opens the Inspector from the compact mode bar and closes it from the drawer's own close control: PASS.
 
 ## Hosted verification
 
@@ -104,13 +108,14 @@ Result: PASS. The hosted run verified the same 52-tool injected bridge, 39 guard
 
 ## UI roast and fixes
 
-Evidence screenshots are captured from the hosted v93 build at 1440×960:
+Evidence screenshots are captured from hosted builds at 1440×960 unless noted:
 
 - [`v93-animate.png`](evidence/v93-animate.png): focused Animate workspace with semantic timeline event bands and the reduced header/rail chrome.
 - [`v93-assets.png`](evidence/v93-assets.png): Assets workflow with scannable asset rows and the asset-specific Inspector.
 - [`v93-storyboard.png`](evidence/v93-storyboard.png): six-card Storyboard mode with the Board rail selected and the same semantic timeline below.
 - [`v93-preview.png`](evidence/v93-preview.png): compact review player with a scene strip and scrubber, no editor timeline grid, and no Inspector.
 - [`v94-split-pane.png`](evidence/v94-split-pane.png): hosted 960px split-pane capture with the Inspector closed by default, a wide stage, and the scene rail retained.
+- [`v98-split-pane.png`](evidence/v98-split-pane.png): hosted 960px split-pane capture with the corrected 16:9 stage, readable two-line scene title, visible Inspector action, and compact two-row timeline controls.
 
 - [`v90-animate.png`](evidence/v90-animate.png): current editing workspace with the expanded timeline and semantic scene speed controls.
 - [`v90-assets.png`](evidence/v90-assets.png): Assets workflow with the selected Alice style editor and matching asset-specific Inspector context.
@@ -158,6 +163,9 @@ Findings from the current screenshot review:
 30. The timeline’s first read was a field of keyframe diamonds rather than animation intent. Fixed with semantic event bands for camera, poses, props, dialogue, music, and SFX, with raw diamonds behind an explicit Show details control.
 31. The desktop shell could force horizontal overflow at phone widths. Fixed by removing the global minimum width and adding responsive project/Inspector drawers plus a scrollable readable-width timeline.
 32. In a split ChatGPT/Codex browser pane, the permanent Inspector consumed the stage's working width even when no property edit was active. Fixed by moving the Inspector to a closed-by-default overlay drawer at ≤1200px, hiding the redundant project-drawer action while the rail remains visible, and adding a checked-in 960px regression gate.
+33. The split-pane stage could stretch toward 2:1 and disagree with the 16:9 export frame. Fixed with a responsive 16:9 canvas frame that centers inside the available stage area, removes permanent debug metadata, and is covered by a ratio assertion.
+34. At narrower in-app widths, timeline actions and scene titles competed for the same compact row. Fixed by wrapping actions below 900px, containing toolbar overflow, widening the internal timeline surface, and overlaying the scene kebab action so titles can occupy two lines.
+35. The compact Inspector's open trigger sits behind the drawer after opening. Added a visible close button inside both Inspector header variants and a hosted open/close lifecycle assertion.
 
 ## Limits and warnings
 

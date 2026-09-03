@@ -43,10 +43,10 @@ def bullets(items):
 
 story = [
     p("Stagehand Phase Evidence", title),
-    p("Current checkpoint: public Site v94, verified 2026-09-03.", subtitle),
+    p("Current checkpoint: public Site v98, verified 2026-09-03.", subtitle),
     p("Project", heading),
     p("Stagehand is a WebMCP-native 2D animation studio for editable paper-cutout scenes. The current cut supports rigged characters, imported image props, per-asset visual direction, camera work, captions, non-voice audio cues, storyboard beats, multi-scene Preview, and deterministic WebM export.", body),
-    p("Private source: github.com/swaymun/stagehand-animation-studio<br/>Source HEAD: c28911081af6a7f611bb684cf84235637ece04e7<br/>Deployed runtime: 2312388c03d4f245378fe9ec667cd246852859c3<br/>Public Site: stagehand-animation-studio.saimun-h-shahee.chatgpt.site<br/>Sites version: 94", body),
+    p("Private source: github.com/swaymun/stagehand-animation-studio<br/>Source HEAD: 216672e1b4dfd715bbed2991815f4f84860148ba<br/>Deployed runtime: 216672e1b4dfd715bbed2991815f4f84860148ba<br/>Public Site: stagehand-animation-studio.saimun-h-shahee.chatgpt.site<br/>Sites version: 98", body),
     p("Acceptance loop", heading),
     p("Implement - local tests - Sites deployment - hosted test - UI roast - fixes - second review.", body),
     p("Implemented at this checkpoint", heading),
@@ -61,6 +61,8 @@ story = [
         "The timeline defaults to semantic camera, pose, prop, dialogue, music, and SFX event bands; Show details restores raw keyframe controls.",
         "Responsive project and Inspector drawers preserve a readable shell at phone widths.",
         "At split-browser widths up to 1200 px, the Inspector is closed by default and opens as an overlay drawer while the stage and project rail retain working width.",
+        "The editor preserves a 16:9 canvas frame, removes permanent canvas debug labels, and wraps compact timeline actions below 900 px so scene titles and controls remain readable.",
+        "The compact Inspector has a visible close control inside its own drawer header; the responsive smoke gate covers the full open/close lifecycle.",
         "A Sol-powered Codex run used the public page's live WebMCP tools to apply and validate an Alice/Bob coupon gag without a separate MCP connection or TOML change.",
     ]),
     p("Verification", heading),
@@ -76,6 +78,7 @@ screens = [
     ("Storyboard mode with Board rail", "v93-storyboard.png", "Hosted Playwright capture at 1440 x 960. Six beat cards make the longer arc inspectable while the selected mode and project rail stay synchronized.", 4.667),
     ("Review-first Preview player", "v93-preview.png", "Hosted Playwright capture at 1440 x 960. Scene-only context, transport, and a compact scrubber remain; the editable timeline grid and Inspector are hidden.", 4.667),
     ("Split-browser compact editor", "v94-split-pane.png", "Hosted Playwright capture at 960 x 820. The Inspector becomes a closed-by-default drawer, leaving the scene rail and artwork usable beside a ChatGPT or Codex conversation.", 5.979),
+    ("Final split-browser compact editor", "v98-split-pane.png", "Hosted Playwright capture at 960 x 820. The corrected 16:9 stage, readable scene title, visible Inspector action, and compact timeline controls are all covered by the hosted responsive gate.", 5.979),
 ]
 
 for index, (heading_text, filename, caption_text, image_height) in enumerate(screens):
@@ -109,6 +112,9 @@ story.extend([
         "The timeline's first read was keyframe noise. Added semantic event bands with an explicit Show details disclosure for precise edits.",
         "The desktop shell could force phone-width overflow. Removed the global minimum width and added responsive project/Inspector drawers with a readable-width timeline.",
         "In a split ChatGPT/Codex browser pane, the permanent Inspector consumed the stage's working width. Moved it to a closed-by-default overlay drawer at <= 1200 px, hid the redundant project-drawer action while the rail remains visible, and added a checked-in 960 px regression gate.",
+        "The split-pane stage could stretch toward 2:1 and disagree with the 16:9 export frame. Added a responsive centered 16:9 canvas frame, removed permanent debug metadata, and added a ratio assertion.",
+        "At narrower in-app widths, timeline actions and scene titles competed for the same compact row. Wrapped timeline actions below 900 px, contained toolbar overflow, widened the internal timeline surface, and overlaid the scene kebab action.",
+        "The compact Inspector's open trigger sits behind the drawer after opening. Added a visible close button inside both Inspector header variants and a hosted open/close lifecycle assertion.",
     ]),
     p("Limits", heading),
     p("The regular hosted interaction suite remains a Playwright fallback, while a Sol-powered Codex run directly exercised the public page's WebMCP tools in the in-app browser and verified the Alice/Bob coupon gag. The Luna-bound main task cannot call browser WebMCP; supported Sol/Terra tasks can. No separate MCP server connection, TOML entry, or restart was needed. Native Chromium smoke complements that live run. TTS, voice cloning, dialogue recording, phoneme extraction, and lip-sync remain out of scope.", body),
