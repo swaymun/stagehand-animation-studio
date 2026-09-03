@@ -43,10 +43,10 @@ def bullets(items):
 
 story = [
     p("Stagehand Phase Evidence", title),
-    p("Current checkpoint: public Site v88, verified 2026-09-03.", subtitle),
+    p("Current checkpoint: public Site v89, verified 2026-09-03.", subtitle),
     p("Project", heading),
     p("Stagehand is a WebMCP-native 2D animation studio for editable paper-cutout scenes. The current cut supports rigged characters, imported image props, per-asset visual direction, camera work, captions, non-voice audio cues, storyboard beats, multi-scene Preview, and deterministic WebM export.", body),
-    p("Private source: github.com/swaymun/stagehand-animation-studio<br/>Commit: fcfd649aa99172dffb0372e1bbb8579c70daaeab<br/>Public Site: stagehand-animation-studio.saimun-h-shahee.chatgpt.site<br/>Sites version: 88", body),
+    p("Private source: github.com/swaymun/stagehand-animation-studio<br/>Commit: caa365248f276aaeaca069c0498c2f03059a44bc<br/>Public Site: stagehand-animation-studio.saimun-h-shahee.chatgpt.site<br/>Sites version: 89", body),
     p("Acceptance loop", heading),
     p("Implement - local tests - Sites deployment - hosted test - UI roast - fixes - second review.", body),
     p("Implemented at this checkpoint", heading),
@@ -67,7 +67,7 @@ story = [
 ]
 
 screens = [
-    ("Animate editing workspace", "v88-animate.png", "Hosted Playwright capture at 1440 x 960. The 15-second timeline carries the expanded character and camera beats while speed controls, frame steps, and labels remain readable."),
+    ("Animate editing workspace", "v88-animate.png", "Hosted Playwright capture at 1440 x 960. The 15-second timeline carries the expanded character and camera beats while speed controls, frame steps, and labels remain readable; v89 has no visual surface change."),
     ("Assets style editor", "v88-assets-style.png", "Hosted Playwright capture at 1440 x 960. Palette chips and stage/library cues make the structured Style direction legible without taking over the asset rail."),
     ("Storyboard mode with Board rail", "v88-storyboard.png", "Hosted Playwright capture at 1440 x 960. Six beat cards make the longer arc inspectable while the selected mode and project rail stay synchronized."),
     ("Review-first Preview player", "v88-preview.png", "Hosted Playwright capture at 1440 x 960. Scene-only context, transport, and Exit preview remain; global editing controls are hidden."),
@@ -100,7 +100,7 @@ story.extend([
         "Experimental Chromium exposed navigator.modelContext while the app only checked document.modelContext. Added a compatibility fallback and a native registration smoke gate covering all 52 tools plus valid and invalid calls.",
     ]),
     p("Limits", heading),
-    p("Direct CUA inspection was unavailable because the Mac was locked; Playwright was used for hosted interaction and screenshots. The smoke harness proves injected modelContext registration and execution, not live production ChatGPT WebMCP discovery. TTS, voice cloning, dialogue recording, phoneme extraction, and lip-sync remain out of scope.", body),
+    p("Direct CUA inspection was unavailable because the Mac was locked; Playwright was used for hosted interaction and screenshots. Native Chromium smoke proves browser registration and callback behavior, while ChatGPT's in-app browser discovery remains unverified. TTS, voice cloning, dialogue recording, phoneme extraction, and lip-sync remain out of scope.", body),
 ])
 
 OUTPUT.parent.mkdir(parents=True, exist_ok=True)

@@ -8,7 +8,7 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement �
 - Private source: [github.com/swaymun/stagehand-animation-studio](https://github.com/swaymun/stagehand-animation-studio)
 - Verified source commit: `fcfd649aa99172dffb0372e1bbb8579c70daaeab`
 - Public Site: [stagehand-animation-studio.saimun-h-shahee.chatgpt.site](https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site)
-- Sites version: `88`
+- Sites version: `89`
 - Scope at this checkpoint: a 15-second six-beat canonical starter arc with expanded captions, poses, camera beats, and non-voice cues, plus renderer-applied per-asset visual treatments, palette chips and stage/library placement, manifest-derived asset usage state, immediate style defaults for new/imported assets, human audio cue timing controls, clarified motion actions, revision-safe and idempotent WebMCP mutations, partial render-settings preservation, synchronized human/agent playhead reads, semantic scene speed retiming across timed tracks, synchronized Storyboard/Board navigation, review-first Preview with editing controls removed, readable two-line scene labels, semantic heading/dialog landmarks, accessible transform controls, wide four-column pose-sheet detection, and imported-prop/sequence coverage.
 
 ## Implement
@@ -89,11 +89,11 @@ The local smoke result verified:
 STAGEHAND_URL=https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site npm run smoke
 ```
 
-Result: PASS. The hosted run verified the same 52-tool injected bridge, 39 guarded mutations, the 15-second six-beat starter, stale-write conflict, idempotent replay, human and agent scene retiming, focused-stage keyboard stepping, frame inspection, PNG frame download with a valid `89504e47` signature, wide pose-sheet auto-detection, manifest stage placement, renderer-applied `inked` treatment, asset-style update, immediate fresh-asset readiness, human audio cue timing, partial render-settings preservation, prop workflow, two-scene WebM download with a valid `1a45dfa3` EBML/WebM signature, sequence Preview scene transition, synchronized Storyboard/Board context, human-scrubbed playhead visibility through `get_timeline`, clarified motion copy, collapsible Inspector groups, clean Preview state with global editing controls removed, readable scene-label layout, semantic `h1`, labelled Help modal, reload recovery including intentionally empty asset/beat/cue collections, and zero page errors. This is labeled a Playwright fallback: the public Site did not expose live WebMCP enumeration to the available runner, so it does not prove that ChatGPT’s production host enumerates the tools.
+Result: PASS. The hosted run verified the same 52-tool injected bridge, 39 guarded mutations, the 15-second six-beat starter, stale-write conflict, idempotent replay, human and agent scene retiming, focused-stage keyboard stepping, frame inspection, PNG frame download with a valid `89504e47` signature, wide pose-sheet auto-detection, manifest stage placement, renderer-applied `inked` treatment, asset-style update, immediate fresh-asset readiness, human audio cue timing, partial render-settings preservation, prop workflow, two-scene WebM download with a valid `1a45dfa3` EBML/WebM signature, sequence Preview scene transition, synchronized Storyboard/Board context, human-scrubbed playhead visibility through `get_timeline`, clarified motion copy, collapsible Inspector groups, clean Preview state with global editing controls removed, readable scene-label layout, semantic `h1`, labelled Help modal, reload recovery including intentionally empty asset/beat/cue collections, and zero page errors. This remains labeled a Playwright fallback for the full interaction suite. A separate hosted native Chromium run registered all 52 unique tools with zero registration errors and passed valid/invalid callback checks; ChatGPT's in-app browser enumeration remains unverified because the desktop session was locked.
 
 ## UI roast and fixes
 
-Evidence screenshots are captured from the hosted v88 build at 1440×960:
+Evidence screenshots are captured from the hosted v88 build at 1440×960; the v89 compatibility change has no visual surface change:
 
 - [`v88-animate.png`](evidence/v88-animate.png): 15-second editing workspace with the expanded timeline and semantic scene speed controls.
 - [`v88-assets-style.png`](evidence/v88-assets-style.png): expandable per-asset style editor with palette chips and stage/library placement cues.
