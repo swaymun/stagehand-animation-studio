@@ -1811,6 +1811,10 @@ button {
   display: grid;
   gap: 4px;
 }
+.audio-cue-item {
+  display: grid;
+  gap: 3px;
+}
 .audio-cue-row {
   display: flex;
   align-items: center;
@@ -1879,6 +1883,56 @@ button {
 .audio-cue-row button:hover {
   color: #b65f51;
   background: #f7e7df;
+}
+.audio-timing-editor {
+  margin: 0 5px;
+  color: var(--muted);
+  font-size: 8px;
+}
+.audio-timing-editor summary {
+  width: fit-content;
+  cursor: pointer;
+  list-style: none;
+}
+.audio-timing-editor summary::-webkit-details-marker {
+  display: none;
+}
+.audio-timing-editor summary:before {
+  content: '＋';
+  margin-right: 3px;
+  color: var(--blue);
+}
+.audio-timing-editor[open] summary:before {
+  content: '−';
+}
+.audio-timing-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin: 4px 0 3px;
+}
+.audio-timing-fields label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+.audio-timing-fields input {
+  width: 100%;
+  min-width: 0;
+  padding: 3px 2px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  color: var(--ink);
+  background: #fffaf2;
+  font:
+    9px ui-monospace,
+    monospace;
+}
+.audio-timing-fields b {
+  font-size: 7px;
+  font-weight: 500;
 }
 .audio-actions {
   display: grid;

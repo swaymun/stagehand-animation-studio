@@ -5422,6 +5422,29 @@ export default function Home() {
       `Set ${cue.label} volume to ${Math.round(safeVolume * 100)}%`,
     );
   };
+  const updateAudioCueTiming = (
+    cue: AudioCue,
+    key: 'start' | 'end',
+    value: number,
+  ) => {
+    if (!Number.isFinite(value)) return;
+    const start = key === 'start' ? clamp(value, 0, cue.end - 1) : cue.start;
+    const end =
+      key === 'end' ? clamp(value, cue.start + 1, project.duration) : cue.end;
+    if (start === cue.start && end === cue.end) return;
+    commit(
+      (next) => {
+        const item = next.audioCues.find(
+          (candidate) => candidate.id === cue.id,
+        );
+        if (item) {
+          item.start = start;
+          item.end = end;
+        }
+      },
+      `Set ${cue.label} ${key} to ${timecode(key === 'start' ? start : end)}`,
+    );
+  };
   const applyPropPreset = (asset: Asset, preset: 'pop-in' | 'nudge') => {
     if (asset.kind !== 'prop' || !asset.dataUrl) {
       setNotice('Import a prop before animating it');
@@ -7828,37 +7851,84 @@ export default function Home() {
             </summary>
             <div className="audio-cue-list">
               {project.audioCues.map((cue) => (
-                <div className="audio-cue-row" key={cue.id}>
-                  <span className={`audio-cue-dot cue-${cue.kind}`} />
-                  <span>
-                    <strong>{cue.label}</strong>
-                    <small>
-                      {cue.kind} · {timecode(cue.start)} ·{' '}
-                      {Math.round(cue.volume * 100)}%
-                    </small>
-                  </span>
-                  <label className="audio-volume-control">
-                    <span className="visually-hidden">Volume</span>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.01"
-                      aria-label={`Volume ${cue.label}`}
-                      value={cue.volume}
-                      onChange={(event) =>
-                        updateAudioCueVolume(cue, Number(event.target.value))
-                      }
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    aria-label={`Remove ${cue.label}`}
-                    title={`Remove ${cue.label}`}
-                    onClick={() => removeAudioCue(cue)}
-                  >
-                    ×
-                  </button>
+                <div className="audio-cue-item" key={cue.id}>
+                  <div className="audio-cue-row">
+                    <span className={`audio-cue-dot cue-${cue.kind}`} />
+                    <span>
+                      <strong>{cue.label}</strong>
+                      <small>
+                        {cue.kind} · {timecode(cue.start)}–{timecode(cue.end)} ·{' '}
+                        {Math.round(cue.volume * 100)}%
+                      </small>
+                    </span>
+                    <label className="audio-volume-control">
+                      <span className="visually-hidden">Volume</span>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.01"
+                        aria-label={`Volume ${cue.label}`}
+                        value={cue.volume}
+                        onChange={(event) =>
+                          updateAudioCueVolume(cue, Number(event.target.value))
+                        }
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      aria-label={`Remove ${cue.label}`}
+                      title={`Remove ${cue.label}`}
+                      onClick={() => removeAudioCue(cue)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <details className="audio-timing-editor" open>
+                    <summary>
+                      Timing · {timecode(cue.start)}–{timecode(cue.end)}
+                    </summary>
+                    <div className="audio-timing-fields">
+                      <label>
+                        Start
+                        <input
+                          type="number"
+                          min="0"
+                          max={Math.max(0, cue.end - 1)}
+                          step="1"
+                          aria-label={`Start time ${cue.label}`}
+                          value={cue.start}
+                          onChange={(event) =>
+                            updateAudioCueTiming(
+                              cue,
+                              'start',
+                              Number(event.target.value),
+                            )
+                          }
+                        />
+                        <b>ms</b>
+                      </label>
+                      <label>
+                        End
+                        <input
+                          type="number"
+                          min={cue.start + 1}
+                          max={project.duration}
+                          step="1"
+                          aria-label={`End time ${cue.label}`}
+                          value={cue.end}
+                          onChange={(event) =>
+                            updateAudioCueTiming(
+                              cue,
+                              'end',
+                              Number(event.target.value),
+                            )
+                          }
+                        />
+                        <b>ms</b>
+                      </label>
+                    </div>
+                  </details>
                 </div>
               ))}
             </div>

@@ -516,6 +516,10 @@ const volume = page.locator('.audio-volume-control input').first();
 await volume.fill('0.02');
 await page.waitForTimeout(80);
 const humanAudioVolume = await volume.inputValue();
+const audioStartInput = page.getByLabel('Start time Quiet diner bed');
+await audioStartInput.fill('120');
+await page.waitForTimeout(80);
+const humanAudioStart = await audioStartInput.inputValue();
 await page.getByRole('tab', { name: 'Storyboard' }).click();
 await page.waitForTimeout(100);
 const storyboardCards = await page.locator('.storyboard-beat').count();
@@ -671,6 +675,7 @@ const result = {
     suggestedFilename: frameDownload.suggestedFilename(),
   },
   humanAudioVolume,
+  humanAudioStart,
   humanPropX,
   poseSheet,
   assetValidation: {
@@ -755,6 +760,7 @@ if (
   frameDownloadedBytes <= 0 ||
   !frameDownload.suggestedFilename().endsWith('.png') ||
   result.humanAudioVolume !== '0.02' ||
+  result.humanAudioStart !== '120' ||
   storyboardCards !== 6 ||
   !result.sequencePreview.advanced ||
   preview.banner !== 1 ||
