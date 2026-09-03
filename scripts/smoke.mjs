@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import { readFile, stat } from 'node:fs/promises';
 import { deflateSync } from 'node:zlib';
 
 function crc32(buffer) {
@@ -496,11 +497,10 @@ const rendered = await page.evaluate(() =>
 );
 const download = await downloadPromise;
 const downloadPath = await download.path();
-const downloadBytes = downloadPath
-  ? (await import('node:fs/promises'))
-      .stat(downloadPath)
-      .then((file) => file.size)
-  : 0;
+const downloadBytes = downloadPath ? (await stat(downloadPath)).size : 0;
+const webmHeader = downloadPath
+  ? (await readFile(downloadPath)).subarray(0, 4).toString('hex')
+  : '';
 const frameDownloadPromise = page.waitForEvent('download', { timeout: 15000 });
 const frameExported = await page.evaluate(() =>
   window.__stagehandTools.get('export_frame').execute({}),
@@ -508,10 +508,11 @@ const frameExported = await page.evaluate(() =>
 const frameDownload = await frameDownloadPromise;
 const frameDownloadPath = await frameDownload.path();
 const frameDownloadedBytes = frameDownloadPath
-  ? (await import('node:fs/promises'))
-      .stat(frameDownloadPath)
-      .then((file) => file.size)
+  ? (await stat(frameDownloadPath)).size
   : 0;
+const pngHeader = frameDownloadPath
+  ? (await readFile(frameDownloadPath)).subarray(0, 4).toString('hex')
+  : '';
 const volume = page.locator('.audio-volume-control input').first();
 await volume.fill('0.02');
 await page.waitForTimeout(80);
@@ -665,6 +666,7 @@ const result = {
     durationMs: rendered.durationMs,
     bytes: rendered.bytes,
     downloadedBytes: await downloadBytes,
+    webmHeader,
     suggestedFilename: download.suggestedFilename(),
   },
   frameExport: {
@@ -672,6 +674,7 @@ const result = {
     width: frameExported.width,
     height: frameExported.height,
     downloadedBytes: await frameDownloadedBytes,
+    pngHeader,
     suggestedFilename: frameDownload.suggestedFilename(),
   },
   humanAudioVolume,
@@ -754,10 +757,12 @@ if (
   rendered.durationMs < 1000 ||
   !bridge.secondScene.ok ||
   rendered.bytes <= 0 ||
+  webmHeader !== '1a45dfa3' ||
   !frameExported.ok ||
   frameExported.width !== 720 ||
   frameExported.height !== 405 ||
   frameDownloadedBytes <= 0 ||
+  pngHeader !== '89504e47' ||
   !frameDownload.suggestedFilename().endsWith('.png') ||
   result.humanAudioVolume !== '0.02' ||
   result.humanAudioStart !== '120' ||
