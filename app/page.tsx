@@ -161,7 +161,7 @@ type ValidationIssue = {
   path: string;
   message: string;
 };
-const WEBMCP_TOOL_COUNT = 45;
+const WEBMCP_TOOL_COUNT = 46;
 type ModelTool = {
   name: string;
   title: string;
@@ -3550,6 +3550,70 @@ export default function Home() {
       },
     );
     register(
+      'update_audio_cue',
+      'Update audio cue',
+      'Edit a bounded non-voice cue label, timing, or volume without changing animation tracks.',
+      {
+        type: 'object',
+        required: ['cueId'],
+        additionalProperties: false,
+        properties: {
+          cueId: { type: 'string' },
+          label: { type: 'string', minLength: 1 },
+          startMs: { type: 'number', minimum: 0 },
+          endMs: { type: 'number', minimum: 0 },
+          volume: { type: 'number', minimum: 0, maximum: 1 },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const cueId = typeof input.cueId === 'string' ? input.cueId : '';
+        const cue = current.audioCues.find((item) => item.id === cueId);
+        if (!cue) return { ok: false, code: 'NOT_FOUND' };
+        const label =
+          input.label === undefined
+            ? cue.label
+            : typeof input.label === 'string'
+              ? input.label.trim()
+              : '';
+        const start = input.startMs === undefined ? cue.start : input.startMs;
+        const end = input.endMs === undefined ? cue.end : input.endMs;
+        const volume = input.volume === undefined ? cue.volume : input.volume;
+        if (
+          !label ||
+          typeof start !== 'number' ||
+          typeof end !== 'number' ||
+          typeof volume !== 'number' ||
+          !Number.isFinite(start) ||
+          !Number.isFinite(end) ||
+          !Number.isFinite(volume) ||
+          start < 0 ||
+          end <= start ||
+          end > current.duration ||
+          volume < 0 ||
+          volume > 1
+        )
+          return { ok: false, code: 'INVALID_TIMING' };
+        const updated = { ...cue, label, start, end, volume };
+        commitRef.current(
+          (next) => {
+            const item = next.audioCues.find(
+              (candidate) => candidate.id === cueId,
+            );
+            if (item) Object.assign(item, updated);
+          },
+          `Update audio ${label}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          cue: updated,
+          changedPaths: [`audioCues.${cueId}`],
+        };
+      },
+    );
+    register(
       'set_pose',
       'Set character pose',
       'Set a character pose and transform at the current playhead as one undoable keyframe command.',
@@ -4299,6 +4363,19 @@ export default function Home() {
     commit((next) => {
       next.audioCues = next.audioCues.filter((item) => item.id !== cue.id);
     }, `Remove audio ${cue.label}`);
+  };
+  const updateAudioCueVolume = (cue: AudioCue, volume: number) => {
+    const safeVolume = clamp(volume, 0, 1);
+    if (Math.abs(cue.volume - safeVolume) < 0.005) return;
+    commit(
+      (next) => {
+        const item = next.audioCues.find(
+          (candidate) => candidate.id === cue.id,
+        );
+        if (item) item.volume = safeVolume;
+      },
+      `Set ${cue.label} volume to ${Math.round(safeVolume * 100)}%`,
+    );
   };
   const updateRenderSettings = (changes: {
     fps?: number;
@@ -6251,6 +6328,20 @@ export default function Home() {
                       {Math.round(cue.volume * 100)}%
                     </small>
                   </span>
+                  <label className="audio-volume-control">
+                    <span className="visually-hidden">Volume</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      aria-label={`Volume ${cue.label}`}
+                      value={cue.volume}
+                      onChange={(event) =>
+                        updateAudioCueVolume(cue, Number(event.target.value))
+                      }
+                    />
+                  </label>
                   <button
                     type="button"
                     aria-label={`Remove ${cue.label}`}
@@ -6271,8 +6362,8 @@ export default function Home() {
               </button>
             </div>
             <small className="transform-help">
-              Cue mix is rendered into WebM; voice and lip-sync stay out of
-              scope.
+              Adjust levels here; cue mix is rendered into WebM. Voice and
+              lip-sync stay out of scope.
             </small>
           </div>
           <div className="inspector-section">

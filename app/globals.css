@@ -1556,6 +1556,18 @@ button {
   white-space: nowrap;
   font-size: 8px;
 }
+.audio-volume-control {
+  display: flex;
+  align-items: center;
+  width: 48px;
+  flex: 0 0 auto;
+}
+.audio-volume-control input {
+  width: 48px;
+  height: 14px;
+  accent-color: var(--violet);
+  cursor: ew-resize;
+}
 .audio-cue-row button {
   width: 18px;
   height: 18px;
