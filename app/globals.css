@@ -386,9 +386,11 @@ button {
   min-width: 0;
 }
 .scene-meta strong {
+  display: -webkit-box;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 12px;
   font-size: 10px;
 }
 .scene-meta span {
