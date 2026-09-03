@@ -2853,6 +2853,7 @@ button {
   .timeline-toolbar {
     padding-left: 12px;
     padding-right: 12px;
+    overflow-x: clip;
   }
   .stage-wrap {
     padding: 12px 12px 8px;
