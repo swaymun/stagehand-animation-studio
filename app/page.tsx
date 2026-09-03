@@ -7272,24 +7272,29 @@ export default function Home() {
           </div>
           <div className="inspector-section">
             <div className="inspector-label">
-              <span>POSE</span>
+              <span>MOTION</span>
               <span className="motion-preset-actions">
                 <button
                   type="button"
                   onClick={applyNervousPreset}
-                  title="Add a three-keyframe nervous motion preset"
+                  title={`Action for ${selected.name} · 0.5s nervous motion`}
                 >
-                  <WandSparkles size={12} /> Nervous
+                  <WandSparkles size={12} /> Nervous · 0.5s
                 </button>
                 <button
                   type="button"
                   onClick={applyWalkPreset}
-                  title="Add a three-keyframe walk-in motion preset"
+                  title={`Action for ${selected.name} · 0.9s walk-in motion`}
                 >
-                  <WandSparkles size={12} /> Walk in
+                  <WandSparkles size={12} /> Walk in · 0.9s
                 </button>
               </span>
             </div>
+            <small className="motion-help">
+              Actions affect {selected.name}; pose presets set the current
+              keyframe.
+            </small>
+            <div className="pose-label">POSE PRESETS</div>
             <div className="pose-grid">
               {(
                 [
