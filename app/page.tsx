@@ -176,6 +176,13 @@ type ModelContext = {
     options?: { signal?: AbortSignal },
   ) => void | Promise<void>;
 };
+type TimelineMark = {
+  time: number;
+  id: string;
+  kind: 'camera' | 'character' | 'cue';
+  characterId?: string;
+  label: string;
+};
 const STORAGE_KEY = 'stagehand-paper-cutout-comedy-v1';
 const starterScenes: SceneMeta[] = [
   {
@@ -784,6 +791,47 @@ function nextAudioCueId(cues: AudioCue[], kind: AudioCueKind) {
     id = `${kind}-${String(index).padStart(2, '0')}`;
   }
   return id;
+}
+
+function retimeTimelineMark(
+  project: Project,
+  mark: TimelineMark,
+  requestedTime: number,
+) {
+  if (mark.kind === 'cue') return false;
+  const frameDuration = 1000 / project.fps;
+  const snappedTime = clamp(
+    Math.round(requestedTime / frameDuration) * frameDuration,
+    0,
+    project.duration,
+  );
+  const frames =
+    mark.kind === 'camera'
+      ? project.cameraKeyframes
+      : project.keyframes.filter(
+          (frame) => frame.characterId === mark.characterId,
+        );
+  const target = frames.find((frame) => frame.id === mark.id);
+  if (!target) return false;
+  const ordered = [...frames].sort((a, b) => a.time - b.time);
+  const index = ordered.findIndex((frame) => frame.id === mark.id);
+  const minimum = index > 0 ? ordered[index - 1].time + frameDuration : 0;
+  const maximum =
+    index < ordered.length - 1
+      ? ordered[index + 1].time - frameDuration
+      : project.duration;
+  if (minimum > maximum) return false;
+  const nextTime = clamp(snappedTime, minimum, maximum);
+  if (Math.abs(target.time - nextTime) < 0.01) return false;
+  target.time = nextTime;
+  if (mark.kind === 'camera') {
+    project.cameraKeyframes.sort((a, b) => a.time - b.time);
+  } else {
+    project.keyframes.sort(
+      (a, b) => a.time - b.time || a.characterId.localeCompare(b.characterId),
+    );
+  }
+  return true;
 }
 
 function loadSceneContent(project: Project, sceneId: string) {
@@ -1881,6 +1929,13 @@ export default function Home() {
     originX: number;
     originY: number;
   } | null>(null);
+  const timelineDragRef = useRef<{
+    mark: TimelineMark;
+    before: Project;
+    pointerId: number;
+    moved: boolean;
+  } | null>(null);
+  const suppressTimelineClickRef = useRef(false);
   const exportStillRef = useRef<() => Promise<Record<string, unknown>>>(
     async () => ({
       ok: false,
@@ -4048,6 +4103,69 @@ export default function Home() {
       ].forEach((frame) => upsertCameraKeyframe(next, frame.time, frame));
     }, 'Apply reaction cut');
   };
+  const finishTimelineDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = timelineDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId))
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    suppressTimelineClickRef.current = drag.moved;
+    if (drag.moved) {
+      const current = projectRef.current;
+      const finalized = {
+        ...current,
+        revision: current.revision + 1,
+        dirty: true,
+      };
+      syncActiveScene(finalized);
+      projectRef.current = finalized;
+      setProject(finalized);
+      setHistory((items) => [...items.slice(-29), copy(drag.before)]);
+      setFuture([]);
+      setSaved(false);
+      setLastCommand(`Retimed ${drag.mark.label}`);
+      setNotice(
+        `Human · Retimed ${drag.mark.label} · ${timecode(current.keyframes.find((frame) => frame.id === drag.mark.id)?.time ?? current.cameraKeyframes.find((frame) => frame.id === drag.mark.id)?.time ?? current.currentTime)}`,
+      );
+    }
+    timelineDragRef.current = null;
+  };
+  const startTimelineDrag = (
+    event: React.PointerEvent<HTMLButtonElement>,
+    mark: TimelineMark,
+  ) => {
+    if (mark.kind === 'cue') return;
+    if (
+      mark.kind === 'character' &&
+      mark.characterId &&
+      isTrackLocked(project, mark.characterId)
+    ) {
+      setNotice(`${mark.label} is locked`);
+      return;
+    }
+    timelineDragRef.current = {
+      mark,
+      before: copy(projectRef.current),
+      pointerId: event.pointerId,
+      moved: false,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const moveTimelineDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = timelineDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const trackArea = event.currentTarget.closest('.track-area');
+    if (!(trackArea instanceof HTMLElement)) return;
+    const rect = trackArea.getBoundingClientRect();
+    const requestedTime =
+      ((event.clientX - rect.left) / Math.max(1, rect.width)) *
+      project.duration;
+    const next = copy(projectRef.current);
+    if (!retimeTimelineMark(next, drag.mark, requestedTime)) return;
+    syncActiveScene(next);
+    projectRef.current = next;
+    drag.moved = true;
+    setProject(next);
+  };
   const addAsset = (kind: AssetKind) => {
     const label = `${assetKindLabel(kind)} ${project.assets.length + 1}`;
     commit((next) => {
@@ -4567,10 +4685,16 @@ export default function Home() {
     timer = window.setInterval(drawNextFrame, 1000 / project.fps);
   }, [project, rendering]);
   const tracks = useMemo(() => {
-    const marksForCharacter = (characterId: string) =>
+    const marksForCharacter = (characterId: string): TimelineMark[] =>
       project.keyframes
         .filter((frame) => frame.characterId === characterId)
-        .map((frame) => (frame.time / project.duration) * 100);
+        .map((frame) => ({
+          time: frame.time,
+          id: frame.id,
+          kind: 'character' as const,
+          characterId,
+          label: `${project.characters.find((character) => character.id === characterId)?.name ?? characterId} keyframe`,
+        }));
     const rangeFor = (times: number[]) => {
       if (times.length === 0) return { start: 0, end: project.duration };
       const start = Math.min(...times);
@@ -4602,9 +4726,12 @@ export default function Home() {
         name: 'Camera',
         color: 'blue',
         range: { start: 0, end: project.duration },
-        marks: project.cameraKeyframes.map(
-          (frame) => (frame.time / project.duration) * 100,
-        ),
+        marks: project.cameraKeyframes.map((frame) => ({
+          time: frame.time,
+          id: frame.id,
+          kind: 'camera' as const,
+          label: 'Camera keyframe',
+        })),
       },
       {
         name: 'Alice · rig',
@@ -4622,9 +4749,12 @@ export default function Home() {
         name: 'Captions',
         color: 'yellow',
         range: rangeForCaptions,
-        marks: project.captions.map(
-          (caption) => (caption.start / project.duration) * 100,
-        ),
+        marks: project.captions.map((caption) => ({
+          time: caption.start,
+          id: caption.id,
+          kind: 'cue' as const,
+          label: `${caption.speaker} caption`,
+        })),
       },
       {
         name: 'Music · low',
@@ -4632,7 +4762,12 @@ export default function Home() {
         range: rangeForAudio('music'),
         marks: project.audioCues
           .filter((cue) => cue.kind === 'music')
-          .map((cue) => (cue.start / project.duration) * 100),
+          .map((cue) => ({
+            time: cue.start,
+            id: cue.id,
+            kind: 'cue' as const,
+            label: `${cue.label} cue`,
+          })),
       },
       {
         name: 'SFX',
@@ -4640,12 +4775,18 @@ export default function Home() {
         range: rangeForSfx,
         marks: project.audioCues
           .filter((cue) => cue.kind !== 'music')
-          .map((cue) => (cue.start / project.duration) * 100),
+          .map((cue) => ({
+            time: cue.start,
+            id: cue.id,
+            kind: 'cue' as const,
+            label: `${cue.label} cue`,
+          })),
       },
     ];
   }, [
     project.cameraKeyframes,
     project.captions,
+    project.characters,
     project.duration,
     project.audioCues,
     project.keyframes,
@@ -5599,6 +5740,9 @@ export default function Home() {
                   />
                   <em>s</em>
                 </label>
+                <span className="timeline-hint">
+                  Drag diamonds · click to jump
+                </span>
               </div>
               <div className="timeline-actions">
                 <button
@@ -5688,17 +5832,29 @@ export default function Home() {
                     {track.marks.map((mark, index) => (
                       <button
                         type="button"
-                        className={`key key-${track.color}`}
-                        style={{ left: `${mark}%` }}
-                        key={`${track.name}-${mark}-${index}`}
-                        aria-label={`Move playhead to ${timecode((mark / 100) * project.duration)}`}
-                        title={`Go to ${timecode((mark / 100) * project.duration)}`}
-                        onClick={() =>
+                        className={`key key-${track.color} ${mark.kind !== 'cue' ? 'draggable-key' : ''}`}
+                        style={{
+                          left: `${(mark.time / project.duration) * 100}%`,
+                        }}
+                        key={`${track.name}-${mark.id}-${index}`}
+                        aria-label={`${mark.label} at ${timecode(mark.time)}. ${mark.kind === 'cue' ? 'Click to move the playhead.' : 'Drag to retime.'}`}
+                        title={`${mark.label} · ${timecode(mark.time)} · ${mark.kind === 'cue' ? 'click to jump' : 'drag to retime'}`}
+                        onPointerDown={(event) =>
+                          startTimelineDrag(event, mark)
+                        }
+                        onPointerMove={moveTimelineDrag}
+                        onPointerUp={finishTimelineDrag}
+                        onPointerCancel={finishTimelineDrag}
+                        onClick={() => {
+                          if (suppressTimelineClickRef.current) {
+                            suppressTimelineClickRef.current = false;
+                            return;
+                          }
                           setProject((current) => ({
                             ...current,
-                            currentTime: (mark / 100) * current.duration,
-                          }))
-                        }
+                            currentTime: mark.time,
+                          }));
+                        }}
                       />
                     ))}
                   </div>

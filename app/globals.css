@@ -1154,6 +1154,12 @@ button {
   letter-spacing: 0;
   text-transform: lowercase;
 }
+.timeline-hint {
+  margin-left: 12px;
+  color: #a49b91;
+  font-size: 9px;
+  letter-spacing: 0.02em;
+}
 .timeline-actions {
   gap: 4px;
 }
@@ -1273,6 +1279,13 @@ button {
   padding: 0;
   border: 0;
   cursor: pointer;
+  touch-action: none;
+}
+.draggable-key {
+  cursor: grab;
+}
+.draggable-key:active {
+  cursor: grabbing;
 }
 .key:hover,
 .key:focus-visible {
