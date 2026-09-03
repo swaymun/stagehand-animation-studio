@@ -13,6 +13,7 @@ import {
   CircleHelp,
   Clapperboard,
   ChevronDown,
+  ChevronUp,
   CopyPlus,
   Film,
   FolderOpen,
@@ -144,7 +145,7 @@ type ValidationIssue = {
   path: string;
   message: string;
 };
-const WEBMCP_TOOL_COUNT = 32;
+const WEBMCP_TOOL_COUNT = 33;
 type ModelTool = {
   name: string;
   title: string;
@@ -2354,6 +2355,51 @@ export default function Home() {
       },
     );
     register(
+      'move_scene',
+      'Move scene',
+      'Reorder one scene up or down without changing its editable content or active selection.',
+      {
+        type: 'object',
+        required: ['sceneId', 'direction'],
+        additionalProperties: false,
+        properties: {
+          sceneId: { type: 'string' },
+          direction: { type: 'string', enum: ['up', 'down'] },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const sceneId = typeof input.sceneId === 'string' ? input.sceneId : '';
+        const direction = input.direction === 'up' ? -1 : 1;
+        const index = current.scenes.findIndex((scene) => scene.id === sceneId);
+        const targetIndex = index + direction;
+        if (index < 0) return { ok: false, code: 'NOT_FOUND' };
+        if (input.direction !== 'up' && input.direction !== 'down') {
+          return { ok: false, code: 'INVALID_INPUT' };
+        }
+        if (targetIndex < 0 || targetIndex >= current.scenes.length) {
+          return { ok: false, code: 'BOUNDARY' };
+        }
+        commitRef.current(
+          (next) => {
+            const from = next.scenes.findIndex((scene) => scene.id === sceneId);
+            const [scene] = next.scenes.splice(from, 1);
+            next.scenes.splice(from + direction, 0, scene);
+          },
+          `Move ${sceneId} ${input.direction}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          sceneId,
+          fromIndex: index,
+          toIndex: targetIndex,
+          activeSceneId: current.activeSceneId,
+        };
+      },
+    );
+    register(
       'apply_template',
       'Apply starter template',
       'Create a new editable scene from a starter recipe without overwriting existing scenes.',
@@ -3177,6 +3223,20 @@ export default function Home() {
     }, `Rename ${sceneId}`);
     setEditingSceneId(null);
   };
+  const moveScene = (scene: SceneMeta, direction: 'up' | 'down') => {
+    const index = project.scenes.findIndex((item) => item.id === scene.id);
+    const targetIndex = index + (direction === 'up' ? -1 : 1);
+    if (index < 0 || targetIndex < 0 || targetIndex >= project.scenes.length) {
+      setNotice('Scene is already at the edge');
+      return;
+    }
+    commit((next) => {
+      const from = next.scenes.findIndex((item) => item.id === scene.id);
+      const [moved] = next.scenes.splice(from, 1);
+      next.scenes.splice(from + (direction === 'up' ? -1 : 1), 0, moved);
+    }, `Move ${scene.title} ${direction}`);
+    setSceneMenuId(null);
+  };
   const duplicateScene = (source: SceneMeta) => {
     const scene = {
       ...copy(source),
@@ -3612,6 +3672,21 @@ export default function Home() {
                             <CopyPlus size={12} /> Duplicate
                           </button>
                           <button
+                            type="button"
+                            disabled={index === 0}
+                            onClick={() => moveScene(scene, 'up')}
+                          >
+                            <ChevronUp size={12} /> Move up
+                          </button>
+                          <button
+                            type="button"
+                            disabled={index === project.scenes.length - 1}
+                            onClick={() => moveScene(scene, 'down')}
+                          >
+                            <ChevronDown size={12} /> Move down
+                          </button>
+                          <button
+                            className="delete-scene-action"
                             type="button"
                             onClick={() => deleteScene(scene)}
                           >

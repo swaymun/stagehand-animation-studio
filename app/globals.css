@@ -357,6 +357,7 @@ button {
 .scene-actions {
   grid-column: 1 / -1;
   display: flex;
+  flex-wrap: wrap;
   gap: 3px;
   padding: 0 6px 6px;
   border-top: 1px solid #eee5d9;
@@ -378,7 +379,15 @@ button {
   color: var(--ink);
   background: #f0e8dc;
 }
-.scene-actions button:last-child {
+.scene-actions button:disabled {
+  color: #b9b0a7;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.scene-actions button:disabled:hover {
+  background: transparent;
+}
+.scene-actions .delete-scene-action {
   color: #b65f51;
 }
 .scene-editor {
