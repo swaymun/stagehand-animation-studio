@@ -6,10 +6,10 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement â
 
 - Date: 2026-09-03
 - Private source: [github.com/swaymun/stagehand-animation-studio](https://github.com/swaymun/stagehand-animation-studio)
-- Verified source commit: `9f998b117edbf0e644f3e9057fa733dc85770174`
+- Verified source commit: `b9f1ac260c76048135a4c68e29e64f86b63a2fe1`
 - Public Site: [stagehand-animation-studio.saimun-h-shahee.chatgpt.site](https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site)
-- Sites version: `86`
-- Scope at this checkpoint: a 15-second six-beat canonical starter arc with expanded captions, poses, camera beats, and non-voice cues, plus renderer-applied per-asset visual treatments, palette chips and stage/library placement, manifest-derived asset usage state, clarified motion actions, revision-safe and idempotent WebMCP mutations, partial render-settings preservation, synchronized human/agent playhead reads, semantic scene speed retiming across timed tracks, synchronized Storyboard/Board navigation, review-first Preview with editing controls removed, readable two-line scene labels, semantic heading/dialog landmarks, accessible transform controls, wide four-column pose-sheet detection, and imported-prop/sequence coverage.
+- Sites version: `87`
+- Scope at this checkpoint: a 15-second six-beat canonical starter arc with expanded captions, poses, camera beats, and non-voice cues, plus renderer-applied per-asset visual treatments, palette chips and stage/library placement, manifest-derived asset usage state, immediate style defaults for new/imported assets, clarified motion actions, revision-safe and idempotent WebMCP mutations, partial render-settings preservation, synchronized human/agent playhead reads, semantic scene speed retiming across timed tracks, synchronized Storyboard/Board navigation, review-first Preview with editing controls removed, readable two-line scene labels, semantic heading/dialog landmarks, accessible transform controls, wide four-column pose-sheet detection, and imported-prop/sequence coverage.
 
 ## Implement
 
@@ -35,6 +35,7 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement â
 - Asset treatment choices now reach the canvas, thumbnails, Preview, and WebM draw path; `get_asset_manifest` reports bound/stage/library placement and prop keyframe count.
 - The canonical starter now carries a 15-second six-beat arc with five captions, nine camera keyframes, extended character poses, and reaction cues through the final second chance.
 - Empty editable asset, storyboard, and audio collections now remain empty after local recovery instead of silently repopulating starter defaults.
+- New and imported assets receive a complete structured style direction before the first validation pass.
 
 ## Local verification
 
@@ -74,6 +75,7 @@ The local smoke result verified:
 - Keyboard stepping: focused stage `ArrowRight` advances the same playhead returned by `get_timeline`: PASS.
 - Asset manifest placement: imported prop reports `placement: stage` and a nonzero prop keyframe count: PASS.
 - Asset renderer treatment: agent `set_asset_style` to `inked` produces the expected grayscale/contrast filter during canvas drawing: PASS.
+- Fresh asset readiness: imported prop and four-pose sheet assets carry valid default style metadata immediately; `validate_project` returns zero issues before reload: PASS.
 - Empty collection recovery: deleting all six assets, six storyboard beats, and the active scene's audio cue, then reloading, preserves `assetCount: 0`, `storyboardBeatCount: 0`, and `audioCueCount: 0`: PASS.
 
 ## Hosted verification
@@ -82,7 +84,7 @@ The local smoke result verified:
 STAGEHAND_URL=https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site npm run smoke
 ```
 
-Result: PASS. The hosted run verified the same 52-tool injected bridge, 39 guarded mutations, the 15-second six-beat starter, stale-write conflict, idempotent replay, human and agent scene retiming, focused-stage keyboard stepping, frame inspection, PNG frame download, wide pose-sheet auto-detection, manifest stage placement, renderer-applied `inked` treatment, asset-style update, partial render-settings preservation, prop workflow, two-scene WebM download, sequence Preview scene transition, synchronized Storyboard/Board context, human-scrubbed playhead visibility through `get_timeline`, clarified motion copy, collapsible Inspector groups, clean Preview state with global editing controls removed, readable scene-label layout, semantic `h1`, labelled Help modal, reload recovery including intentionally empty asset/beat/cue collections, and zero page errors. This is labeled a Playwright fallback: the public Site did not expose live WebMCP enumeration to the available runner, so it does not prove that ChatGPTâ€™s production host enumerates the tools.
+Result: PASS. The hosted run verified the same 52-tool injected bridge, 39 guarded mutations, the 15-second six-beat starter, stale-write conflict, idempotent replay, human and agent scene retiming, focused-stage keyboard stepping, frame inspection, PNG frame download, wide pose-sheet auto-detection, manifest stage placement, renderer-applied `inked` treatment, asset-style update, immediate fresh-asset readiness, partial render-settings preservation, prop workflow, two-scene WebM download, sequence Preview scene transition, synchronized Storyboard/Board context, human-scrubbed playhead visibility through `get_timeline`, clarified motion copy, collapsible Inspector groups, clean Preview state with global editing controls removed, readable scene-label layout, semantic `h1`, labelled Help modal, reload recovery including intentionally empty asset/beat/cue collections, and zero page errors. This is labeled a Playwright fallback: the public Site did not expose live WebMCP enumeration to the available runner, so it does not prove that ChatGPTâ€™s production host enumerates the tools.
 
 ## UI roast and fixes
 
@@ -116,6 +118,7 @@ Findings from the current screenshot review:
 19. Asset treatment choices were structured but did not affect the render path, and asset cards did not make stage usage obvious. Added deterministic canvas/thumbnail/Preview/WebM treatment filters, palette chips, placement cues, and manifest parity with hosted smoke coverage.
 20. The canonical demo was only five seconds with three beats, too thin for a complete animation pass. Expanded it to a 15-second six-beat arc with additional poses, captions, camera beats, and reaction cues, then updated local and hosted timing assertions.
 21. Removing the final asset, storyboard beat, or audio cue could repopulate starter defaults on reload. Preserved intentionally empty collections during hydration and added local/hosted recovery assertions.
+22. Newly added/imported assets lacked style metadata until reload, which could make a fresh project fail readiness validation. Seeded `defaultAssetStyle` in both human and agent creation paths and added local/hosted validation coverage.
 
 ## Limits and warnings
 

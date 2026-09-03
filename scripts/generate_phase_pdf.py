@@ -43,10 +43,10 @@ def bullets(items):
 
 story = [
     p("Stagehand Phase Evidence", title),
-    p("Current checkpoint: public Site v86, verified 2026-09-03.", subtitle),
+    p("Current checkpoint: public Site v87, verified 2026-09-03.", subtitle),
     p("Project", heading),
     p("Stagehand is a WebMCP-native 2D animation studio for editable paper-cutout scenes. The current cut supports rigged characters, imported image props, per-asset visual direction, camera work, captions, non-voice audio cues, storyboard beats, multi-scene Preview, and deterministic WebM export.", body),
-    p("Private source: github.com/swaymun/stagehand-animation-studio<br/>Commit: 9f998b117edbf0e644f3e9057fa733dc85770174<br/>Public Site: stagehand-animation-studio.saimun-h-shahee.chatgpt.site<br/>Sites version: 86", body),
+    p("Private source: github.com/swaymun/stagehand-animation-studio<br/>Commit: b9f1ac260c76048135a4c68e29e64f86b63a2fe1<br/>Public Site: stagehand-animation-studio.saimun-h-shahee.chatgpt.site<br/>Sites version: 87", body),
     p("Acceptance loop", heading),
     p("Implement - local tests - Sites deployment - hosted test - UI roast - fixes - second review.", body),
     p("Implemented at this checkpoint", heading),
@@ -54,7 +54,7 @@ story = [
         "Revision-safe WebMCP mutations with optional expectedRevision and structured REVISION_CONFLICT results.",
         "Idempotent WebMCP mutations with optional idempotencyKey replay protection.",
         "Structured per-asset role, treatment, silhouette, palette, and direction notes with human and agent parity.",
-        "Asset treatment choices reach canvas, thumbnails, Preview, and WebM; the manifest reports bound, stage, or library placement and prop keyframe count.",
+        "Asset treatment choices reach canvas, thumbnails, Preview, and WebM; new assets also receive valid style defaults immediately.",
         "Motion actions show affected character and bounded duration; pose presets remain a separate group.",
         "Agent frame-rate-only render updates preserve the existing resolution until a new preset is explicitly chosen.",
         "Storyboard mode selects the Board rail; Preview hides editing mutation surfaces and selection chrome.",
@@ -67,10 +67,10 @@ story = [
 ]
 
 screens = [
-    ("Animate editing workspace", "v86-animate.png", "Hosted Playwright capture at 1440 x 960. The 15-second timeline carries the expanded character and camera beats while speed controls, frame steps, and labels remain readable."),
-    ("Assets style editor", "v86-assets-style.png", "Hosted Playwright capture at 1440 x 960. Palette chips and stage/library cues make the structured Style direction legible without taking over the asset rail."),
-    ("Storyboard mode with Board rail", "v86-storyboard.png", "Hosted Playwright capture at 1440 x 960. Six beat cards make the longer arc inspectable while the selected mode and project rail stay synchronized."),
-    ("Review-first Preview player", "v86-preview.png", "Hosted Playwright capture at 1440 x 960. Scene-only context, transport, and Exit preview remain; global editing controls are hidden."),
+    ("Animate editing workspace", "v87-animate.png", "Hosted Playwright capture at 1440 x 960. The 15-second timeline carries the expanded character and camera beats while speed controls, frame steps, and labels remain readable."),
+    ("Assets style editor", "v87-assets-style.png", "Hosted Playwright capture at 1440 x 960. Palette chips and stage/library cues make the structured Style direction legible without taking over the asset rail."),
+    ("Storyboard mode with Board rail", "v87-storyboard.png", "Hosted Playwright capture at 1440 x 960. Six beat cards make the longer arc inspectable while the selected mode and project rail stay synchronized."),
+    ("Review-first Preview player", "v87-preview.png", "Hosted Playwright capture at 1440 x 960. Scene-only context, transport, and Exit preview remain; global editing controls are hidden."),
 ]
 
 for index, (heading_text, filename, caption_text) in enumerate(screens):
