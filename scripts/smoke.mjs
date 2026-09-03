@@ -48,6 +48,15 @@ if (sceneTitleLines < 2) {
     `scene title should remain readable across two lines: ${sceneTitleLines}`,
   );
 }
+await page.getByRole('button', { name: 'Help', exact: true }).click();
+const modal = page.locator('dialog[aria-modal="true"]');
+await modal.waitFor({ state: 'visible', timeout: 5000 });
+const modalHeading = (await modal.locator('h2').textContent())?.trim();
+if (modalHeading !== 'Help & shortcuts') {
+  throw new Error(`help dialog heading mismatch: ${modalHeading}`);
+}
+await modal.getByRole('button', { name: 'Close dialog' }).click();
+await page.waitForTimeout(80);
 
 const marks = page.locator('button[aria-label^="Alice keyframe"]');
 const beforeDrag = await marks.nth(1).getAttribute('aria-label');
@@ -276,6 +285,22 @@ const bridge = await page.evaluate(async () => {
   };
 });
 
+await page.waitForTimeout(650);
+await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
+await page.waitForTimeout(700);
+await page.waitForFunction(() => window.__stagehandTools?.size === 51);
+const recovery = await page.evaluate(() =>
+  window.__stagehandTools.get('get_project_summary').execute({}),
+);
+if (
+  !recovery.ok ||
+  recovery.name !== 'Smoke Project' ||
+  recovery.sceneCount !== 2 ||
+  recovery.assetCount < 5
+) {
+  throw new Error(`local recovery mismatch: ${JSON.stringify(recovery)}`);
+}
+
 const downloadPromise = page.waitForEvent('download', { timeout: 15000 });
 const rendered = await page.evaluate(() =>
   window.__stagehandTools.get('render_webm').execute({}),
@@ -354,6 +379,13 @@ const result = {
   },
   sceneTitleLines,
   h1: (await h1.textContent())?.trim(),
+  modal: { heading: modalHeading },
+  recovery: {
+    ok: recovery.ok,
+    name: recovery.name,
+    sceneCount: recovery.sceneCount,
+    assetCount: recovery.assetCount,
+  },
   bridge,
   render: {
     ok: rendered.ok,
@@ -389,6 +421,11 @@ if (
   !result.timelineDrag.moved ||
   result.sceneTitleLines < 2 ||
   result.h1 !== 'stagehand' ||
+  result.modal.heading !== 'Help & shortcuts' ||
+  !result.recovery.ok ||
+  result.recovery.name !== 'Smoke Project' ||
+  result.recovery.sceneCount !== 2 ||
+  result.recovery.assetCount < 5 ||
   !bridge.audio.ok ||
   bridge.audio.volume !== 0.03 ||
   !bridge.inspected.ok ||

@@ -61,7 +61,7 @@ story = [
     p("Verification", heading),
     p("Local gate:", body),
     p("npm run format<br/>npm run lint<br/>npm run build<br/>git diff --check<br/>npm run smoke", code),
-    p("Local and hosted smoke both passed with 51 registered tools, 38 guarded mutations, stale-write conflict, idempotent replay, frame inspection, PNG frame download, asset-style parity, timeline retiming, imported-prop animation, undo/redo, a two-scene WebM download, synchronized Storyboard/Preview state, and zero page errors.", body),
+    p("Local and hosted smoke passed: 51 tools, 38 guarded mutations, stale-write conflict, idempotent replay, frame and PNG export, asset-style parity, prop animation, undo/redo, two-scene WebM, Preview, Help modal semantics, reload recovery, and zero page errors.", body),
     PageBreak(),
 ]
 
@@ -93,6 +93,7 @@ story.extend([
         "Agent frame-rate-only render updates reset an existing 1080p choice. Preserved the current resolution when the preset is omitted and added smoke coverage.",
         "Preview still exposed global project-editing controls. Hid Settings, Import, Export JSON, and rename while retaining WebM and PNG review actions.",
         "Scene titles competed with the ready badge and were visually shortened. Used a two-line title clamp and positioned the badge outside the text flow.",
+        "The smoke gate did not exercise recovery or modal semantics. Added a real Help open/close assertion and post-mutation reload recovery check to local and hosted runs.",
     ]),
     p("Limits", heading),
     p("Direct CUA inspection was unavailable because the Mac was locked; Playwright was used for hosted interaction and screenshots. The smoke harness proves injected modelContext registration and execution, not live production ChatGPT WebMCP discovery. TTS, voice cloning, dialogue recording, phoneme extraction, and lip-sync remain out of scope.", body),
