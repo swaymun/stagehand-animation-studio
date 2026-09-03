@@ -736,6 +736,75 @@ export default function Home() {
       true,
     );
     register(
+      'get_style_bible',
+      'Get style bible',
+      'Inspect the visual and motion constraints for this project.',
+      { type: 'object', properties: {}, additionalProperties: false },
+      () => ({
+        ok: true,
+        revision: projectRef.current.revision,
+        styleBible: {
+          construction: 'paper-cutout',
+          motion: 'limited · snappy',
+          camera: 'reaction cut',
+          palette: ['coral', 'diner teal', 'mustard', 'warm paper'],
+        },
+      }),
+      true,
+    );
+    register(
+      'get_asset_manifest',
+      'Get asset manifest',
+      'Inspect the structured assets available to the active project.',
+      { type: 'object', properties: {}, additionalProperties: false },
+      () => ({
+        ok: true,
+        revision: projectRef.current.revision,
+        assets: [
+          { id: 'alice', kind: 'rigged-character', label: 'Alice' },
+          { id: 'bob', kind: 'rigged-character', label: 'Bob' },
+          {
+            id: 'diner-background',
+            kind: 'background',
+            label: 'Diner background',
+          },
+          { id: 'coffee-mug', kind: 'prop', label: 'Coffee mug' },
+        ],
+      }),
+      true,
+    );
+    register(
+      'set_selection',
+      'Set selection',
+      'Select an existing character for focused human and agent edits.',
+      {
+        type: 'object',
+        required: ['characterId'],
+        additionalProperties: false,
+        properties: { characterId: { type: 'string' } },
+      },
+      (input) => {
+        const current = projectRef.current;
+        if (
+          typeof input.characterId !== 'string' ||
+          !current.characters.some((item) => item.id === input.characterId)
+        )
+          return { ok: false, code: 'NOT_FOUND' };
+        commitRef.current(
+          (next) => {
+            next.selectedId = input.characterId as string;
+          },
+          `Select ${input.characterId}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          selectedId: input.characterId,
+        };
+      },
+    );
+    register(
       'add_scene',
       'Add scene',
       'Append a new editable scene without changing existing scene content.',
@@ -1223,7 +1292,7 @@ export default function Home() {
               </span>
               <div>
                 <strong>WebMCP surface</strong>
-                <small>11 tools declared</small>
+                <small>14 tools declared</small>
               </div>
               <span className="online-dot" />
             </div>
@@ -1677,7 +1746,7 @@ export default function Home() {
                 </div>
                 <div className="setting-line">
                   <span>Agent surface</span>
-                  <strong>11 WebMCP tools</strong>
+                  <strong>14 WebMCP tools</strong>
                 </div>
               </div>
             )}
