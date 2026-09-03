@@ -2866,12 +2866,25 @@ button {
     padding-right: 9px;
   }
   .scene-thumbnail {
-    width: 44px;
-    height: 34px;
+    width: 34px;
+    height: 28px;
+  }
+  .scene-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .scene-card-main {
+    gap: 5px;
+    padding: 6px 23px 6px 5px;
+  }
+  .scene-more {
+    position: absolute;
+    top: 50%;
+    right: 2px;
+    transform: translateY(-50%);
   }
   .scene-meta strong {
-    font-size: 11px;
-    line-height: 13px;
+    font-size: 10px;
+    line-height: 12px;
   }
   .scene-meta span,
   .timeline-hint,
