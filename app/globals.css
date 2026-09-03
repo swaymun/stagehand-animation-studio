@@ -122,6 +122,31 @@ button {
   font-size: 12px;
   font-weight: 700;
 }
+.project-name-button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 230px;
+  padding: 0;
+  border: 0;
+  color: var(--ink);
+  background: transparent;
+}
+.project-name-button:hover .title-name {
+  color: var(--blue);
+}
+.project-name-input {
+  width: 190px;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--blue);
+  border-radius: 4px;
+  outline: none;
+  color: var(--ink);
+  background: #fffaf2;
+  font-size: 11px;
+  font-weight: 700;
+}
 .top-actions {
   gap: 7px;
   min-width: 0;

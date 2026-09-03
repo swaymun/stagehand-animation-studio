@@ -133,6 +133,7 @@ type StyleBible = {
   notes: string;
 };
 type Project = {
+  name: string;
   revision: number;
   duration: number;
   currentTime: number;
@@ -160,7 +161,7 @@ type ValidationIssue = {
   path: string;
   message: string;
 };
-const WEBMCP_TOOL_COUNT = 43;
+const WEBMCP_TOOL_COUNT = 44;
 type ModelTool = {
   name: string;
   title: string;
@@ -364,6 +365,7 @@ const starterAudioCues: AudioCue[] = [
   },
 ];
 const starterProject: Project = {
+  name: 'Paper Cutout Comedy',
   revision: 7,
   duration: 5000,
   currentTime: 1800,
@@ -1024,6 +1026,10 @@ const hydrateProject = (value: Partial<Project>): Project => {
   return {
     ...base,
     ...value,
+    name:
+      typeof value.name === 'string' && value.name.trim()
+        ? value.name.trim()
+        : base.name,
     scenes: copy(scenes),
     storyboardBeats: copy(rawBeats),
     styleBible: {
@@ -1819,6 +1825,8 @@ export default function Home() {
     [rendering, setRendering] = useState(false),
     [notice, setNotice] = useState('Ready for direction'),
     [saved, setSaved] = useState(true),
+    [editingProjectName, setEditingProjectName] = useState(false),
+    [projectNameDraft, setProjectNameDraft] = useState(starterProject.name),
     [editingBeatId, setEditingBeatId] = useState<string | null>(null),
     [beatTitleDraft, setBeatTitleDraft] = useState(''),
     [beatDescriptionDraft, setBeatDescriptionDraft] = useState(''),
@@ -1826,6 +1834,8 @@ export default function Home() {
     [beatEndDraft, setBeatEndDraft] = useState('');
   const importInputRef = useRef<HTMLInputElement>(null);
   const assetImportInputRef = useRef<HTMLInputElement>(null);
+  const projectNameInputRef = useRef<HTMLInputElement>(null);
+  const projectRef = useRef(project);
   const [lastCommand, setLastCommand] = useState('set_pose( alice )');
   const [showSafeArea, setShowSafeArea] = useState(true);
   const [sceneMenuId, setSceneMenuId] = useState<string | null>(null);
@@ -1876,11 +1886,30 @@ export default function Home() {
         setSaved(false);
         setLastCommand(label);
         setNotice(`${agent ? 'Agent' : 'Human'} · ${label}`);
+        projectRef.current = next;
         return next;
       });
     },
     [],
   );
+  const beginProjectNameEdit = () => {
+    setProjectNameDraft(project.name);
+    setEditingProjectName(true);
+  };
+  const finishProjectNameEdit = () => {
+    const name = projectNameDraft.trim();
+    if (!name) {
+      setNotice('Project name cannot be empty');
+      setProjectNameDraft(project.name);
+      return;
+    }
+    if (name !== project.name)
+      commit((next) => (next.name = name), `Rename project to ${name}`);
+    setEditingProjectName(false);
+  };
+  useEffect(() => {
+    if (editingProjectName) projectNameInputRef.current?.focus();
+  }, [editingProjectName]);
   const undo = useCallback(() => {
     setHistory((items) => {
       const previous = items.at(-1);
@@ -1954,8 +1983,7 @@ export default function Home() {
       height: output.height,
     };
   }, [project]);
-  const projectRef = useRef(project),
-    selectedRef = useRef(selected),
+  const selectedRef = useRef(selected),
     commitRef = useRef(commit),
     undoRef = useRef(undo);
   useEffect(() => {
@@ -2055,7 +2083,7 @@ export default function Home() {
         return {
           ok: true,
           revision: current.revision,
-          name: 'Paper Cutout Comedy',
+          name: current.name,
           durationMs: current.duration,
           fps: current.fps,
           renderSize: {
@@ -2077,6 +2105,36 @@ export default function Home() {
         };
       },
       true,
+    );
+    register(
+      'set_project_name',
+      'Set project name',
+      'Rename the active Stagehand project without changing scene content or timing.',
+      {
+        type: 'object',
+        required: ['name'],
+        additionalProperties: false,
+        properties: { name: { type: 'string', minLength: 1, maxLength: 80 } },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const name = typeof input.name === 'string' ? input.name.trim() : '';
+        if (!name || name.length > 80)
+          return { ok: false, code: 'INVALID_INPUT' };
+        commitRef.current(
+          (next) => {
+            next.name = name;
+          },
+          `Rename project to ${name}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          name,
+          changedPaths: ['name'],
+        };
+      },
     );
     register(
       'set_render_settings',
@@ -4536,8 +4594,31 @@ export default function Home() {
         </div>
         <div className="project-title">
           <span className="eyebrow">PROJECT</span>
-          <span className="title-name">Paper Cutout Comedy</span>
-          <ChevronDown size={14} />
+          {editingProjectName ? (
+            <input
+              className="project-name-input"
+              ref={projectNameInputRef}
+              aria-label="Project name"
+              value={projectNameDraft}
+              onChange={(event) => setProjectNameDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') event.currentTarget.blur();
+                if (event.key === 'Escape') setEditingProjectName(false);
+              }}
+              onBlur={finishProjectNameEdit}
+              maxLength={80}
+            />
+          ) : (
+            <button
+              className="project-name-button"
+              type="button"
+              aria-label={`Rename project ${project.name}`}
+              onClick={beginProjectNameEdit}
+            >
+              <span className="title-name">{project.name}</span>
+              <ChevronDown size={14} />
+            </button>
+          )}
         </div>
         <div className="top-actions">
           <div className={`save-state ${saved ? '' : 'unsaved'}`}>
