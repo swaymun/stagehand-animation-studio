@@ -6,10 +6,10 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement �
 
 - Date: 2026-09-03
 - Private source: [github.com/swaymun/stagehand-animation-studio](https://github.com/swaymun/stagehand-animation-studio)
-- Verified source commit: `5be1da27b568f8a35be3111173a8937cb36aa414`
+- Verified source commit: `2aed5e393d38ee55246140842d2bec4c53efd50c`
 - Public Site: [stagehand-animation-studio.saimun-h-shahee.chatgpt.site](https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site)
-- Sites version: `90`
-- Scope at this checkpoint: a 15-second six-beat canonical starter arc with expanded captions, poses, camera beats, and non-voice cues, plus renderer-applied per-asset visual treatments, palette chips and stage/library placement, manifest-derived asset usage state, immediate style defaults for new/imported assets, human audio cue timing controls, clarified motion actions, revision-safe and idempotent WebMCP mutations, partial render-settings preservation, synchronized human/agent playhead reads, semantic scene speed retiming across timed tracks, synchronized Storyboard/Board navigation, review-first Preview with editing controls removed, readable two-line scene labels, semantic heading/dialog landmarks, accessible transform controls, wide four-column pose-sheet detection, and imported-prop/sequence coverage.
+- Sites version: `93`
+- Scope at this checkpoint: a 15-second six-beat canonical starter arc with expanded captions, poses, camera beats, and non-voice cues, plus renderer-applied per-asset visual treatments, palette chips and stage/library placement, manifest-derived asset usage state, immediate style defaults for new/imported assets, human audio cue timing controls, clarified motion actions, revision-safe and idempotent WebMCP mutations, partial render-settings preservation, synchronized human/agent playhead reads, semantic scene speed retiming across timed tracks, synchronized Storyboard/Board navigation, review-first Preview with editing controls removed, readable two-line scene labels, semantic heading/dialog landmarks, accessible transform controls, wide four-column pose-sheet detection, imported-prop/sequence coverage, a calmer Animate/Storyboard editor shell, semantic timeline event bands with optional raw-keyframe details, compact header overflow actions, on-demand validation, and mobile project/Inspector drawers.
 
 ## Implement
 
@@ -39,6 +39,10 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement �
 - Human audio cue Start/End fields now share bounded, undoable timing updates with the agent cue editor.
 - WebMCP registration now supports both `document.modelContext` and the current experimental Chromium `navigator.modelContext` location.
 - The Assets view now has an asset-specific Inspector that identifies the selected asset, placement, style, palette, and edit handoff; character transform and motion controls are hidden until Scenes is active.
+- The editor chrome now keeps Animate and Storyboard as the only top-level modes; Preview is a primary review action, Render is the primary export action, and PNG/import/export/settings/templates/help/guides live under More actions.
+- The timeline now presents camera, pose, prop, dialogue, music, and SFX events as semantic bands by default; raw keyframe diamonds remain available through Show details so precise editing is preserved without making implementation noise the first read.
+- Validation, WebMCP tool counts, starter-kit copy, revision numbers, and explanatory status cards are no longer permanent workspace chrome; validation remains available to the command path and export blocks on error-level issues.
+- On small screens the project rail and Inspector are drawer surfaces opened from More actions; the timeline retains a minimum readable editing width without forcing the whole document to overflow.
 
 ## Local verification
 
@@ -83,6 +87,8 @@ The local smoke result verified:
 - Human audio timing: Start for the quiet diner bed changes from 0 ms to 120 ms through the Inspector and remains valid for render: PASS.
 - Empty collection recovery: deleting all six assets, six storyboard beats, and the active scene's audio cue, then reloading, preserves `assetCount: 0`, `storyboardBeatCount: 0`, and `audioCueCount: 0`: PASS.
 - Native WebMCP registration: Chromium experimental WebMCP context captured all 52 unique tools with zero registration errors; valid `set_playhead` moved to 250 ms, invalid input returned `INVALID_INPUT`, and the read-back revision advanced by one: PASS.
+- Semantic timeline presentation: the local and hosted shells render named Camera/Pose/Dialogue/Music/SFX event bands by default, and the Show details disclosure restores draggable raw keyframe controls: PASS.
+- Responsive shell: 390px Playwright inspection reports equal body/document widths and the More actions menu can open the Inspector drawer without page overflow: PASS.
 
 ## Hosted verification
 
@@ -94,7 +100,12 @@ Result: PASS. The hosted run verified the same 52-tool injected bridge, 39 guard
 
 ## UI roast and fixes
 
-Evidence screenshots are captured from the hosted v90 build at 1440×960:
+Evidence screenshots are captured from the hosted v93 build at 1440×960:
+
+- [`v93-animate.png`](evidence/v93-animate.png): focused Animate workspace with semantic timeline event bands and the reduced header/rail chrome.
+- [`v93-assets.png`](evidence/v93-assets.png): Assets workflow with scannable asset rows and the asset-specific Inspector.
+- [`v93-storyboard.png`](evidence/v93-storyboard.png): six-card Storyboard mode with the Board rail selected and the same semantic timeline below.
+- [`v93-preview.png`](evidence/v93-preview.png): compact review player with a scene strip and scrubber, no editor timeline grid, and no Inspector.
 
 - [`v90-animate.png`](evidence/v90-animate.png): current editing workspace with the expanded timeline and semantic scene speed controls.
 - [`v90-assets.png`](evidence/v90-assets.png): Assets workflow with the selected Alice style editor and matching asset-specific Inspector context.
@@ -136,6 +147,11 @@ Findings from the current screenshot review:
 24. Export checks only proved that downloads were non-empty. Added binary signature assertions for WebM/EBML and PNG outputs in local and hosted smoke runs.
 25. Experimental Chromium exposed `navigator.modelContext` while the app only checked `document.modelContext`. Added a compatibility fallback and a native registration smoke gate covering all 52 tools plus valid/invalid calls.
 26. The Assets rail could edit a selected asset while the right Inspector still showed character controls. Fixed by adding an asset-specific Inspector context and a smoke assertion that character transforms are not visible while Assets is active.
+27. The Preview screenshot still read like the editor because the raw timeline grid, editing guides, and status toast survived into review. Fixed with a compact scene/timing scrubber and by hiding the editable grid, guides, and editor toast in Preview.
+28. The asset rail still carried too much editing UI in a narrow column. Fixed by keeping asset rows scannable and moving the full style and brief editor into the wider asset Inspector.
+29. Header and sidebar implementation details competed with the artwork: Preview was an equal mode, Render said “Render WebM,” and validation/tool-count/starter cards were always present. Fixed with two top-level editor modes, primary Preview/Render actions, a More actions overflow, and on-demand infrastructure UI.
+30. The timeline’s first read was a field of keyframe diamonds rather than animation intent. Fixed with semantic event bands for camera, poses, props, dialogue, music, and SFX, with raw diamonds behind an explicit Show details control.
+31. The desktop shell could force horizontal overflow at phone widths. Fixed by removing the global minimum width and adding responsive project/Inspector drawers plus a scrollable readable-width timeline.
 
 ## Limits and warnings
 

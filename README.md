@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000` in a desktop browser. The project stores its editable state in local browser storage; use Export to save a JSON project file and Import to recover it.
+Open `http://localhost:3000` in a desktop browser. The project stores its editable state in local browser storage; use More actions → Export project to save a JSON project file and More actions → Import project to recover it.
 
 ## Verify it
 
@@ -26,11 +26,11 @@ The regular smoke gate injects a model-context bridge, verifies all 52 tools, in
 
 ## Studio map
 
-- **Scenes / Board / Assets**: scene management, editable storyboard beats, starter templates, asset import, visual briefs, per-asset style direction, palette chips, stage/library placement, and imported-prop motion.
-- **Animate**: canvas, character and camera inspector, captions, non-voice mix, style bible, and the structured timeline. Inspector groups can collapse independently to keep the working surface focused; arrow keys and the symmetric step buttons move one frame at a time.
+- **Scenes / Board / Assets**: scene management, editable storyboard beats, starter templates, asset import, visual briefs, per-asset style direction, palette chips, stage/library placement, and imported-prop motion. Assets stay scannable in the rail; the selected asset’s full style editor lives in Inspector.
+- **Animate**: canvas, character and camera Inspector, captions, non-voice mix, style bible, and a semantic timeline of camera, pose, prop, dialogue, music, and SFX events. Show details reveals the precise draggable keyframes; Inspector groups can collapse independently.
 - **Storyboard**: renderer-backed beat thumbnails that move the shared playhead; beats can be promoted into trimmed scenes.
-- **Preview**: review-first sequence player using the same deterministic evaluator as export; editing chrome is hidden while transport and scene context remain available.
-- **Render WebM**: deterministic project-sequence export with captions and cue-based audio.
+- **Preview**: primary review action using the same deterministic evaluator as export; editing chrome is hidden while transport, a compact scrubber, and scene context remain available.
+- **Render**: deterministic project-sequence WebM export with captions and cue-based audio. PNG frame export, project import/export, templates, settings, help, and guides live under More actions.
 - **WebMCP surface**: read tools expose project state; narrow mutation tools share the human command path and revisioned undo/redo history. Every mutation accepts optional `expectedRevision` and `idempotencyKey` safeguards for stale reads and safe retries, including structured per-asset visual style edits.
 
 ## Architecture

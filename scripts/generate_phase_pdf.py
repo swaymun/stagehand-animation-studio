@@ -43,10 +43,10 @@ def bullets(items):
 
 story = [
     p("Stagehand Phase Evidence", title),
-    p("Current checkpoint: public Site v89, verified 2026-09-03.", subtitle),
+    p("Current checkpoint: public Site v93, verified 2026-09-03.", subtitle),
     p("Project", heading),
     p("Stagehand is a WebMCP-native 2D animation studio for editable paper-cutout scenes. The current cut supports rigged characters, imported image props, per-asset visual direction, camera work, captions, non-voice audio cues, storyboard beats, multi-scene Preview, and deterministic WebM export.", body),
-    p("Private source: github.com/swaymun/stagehand-animation-studio<br/>Commit: caa365248f276aaeaca069c0498c2f03059a44bc<br/>Public Site: stagehand-animation-studio.saimun-h-shahee.chatgpt.site<br/>Sites version: 89", body),
+    p("Private source: github.com/swaymun/stagehand-animation-studio<br/>Commit: 2aed5e393d38ee55246140842d2bec4c53efd50c<br/>Public Site: stagehand-animation-studio.saimun-h-shahee.chatgpt.site<br/>Sites version: 93", body),
     p("Acceptance loop", heading),
     p("Implement - local tests - Sites deployment - hosted test - UI roast - fixes - second review.", body),
     p("Implemented at this checkpoint", heading),
@@ -57,7 +57,9 @@ story = [
         "Asset treatment choices reach canvas, thumbnails, Preview, and WebM; new assets also receive valid style defaults immediately.",
         "Motion actions show affected character and bounded duration; pose presets remain a separate group.",
         "Human audio cue Start/End editors share bounded timing updates with the agent cue editor.",
-        "Storyboard mode selects the Board rail; Preview hides editing mutation surfaces and selection chrome.",
+        "Animate and Storyboard are the only top-level editor modes; Preview is a compact review action and overflow actions keep infrastructure chrome out of the workspace.",
+        "The timeline defaults to semantic camera, pose, prop, dialogue, music, and SFX event bands; Show details restores raw keyframe controls.",
+        "Responsive project and Inspector drawers preserve a readable shell at phone widths.",
     ]),
     p("Verification", heading),
     p("Local gate:", body),
@@ -67,10 +69,10 @@ story = [
 ]
 
 screens = [
-    ("Animate editing workspace", "v88-animate.png", "Hosted Playwright capture at 1440 x 960. The 15-second timeline carries the expanded character and camera beats while speed controls, frame steps, and labels remain readable; v89 has no visual surface change."),
-    ("Assets style editor", "v88-assets-style.png", "Hosted Playwright capture at 1440 x 960. Palette chips and stage/library cues make the structured Style direction legible without taking over the asset rail."),
-    ("Storyboard mode with Board rail", "v88-storyboard.png", "Hosted Playwright capture at 1440 x 960. Six beat cards make the longer arc inspectable while the selected mode and project rail stay synchronized."),
-    ("Review-first Preview player", "v88-preview.png", "Hosted Playwright capture at 1440 x 960. Scene-only context, transport, and Exit preview remain; global editing controls are hidden."),
+    ("Animate editing workspace", "v93-animate.png", "Hosted Playwright capture at 1440 x 960. The focused editor keeps artwork dominant, with semantic event bands and raw-keyframe details available on demand."),
+    ("Assets style editor", "v93-assets.png", "Hosted Playwright capture at 1440 x 960. Scannable asset rows stay in the rail while the selected asset's style and placement context live in Inspector."),
+    ("Storyboard mode with Board rail", "v93-storyboard.png", "Hosted Playwright capture at 1440 x 960. Six beat cards make the longer arc inspectable while the selected mode and project rail stay synchronized."),
+    ("Review-first Preview player", "v93-preview.png", "Hosted Playwright capture at 1440 x 960. Scene-only context, transport, and a compact scrubber remain; the editable timeline grid and Inspector are hidden."),
 ]
 
 for index, (heading_text, filename, caption_text) in enumerate(screens):
@@ -98,6 +100,11 @@ story.extend([
         "The Inspector was a long scroll dump, human scrubbing could leave agent reads one event behind, and keyboard stepping was unreliable after scrub focus. Added native collapsible groups, shared project-view synchronization, a focused stage target, and smoke coverage.",
         "Export checks only proved that downloads were non-empty. Added binary signature assertions for WebM/EBML and PNG outputs in local and hosted smoke runs.",
         "Experimental Chromium exposed navigator.modelContext while the app only checked document.modelContext. Added a compatibility fallback and a native registration smoke gate covering all 52 tools plus valid and invalid calls.",
+        "Preview still read like the editor because raw timeline, guides, and status toast survived into review. Added a compact scene/timing scrubber and hid editing-only surfaces.",
+        "The asset rail carried too much editing UI. Kept it scannable and moved the full style/brief editor into the wider Inspector.",
+        "Header/sidebar implementation details competed with the artwork. Made Preview and Render primary actions, moved secondary actions under More, and removed permanent validation/tool-count/starter cards.",
+        "The timeline's first read was keyframe noise. Added semantic event bands with an explicit Show details disclosure for precise edits.",
+        "The desktop shell could force phone-width overflow. Removed the global minimum width and added responsive project/Inspector drawers with a readable-width timeline.",
     ]),
     p("Limits", heading),
     p("Direct CUA inspection was unavailable because the Mac was locked; Playwright was used for hosted interaction and screenshots. Native Chromium smoke proves browser registration and callback behavior, while ChatGPT's in-app browser discovery remains unverified. TTS, voice cloning, dialogue recording, phoneme extraction, and lip-sync remain out of scope.", body),
