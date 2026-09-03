@@ -739,8 +739,20 @@ button {
   height: 7px;
   position: absolute;
   top: 11px;
+  z-index: 4;
   transform: translateX(-50%) rotate(45deg);
   border-radius: 1px;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+}
+.key:hover,
+.key:focus-visible {
+  width: 10px;
+  height: 10px;
+  top: 9px;
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
 }
 .key-blue {
   background: var(--blue);

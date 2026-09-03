@@ -45,6 +45,15 @@ type Character = {
   rotation: number;
   pose: Pose;
 };
+type Keyframe = {
+  id: string;
+  characterId: string;
+  time: number;
+  x: number;
+  y: number;
+  rotation: number;
+  pose: Pose;
+};
 type SceneMeta = {
   id: string;
   title: string;
@@ -57,6 +66,7 @@ type Project = {
   currentTime: number;
   selectedId: string;
   characters: Character[];
+  keyframes: Keyframe[];
   captions: {
     id: string;
     text: string;
@@ -68,6 +78,7 @@ type Project = {
   activeSceneId: string;
   dirty: boolean;
 };
+const WEBMCP_TOOL_COUNT = 17;
 type ModelTool = {
   name: string;
   title: string;
@@ -117,6 +128,80 @@ const starterProject: Project = {
       pose: 'idle',
     },
   ],
+  keyframes: [
+    {
+      id: 'kf-alice-0000',
+      characterId: 'alice',
+      time: 0,
+      x: 37,
+      y: 62,
+      rotation: -2,
+      pose: 'nervous',
+    },
+    {
+      id: 'kf-alice-1550',
+      characterId: 'alice',
+      time: 1550,
+      x: 40,
+      y: 62,
+      rotation: -2,
+      pose: 'nervous',
+    },
+    {
+      id: 'kf-alice-2450',
+      characterId: 'alice',
+      time: 2450,
+      x: 43,
+      y: 62,
+      rotation: -2,
+      pose: 'wave',
+    },
+    {
+      id: 'kf-alice-5000',
+      characterId: 'alice',
+      time: 5000,
+      x: 43,
+      y: 62,
+      rotation: -2,
+      pose: 'wave',
+    },
+    {
+      id: 'kf-bob-0000',
+      characterId: 'bob',
+      time: 0,
+      x: 75,
+      y: 57,
+      rotation: 3,
+      pose: 'idle',
+    },
+    {
+      id: 'kf-bob-1550',
+      characterId: 'bob',
+      time: 1550,
+      x: 68,
+      y: 57,
+      rotation: 3,
+      pose: 'idle',
+    },
+    {
+      id: 'kf-bob-3100',
+      characterId: 'bob',
+      time: 3100,
+      x: 66,
+      y: 57,
+      rotation: 3,
+      pose: 'lean-in',
+    },
+    {
+      id: 'kf-bob-5000',
+      characterId: 'bob',
+      time: 5000,
+      x: 66,
+      y: 57,
+      rotation: 3,
+      pose: 'lean-in',
+    },
+  ],
   captions: [
     {
       id: 'caption-1',
@@ -143,10 +228,92 @@ const hydrateProject = (value: Partial<Project>): Project => ({
     Array.isArray(value.scenes) && value.scenes.length > 0
       ? value.scenes
       : copy(starterScenes),
+  keyframes:
+    Array.isArray(value.keyframes) && value.keyframes.length > 0
+      ? value.keyframes
+      : copy(starterProject.keyframes),
   activeSceneId: value.activeSceneId ?? 'scene-01',
 });
 const copy = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const timecode = (ms: number) => `${(ms / 1000).toFixed(2).padStart(4, '0')}s`;
+const clamp = (value: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, value));
+const isPose = (value: unknown): value is Pose =>
+  value === 'idle' ||
+  value === 'nervous' ||
+  value === 'wave' ||
+  value === 'lean-in';
+
+function evaluateCharacters(project: Project, time: number) {
+  return project.characters.map((character) => {
+    const frames = project.keyframes
+      .filter((frame) => frame.characterId === character.id)
+      .sort((a, b) => a.time - b.time);
+    if (frames.length === 0) return character;
+    const first = frames[0];
+    if (time <= first.time)
+      return {
+        ...character,
+        x: first.x,
+        y: first.y,
+        rotation: first.rotation,
+        pose: first.pose,
+      };
+    const last = frames.at(-1);
+    if (!last || time >= last.time)
+      return last
+        ? {
+            ...character,
+            x: last.x,
+            y: last.y,
+            rotation: last.rotation,
+            pose: last.pose,
+          }
+        : character;
+    const nextIndex = frames.findIndex((frame) => frame.time > time);
+    const right = frames[nextIndex];
+    const left = frames[nextIndex - 1];
+    const amount = (time - left.time) / (right.time - left.time);
+    return {
+      ...character,
+      x: left.x + (right.x - left.x) * amount,
+      y: left.y + (right.y - left.y) * amount,
+      rotation: left.rotation + (right.rotation - left.rotation) * amount,
+      pose: amount < 0.5 ? left.pose : right.pose,
+    };
+  });
+}
+
+function upsertCharacterKeyframe(
+  project: Project,
+  characterId: string,
+  time: number,
+  changes: Partial<Pick<Keyframe, 'x' | 'y' | 'rotation' | 'pose'>>,
+) {
+  const character = evaluateCharacters(project, time).find(
+    (item) => item.id === characterId,
+  );
+  if (!character) return null;
+  const safeTime = clamp(time, 0, project.duration);
+  const existing = project.keyframes.find(
+    (frame) => frame.characterId === characterId && frame.time === safeTime,
+  );
+  const frame: Keyframe = {
+    id: existing?.id ?? `kf-${characterId}-${Math.round(safeTime)}`,
+    characterId,
+    time: safeTime,
+    x: clamp(changes.x ?? character.x, 0, 100),
+    y: clamp(changes.y ?? character.y, 0, 100),
+    rotation: clamp(changes.rotation ?? character.rotation, -180, 180),
+    pose: changes.pose ?? character.pose,
+  };
+  if (existing) Object.assign(existing, frame);
+  else project.keyframes.push(frame);
+  project.keyframes.sort(
+    (a, b) => a.time - b.time || a.characterId.localeCompare(b.characterId),
+  );
+  return frame;
+}
 
 function drawCharacter(
   ctx: CanvasRenderingContext2D,
@@ -272,7 +439,7 @@ function drawRenderFrame(
   ctx.fillRect(width * 0.71, height * 0.27, 32, 72);
   ctx.fillStyle = '#f0c27f';
   ctx.fillRect(width * 0.73, height * 0.3, 28, 40);
-  project.characters.forEach((character) =>
+  evaluateCharacters(project, project.currentTime).forEach((character) =>
     drawCharacter(ctx, character, width, height, false),
   );
   const caption = project.captions.find(
@@ -363,7 +530,7 @@ function StageCanvas({
     ctx.fillRect(width * 0.71, height * 0.27, 32, 72);
     ctx.fillStyle = '#f0c27f';
     ctx.fillRect(width * 0.73, height * 0.3, 28, 40);
-    project.characters.forEach((c) =>
+    evaluateCharacters(project, project.currentTime).forEach((c) =>
       drawCharacter(ctx, c, width, height, c.id === project.selectedId),
     );
     ctx.fillStyle = 'rgba(41,39,42,.55)';
@@ -388,8 +555,8 @@ function StageCanvas({
       onClick={(e) => {
         const rect = e.currentTarget.getBoundingClientRect(),
           x = ((e.clientX - rect.left) / rect.width) * 100;
-        const nearest = project.characters.reduce((a, b) =>
-          Math.abs(a.x - x) < Math.abs(b.x - x) ? a : b,
+        const nearest = evaluateCharacters(project, project.currentTime).reduce(
+          (a, b) => (Math.abs(a.x - x) < Math.abs(b.x - x) ? a : b),
         );
         onSelect(nearest.id);
       }}
@@ -437,9 +604,10 @@ export default function Home() {
   const importInputRef = useRef<HTMLInputElement>(null);
   const [lastCommand, setLastCommand] = useState('set_pose( alice )');
   const [showSafeArea, setShowSafeArea] = useState(true);
-  const selected =
-      project.characters.find((c) => c.id === project.selectedId) ??
-      project.characters[0],
+  const evaluatedCharacters = evaluateCharacters(project, project.currentTime),
+    selected =
+      evaluatedCharacters.find((c) => c.id === project.selectedId) ??
+      evaluatedCharacters[0],
     activeCaption = project.captions.find(
       (c) => project.currentTime >= c.start && project.currentTime <= c.end,
     ),
@@ -736,6 +904,29 @@ export default function Home() {
       true,
     );
     register(
+      'get_keyframes',
+      'Get character keyframes',
+      'Inspect the evaluated animation keyframes for a character or the whole scene.',
+      {
+        type: 'object',
+        additionalProperties: false,
+        properties: { characterId: { type: 'string' } },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const characterId =
+          typeof input.characterId === 'string' ? input.characterId : undefined;
+        return {
+          ok: true,
+          revision: current.revision,
+          keyframes: current.keyframes.filter(
+            (frame) => !characterId || frame.characterId === characterId,
+          ),
+        };
+      },
+      true,
+    );
+    register(
       'get_style_bible',
       'Get style bible',
       'Inspect the visual and motion constraints for this project.',
@@ -851,7 +1042,7 @@ export default function Home() {
     register(
       'set_pose',
       'Set character pose',
-      'Move a character while preserving unrelated edits.',
+      'Set a character pose and transform at the current playhead as one undoable keyframe command.',
       {
         type: 'object',
         required: ['characterId'],
@@ -873,18 +1064,34 @@ export default function Home() {
           return { ok: false, code: 'INVALID_INPUT' };
         if (!current.characters.some((c) => c.id === input.characterId))
           return { ok: false, code: 'NOT_FOUND' };
+        if (
+          (input.x !== undefined &&
+            (typeof input.x !== 'number' || !Number.isFinite(input.x))) ||
+          (input.y !== undefined &&
+            (typeof input.y !== 'number' || !Number.isFinite(input.y))) ||
+          (input.rotation !== undefined &&
+            (typeof input.rotation !== 'number' ||
+              !Number.isFinite(input.rotation))) ||
+          (input.pose !== undefined && !isPose(input.pose))
+        )
+          return { ok: false, code: 'INVALID_INPUT' };
+        const frameTime = current.currentTime;
         commitRef.current(
           (next) => {
-            const c = next.characters.find(
-              (item) => item.id === input.characterId,
+            upsertCharacterKeyframe(
+              next,
+              input.characterId as string,
+              frameTime,
+              {
+                x: typeof input.x === 'number' ? input.x : undefined,
+                y: typeof input.y === 'number' ? input.y : undefined,
+                rotation:
+                  typeof input.rotation === 'number'
+                    ? input.rotation
+                    : undefined,
+                pose: isPose(input.pose) ? input.pose : undefined,
+              },
             );
-            if (c) {
-              if (typeof input.x === 'number') c.x = input.x;
-              if (typeof input.y === 'number') c.y = input.y;
-              if (typeof input.rotation === 'number')
-                c.rotation = input.rotation;
-              if (typeof input.pose === 'string') c.pose = input.pose as Pose;
-            }
           },
           `Set ${input.characterId} pose`,
           true,
@@ -893,8 +1100,179 @@ export default function Home() {
           ok: true,
           revision: current.revision + 1,
           changedEntityIds: [input.characterId],
-          changedPaths: [`characters.${input.characterId}`],
+          changedPaths: [`keyframes.${input.characterId}.${frameTime}`],
+          keyframeTimeMs: frameTime,
           warnings: [],
+        };
+      },
+    );
+    register(
+      'set_keyframe',
+      'Set keyframe',
+      'Create or update a character keyframe at an explicit time without changing other tracks.',
+      {
+        type: 'object',
+        required: ['characterId', 'timeMs'],
+        additionalProperties: false,
+        properties: {
+          characterId: { type: 'string' },
+          timeMs: { type: 'number', minimum: 0 },
+          x: { type: 'number', minimum: 0, maximum: 100 },
+          y: { type: 'number', minimum: 0, maximum: 100 },
+          rotation: { type: 'number', minimum: -180, maximum: 180 },
+          pose: {
+            type: 'string',
+            enum: ['idle', 'nervous', 'wave', 'lean-in'],
+          },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        if (
+          typeof input.characterId !== 'string' ||
+          !current.characters.some((item) => item.id === input.characterId) ||
+          typeof input.timeMs !== 'number' ||
+          !Number.isFinite(input.timeMs) ||
+          input.timeMs < 0 ||
+          input.timeMs > current.duration
+        )
+          return { ok: false, code: 'INVALID_INPUT' };
+        if (
+          (input.x !== undefined &&
+            (typeof input.x !== 'number' || input.x < 0 || input.x > 100)) ||
+          (input.y !== undefined &&
+            (typeof input.y !== 'number' || input.y < 0 || input.y > 100)) ||
+          (input.rotation !== undefined &&
+            (typeof input.rotation !== 'number' ||
+              input.rotation < -180 ||
+              input.rotation > 180)) ||
+          (input.pose !== undefined && !isPose(input.pose))
+        )
+          return { ok: false, code: 'INVALID_INPUT' };
+        let keyframe: Keyframe | null = null;
+        commitRef.current(
+          (next) => {
+            keyframe = upsertCharacterKeyframe(
+              next,
+              input.characterId as string,
+              input.timeMs as number,
+              {
+                x: typeof input.x === 'number' ? input.x : undefined,
+                y: typeof input.y === 'number' ? input.y : undefined,
+                rotation:
+                  typeof input.rotation === 'number'
+                    ? input.rotation
+                    : undefined,
+                pose: isPose(input.pose) ? input.pose : undefined,
+              },
+            );
+          },
+          `Keyframe ${input.characterId}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          keyframe,
+          changedEntityIds: [input.characterId],
+        };
+      },
+    );
+    register(
+      'apply_motion_preset',
+      'Apply motion preset',
+      'Apply a deterministic multi-keyframe motion preset to one character.',
+      {
+        type: 'object',
+        required: ['characterId', 'preset'],
+        additionalProperties: false,
+        properties: {
+          characterId: { type: 'string' },
+          preset: { type: 'string', enum: ['nervous', 'entrance', 'reaction'] },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        if (
+          typeof input.characterId !== 'string' ||
+          !current.characters.some((item) => item.id === input.characterId) ||
+          (input.preset !== 'nervous' &&
+            input.preset !== 'entrance' &&
+            input.preset !== 'reaction')
+        )
+          return { ok: false, code: 'INVALID_INPUT' };
+        const character = evaluateCharacters(current, current.currentTime).find(
+          (item) => item.id === input.characterId,
+        );
+        if (!character) return { ok: false, code: 'NOT_FOUND' };
+        const start = current.currentTime;
+        const preset = input.preset;
+        const frames =
+          preset === 'nervous'
+            ? [
+                {
+                  time: start,
+                  rotation: character.rotation - 3,
+                  pose: 'nervous' as Pose,
+                },
+                {
+                  time: start + 250,
+                  rotation: character.rotation + 3,
+                  pose: 'nervous' as Pose,
+                },
+                {
+                  time: start + 500,
+                  rotation: character.rotation,
+                  pose: 'nervous' as Pose,
+                },
+              ]
+            : preset === 'entrance'
+              ? [
+                  {
+                    time: start,
+                    x: clamp(character.x + 12, 0, 100),
+                    pose: 'idle' as Pose,
+                  },
+                  {
+                    time: start + 700,
+                    x: character.x,
+                    pose: 'lean-in' as Pose,
+                  },
+                ]
+              : [
+                  {
+                    time: start,
+                    rotation: character.rotation - 4,
+                    pose: 'wave' as Pose,
+                  },
+                  {
+                    time: start + 450,
+                    rotation: character.rotation,
+                    pose: character.pose,
+                  },
+                ];
+        const applied: Keyframe[] = [];
+        commitRef.current(
+          (next) => {
+            frames.forEach((frame) => {
+              const result = upsertCharacterKeyframe(
+                next,
+                input.characterId as string,
+                frame.time,
+                frame,
+              );
+              if (result) applied.push(result);
+            });
+          },
+          `Apply ${preset} motion`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          preset,
+          keyframes: applied,
+          changedEntityIds: [input.characterId],
         };
       },
     );
@@ -958,9 +1336,14 @@ export default function Home() {
   }, []);
   const updateSelected = (key: 'x' | 'y' | 'rotation', value: number) =>
     commit((next) => {
-      const c = next.characters.find((item) => item.id === next.selectedId);
-      if (c) c[key] = value;
+      upsertCharacterKeyframe(next, next.selectedId, next.currentTime, {
+        [key]: value,
+      });
     }, `Adjust ${key}`);
+  const addKeyframe = () =>
+    commit((next) => {
+      upsertCharacterKeyframe(next, next.selectedId, next.currentTime, {});
+    }, `Keyframe ${selected.name}`);
   const addScene = () => {
     const sceneNumber = project.scenes.length + 1;
     const scene = {
@@ -1069,21 +1452,37 @@ export default function Home() {
     drawNextFrame();
     timer = window.setInterval(drawNextFrame, 1000 / 12);
   }, [project, rendering]);
-  const tracks = useMemo(
-    () => [
+  const tracks = useMemo(() => {
+    const marksForCharacter = (characterId: string) =>
+      project.keyframes
+        .filter((frame) => frame.characterId === characterId)
+        .map((frame) => (frame.time / project.duration) * 100);
+    return [
       { name: 'Camera', color: 'blue', marks: [0, 28, 55, 74] },
-      { name: 'Alice · rig', color: 'coral', marks: [18, 36, 52, 77] },
-      { name: 'Bob · rig', color: 'teal', marks: [51, 67, 82] },
-      { name: 'Captions', color: 'yellow', marks: [31, 62] },
+      {
+        name: 'Alice · rig',
+        color: 'coral',
+        marks: marksForCharacter('alice'),
+      },
+      { name: 'Bob · rig', color: 'teal', marks: marksForCharacter('bob') },
+      {
+        name: 'Captions',
+        color: 'yellow',
+        marks: project.captions.map(
+          (caption) => (caption.start / project.duration) * 100,
+        ),
+      },
       { name: 'Music · low', color: 'violet', marks: [0, 100] },
-    ],
-    [],
-  );
+    ];
+  }, [project.captions, project.duration, project.keyframes]);
   const activeSceneIndex = Math.max(
     0,
     project.scenes.findIndex((scene) => scene.id === project.activeSceneId),
   );
   const activeScene = project.scenes[activeSceneIndex] ?? starterScenes[0];
+  const selectedKeyframeCount = project.keyframes.filter(
+    (frame) => frame.characterId === selected.id,
+  ).length;
   return (
     <main className="studio-shell">
       <header className="topbar">
@@ -1292,7 +1691,7 @@ export default function Home() {
               </span>
               <div>
                 <strong>WebMCP surface</strong>
-                <small>14 tools declared</small>
+                <small>{WEBMCP_TOOL_COUNT} tools declared</small>
               </div>
               <span className="online-dot" />
             </div>
@@ -1445,8 +1844,8 @@ export default function Home() {
               <div className="timeline-actions">
                 <button
                   type="button"
-                  disabled
-                  title="Coming soon · keyframe authoring"
+                  onClick={addKeyframe}
+                  title={`Add ${selected.name} keyframe at ${timecode(project.currentTime)}`}
                 >
                   <Sparkles size={14} /> Keyframe
                 </button>
@@ -1518,10 +1917,19 @@ export default function Home() {
                       )}
                     </div>
                     {track.marks.map((mark) => (
-                      <span
+                      <button
+                        type="button"
                         className={`key key-${track.color}`}
                         style={{ left: `${mark}%` }}
                         key={mark}
+                        aria-label={`Move playhead to ${timecode((mark / 100) * project.duration)}`}
+                        title={`Go to ${timecode((mark / 100) * project.duration)}`}
+                        onClick={() =>
+                          setProject((current) => ({
+                            ...current,
+                            currentTime: (mark / 100) * current.duration,
+                          }))
+                        }
                       />
                     ))}
                   </div>
@@ -1608,7 +2016,8 @@ export default function Home() {
             </div>
             <small className="transform-help">
               Move the selected character in the scene. Changes are
-              keyframe-ready and undoable.
+              keyframe-ready and undoable. {selectedKeyframeCount} keyframes on
+              this rig.
             </small>
           </div>
           <div className="inspector-section">
@@ -1630,10 +2039,12 @@ export default function Home() {
                     key={pose}
                     onClick={() =>
                       commit((next) => {
-                        const c = next.characters.find(
-                          (item) => item.id === next.selectedId,
+                        upsertCharacterKeyframe(
+                          next,
+                          next.selectedId,
+                          next.currentTime,
+                          { pose },
                         );
-                        if (c) c.pose = pose;
                       }, `Apply ${pose} pose`)
                     }
                   >
@@ -1746,7 +2157,7 @@ export default function Home() {
                 </div>
                 <div className="setting-line">
                   <span>Agent surface</span>
-                  <strong>14 WebMCP tools</strong>
+                  <strong>{WEBMCP_TOOL_COUNT} WebMCP tools</strong>
                 </div>
               </div>
             )}

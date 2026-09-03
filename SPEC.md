@@ -4,7 +4,7 @@ Stagehand is a WebMCP-native 2D animation studio where a person and ChatGPT can 
 
 ## Current cut
 
-The first vertical slice is a deterministic, local-first Paper Cutout Comedy scene: two pre-rigged placeholder characters, a diner background, captions, a timeline, command-backed transforms and poses, undo/redo, local recovery, multi-scene metadata, JSON import/export, silent WebM export, and fourteen WebMCP tools. TTS, voice cloning, dialogue recording, phoneme extraction, and lip-sync remain explicitly out of scope.
+The current cut is a deterministic, local-first Paper Cutout Comedy scene: two pre-rigged placeholder characters, a diner background, captions, an interpolated keyframe timeline, command-backed transforms and poses, undo/redo, local recovery, multi-scene metadata, JSON import/export, silent WebM export, and seventeen WebMCP tools. TTS, voice cloning, dialogue recording, phoneme extraction, and lip-sync remain explicitly out of scope.
 
 ## Product rules
 
@@ -12,6 +12,7 @@ The first vertical slice is a deterministic, local-first Paper Cutout Comedy sce
 - Human and agent actions share one command model. Mutations are revisioned and undoable.
 - Broad reads and narrow writes are preferred. Agent writes must preserve unrelated manual edits.
 - Preview, frame inspection, and final render must share one deterministic evaluator.
+- Character motion is stored as explicit keyframes and interpolated at the playhead; human and agent edits use the same keyframe command path.
 - Browser 2D studio first; desktop Chrome is the initial target.
 
 ## Canonical demo
