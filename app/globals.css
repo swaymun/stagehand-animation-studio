@@ -1597,8 +1597,11 @@ button {
   border-bottom: 1px solid var(--line);
 }
 .inspector-section > summary {
+  display: flex;
+  align-items: center;
   list-style: none;
   cursor: pointer;
+  gap: 6px;
 }
 .inspector-section > summary::-webkit-details-marker {
   display: none;
