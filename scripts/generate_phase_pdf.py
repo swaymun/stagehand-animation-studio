@@ -43,10 +43,10 @@ def bullets(items):
 
 story = [
     p("Stagehand Phase Evidence", title),
-    p("Current checkpoint: public Site v98, verified 2026-09-03.", subtitle),
+    p("Current checkpoint: public Site v99, verified 2026-09-03.", subtitle),
     p("Project", heading),
     p("Stagehand is a WebMCP-native 2D animation studio for editable paper-cutout scenes. The current cut supports rigged characters, imported image props, per-asset visual direction, camera work, captions, non-voice audio cues, storyboard beats, multi-scene Preview, and deterministic WebM export.", body),
-    p("Private source: github.com/swaymun/stagehand-animation-studio<br/>Source HEAD: 216672e1b4dfd715bbed2991815f4f84860148ba<br/>Deployed runtime: 216672e1b4dfd715bbed2991815f4f84860148ba<br/>Public Site: stagehand-animation-studio.saimun-h-shahee.chatgpt.site<br/>Sites version: 98", body),
+    p("Private source: github.com/swaymun/stagehand-animation-studio<br/>Source HEAD: 216672e1b4dfd715bbed2991815f4f84860148ba<br/>Deployed runtime: 216672e1b4dfd715bbed2991815f4f84860148ba<br/>Public Site: stagehand-animation-studio.saimun-h-shahee.chatgpt.site<br/>Sites version: 99", body),
     p("Acceptance loop", heading),
     p("Implement - local tests - Sites deployment - hosted test - UI roast - fixes - second review.", body),
     p("Implemented at this checkpoint", heading),
