@@ -688,6 +688,12 @@ function makeSplitScenes(
 
 const copy = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const timecode = (ms: number) => `${(ms / 1000).toFixed(2).padStart(4, '0')}s`;
+const projectFileStem = (name: string) =>
+  name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'stagehand-project';
 const clamp = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value));
 const isPose = (value: unknown): value is Pose =>
@@ -1968,7 +1974,7 @@ export default function Home() {
         ),
     );
     drawRenderFrame(context, project, output.width, output.height, imageMap);
-    const fileName = `stagehand-frame-${String(Math.round(project.currentTime)).padStart(5, '0')}ms.png`;
+    const fileName = `${projectFileStem(project.name)}-frame-${String(Math.round(project.currentTime)).padStart(5, '0')}ms.png`;
     const link = document.createElement('a');
     link.href = output.toDataURL('image/png');
     link.download = fileName;
@@ -4334,7 +4340,7 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'stagehand-paper-cutout-comedy.stagehand.json';
+    link.download = `${projectFileStem(project.name)}.stagehand.json`;
     link.click();
     URL.revokeObjectURL(url);
     setLastCommand('export_project()');
@@ -4440,7 +4446,7 @@ export default function Home() {
       const url = URL.createObjectURL(new Blob(chunks, { type: 'video/webm' }));
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'stagehand-paper-cutout-comedy.webm';
+      link.download = `${projectFileStem(project.name)}.webm`;
       link.click();
       URL.revokeObjectURL(url);
       stream.getTracks().forEach((track) => track.stop());
