@@ -43,10 +43,10 @@ def bullets(items):
 
 story = [
     p("Stagehand Phase Evidence", title),
-    p("Current checkpoint: public Site v85, verified 2026-09-03.", subtitle),
+    p("Current checkpoint: public Site v86, verified 2026-09-03.", subtitle),
     p("Project", heading),
     p("Stagehand is a WebMCP-native 2D animation studio for editable paper-cutout scenes. The current cut supports rigged characters, imported image props, per-asset visual direction, camera work, captions, non-voice audio cues, storyboard beats, multi-scene Preview, and deterministic WebM export.", body),
-    p("Private source: github.com/swaymun/stagehand-animation-studio<br/>Commit: 437d958d13d865c073c146a95d7312caf461cb40<br/>Public Site: stagehand-animation-studio.saimun-h-shahee.chatgpt.site<br/>Sites version: 85", body),
+    p("Private source: github.com/swaymun/stagehand-animation-studio<br/>Commit: 9f998b117edbf0e644f3e9057fa733dc85770174<br/>Public Site: stagehand-animation-studio.saimun-h-shahee.chatgpt.site<br/>Sites version: 86", body),
     p("Acceptance loop", heading),
     p("Implement - local tests - Sites deployment - hosted test - UI roast - fixes - second review.", body),
     p("Implemented at this checkpoint", heading),
@@ -62,15 +62,15 @@ story = [
     p("Verification", heading),
     p("Local gate:", body),
     p("npm run format<br/>npm run lint<br/>npm run build<br/>git diff --check<br/>npm run smoke", code),
-    p("Smoke passed: 52 tools, 39 guarded mutations, a 15-second six-beat starter, synchronized timing, renderer treatment and placement, media import, recovery, Preview, PNG/WebM export, and zero errors.", body),
+    p("Smoke passed: 52 tools, 39 guarded mutations, a 15-second six-beat starter, synchronized timing, asset treatments, import/recovery including empty collections, Preview, PNG/WebM export, and zero errors.", body),
     PageBreak(),
 ]
 
 screens = [
-    ("Animate editing workspace", "v85-animate.png", "Hosted Playwright capture at 1440 x 960. The 15-second timeline carries the expanded character and camera beats while speed controls, frame steps, and labels remain readable."),
-    ("Assets style editor", "v85-assets-style.png", "Hosted Playwright capture at 1440 x 960. Palette chips and stage/library cues make the structured Style direction legible without taking over the asset rail."),
-    ("Storyboard mode with Board rail", "v85-storyboard.png", "Hosted Playwright capture at 1440 x 960. Six beat cards make the longer arc inspectable while the selected mode and project rail stay synchronized."),
-    ("Review-first Preview player", "v85-preview.png", "Hosted Playwright capture at 1440 x 960. Scene-only context, transport, and Exit preview remain; global editing controls are hidden."),
+    ("Animate editing workspace", "v86-animate.png", "Hosted Playwright capture at 1440 x 960. The 15-second timeline carries the expanded character and camera beats while speed controls, frame steps, and labels remain readable."),
+    ("Assets style editor", "v86-assets-style.png", "Hosted Playwright capture at 1440 x 960. Palette chips and stage/library cues make the structured Style direction legible without taking over the asset rail."),
+    ("Storyboard mode with Board rail", "v86-storyboard.png", "Hosted Playwright capture at 1440 x 960. Six beat cards make the longer arc inspectable while the selected mode and project rail stay synchronized."),
+    ("Review-first Preview player", "v86-preview.png", "Hosted Playwright capture at 1440 x 960. Scene-only context, transport, and Exit preview remain; global editing controls are hidden."),
 ]
 
 for index, (heading_text, filename, caption_text) in enumerate(screens):
