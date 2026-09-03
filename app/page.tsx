@@ -54,6 +54,7 @@ type Asset = {
   source: 'starter' | 'placeholder' | 'imported';
   mimeType?: string;
   dataUrl?: string;
+  frameCount?: number;
 };
 type AudioCueKind = 'music' | 'footstep' | 'stinger';
 type AudioCue = {
@@ -651,6 +652,17 @@ function assetKindLabel(kind: AssetKind) {
         : 'Audio';
 }
 
+function poseFrameIndex(pose: Pose, frameCount: number) {
+  if (frameCount < 4) return 0;
+  return pose === 'nervous'
+    ? 1
+    : pose === 'wave'
+      ? 2
+      : pose === 'lean-in'
+        ? 3
+        : 0;
+}
+
 function nextAudioCueId(cues: AudioCue[], kind: AudioCueKind) {
   let index = cues.length + 1;
   let id = `${kind}-${String(index).padStart(2, '0')}`;
@@ -796,6 +808,19 @@ function validateProjectState(project: Project): ValidationIssue[] {
         severity: 'error',
         path: `audioCues.${cue.id}`,
         message: `${cue.id} has invalid timing, type, or volume.`,
+      });
+  });
+  project.assets.forEach((asset) => {
+    if (
+      asset.frameCount !== undefined &&
+      asset.frameCount !== 1 &&
+      asset.frameCount !== 4
+    )
+      issues.push({
+        code: 'INVALID_ASSET_SHEET',
+        severity: 'error',
+        path: `assets.${asset.id}.frameCount`,
+        message: `${asset.id} must be a single image or a four-pose sheet.`,
       });
   });
   return issues;
@@ -1167,6 +1192,7 @@ function drawCharacter(
   height: number,
   selected: boolean,
   characterImage?: CanvasImageSource,
+  characterAsset?: Asset,
 ) {
   const x = (c.x / 100) * width,
     ground = (c.y / 100) * height,
@@ -1188,18 +1214,34 @@ function drawCharacter(
   }
   if (characterImage) {
     const image = characterImage as HTMLImageElement;
+    const frameCount = characterAsset?.frameCount === 4 ? 4 : 1;
     const sourceWidth = image.naturalWidth || image.width || 100;
     const sourceHeight = image.naturalHeight || image.height || 220;
-    const imageScale = Math.min(112 / sourceWidth, 242 / sourceHeight);
-    const imageWidth = sourceWidth * imageScale;
+    const frameWidth = sourceWidth / frameCount;
+    const imageScale = Math.min(112 / frameWidth, 242 / sourceHeight);
+    const imageWidth = frameWidth * imageScale;
     const imageHeight = sourceHeight * imageScale;
-    ctx.drawImage(
-      characterImage,
-      -imageWidth / 2,
-      -imageHeight,
-      imageWidth,
-      imageHeight,
-    );
+    if (frameCount > 1) {
+      ctx.drawImage(
+        characterImage,
+        poseFrameIndex(c.pose, frameCount) * frameWidth,
+        0,
+        frameWidth,
+        sourceHeight,
+        -imageWidth / 2,
+        -imageHeight,
+        imageWidth,
+        imageHeight,
+      );
+    } else {
+      ctx.drawImage(
+        characterImage,
+        -imageWidth / 2,
+        -imageHeight,
+        imageWidth,
+        imageHeight,
+      );
+    }
     ctx.restore();
     return;
   }
@@ -1289,6 +1331,9 @@ function drawRenderFrame(
       height,
       false,
       character.assetId ? imageMap?.get(character.assetId) : undefined,
+      character.assetId
+        ? project.assets.find((asset) => asset.id === character.assetId)
+        : undefined,
     ),
   );
   drawImportedProps(ctx, project.assets, width, height, imageMap);
@@ -1399,6 +1444,9 @@ function StageCanvas({
         height,
         c.id === project.selectedId,
         c.assetId ? imageCacheRef.current.get(c.assetId) : undefined,
+        c.assetId
+          ? project.assets.find((asset) => asset.id === c.assetId)
+          : undefined,
       ),
     );
     drawImportedProps(
@@ -1508,6 +1556,9 @@ export default function Home() {
   const [assetImportKind, setAssetImportKind] = useState<
     'rigged-character' | 'background' | 'prop'
   >('prop');
+  const [assetImportMode, setAssetImportMode] = useState<
+    'single' | 'pose-sheet'
+  >('single');
   const panStartRef = useRef<{
     x: number;
     y: number;
@@ -3033,6 +3084,11 @@ export default function Home() {
       }
       const label = file.name.replace(/\.[^/.]+$/, '') || 'Imported image';
       const assetId = nextAssetId(project.assets, assetImportKind);
+      const frameCount =
+        assetImportKind === 'rigged-character' &&
+        assetImportMode === 'pose-sheet'
+          ? 4
+          : 1;
       commit(
         (next) => {
           next.assets.push({
@@ -3042,6 +3098,7 @@ export default function Home() {
             source: 'imported',
             mimeType: file.type,
             dataUrl: reader.result as string,
+            ...(frameCount > 1 ? { frameCount } : {}),
           });
           if (assetImportKind === 'rigged-character') {
             const character = next.characters.find(
@@ -3051,7 +3108,7 @@ export default function Home() {
           }
         },
         assetImportKind === 'rigged-character'
-          ? `Import and bind character art ${label}`
+          ? `Import and bind ${assetImportMode === 'pose-sheet' ? 'pose sheet' : 'character art'} ${label}`
           : `Import asset ${label}`,
       );
     };
@@ -3682,7 +3739,10 @@ export default function Home() {
                     <span className="asset-copy">
                       <strong>{asset.label}</strong>
                       <small>
-                        {assetKindLabel(asset.kind)} · {asset.source}
+                        {asset.frameCount === 4
+                          ? '4-pose sheet'
+                          : assetKindLabel(asset.kind)}{' '}
+                        · {asset.source}
                         {project.characters.find(
                           (character) => character.assetId === asset.id,
                         )
@@ -3725,10 +3785,21 @@ export default function Home() {
                   type="button"
                   onClick={() => {
                     setAssetImportKind('rigged-character');
+                    setAssetImportMode('single');
                     assetImportInputRef.current?.click();
                   }}
                 >
                   <Upload size={11} /> Import character art
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssetImportKind('rigged-character');
+                    setAssetImportMode('pose-sheet');
+                    assetImportInputRef.current?.click();
+                  }}
+                >
+                  <Layers3 size={11} /> Import pose sheet
                 </button>
                 <button
                   type="button"
@@ -3751,8 +3822,8 @@ export default function Home() {
               </div>
               <small className="panel-hint asset-hint">
                 Import character art to bind it to the selected rig; poses and
-                keyframes stay editable. Placeholders keep the rest of the scene
-                ready for replacement.
+                keyframes stay editable. Use a four-column pose sheet to swap
+                art with the existing pose keyframes.
               </small>
               <input
                 ref={assetImportInputRef}
