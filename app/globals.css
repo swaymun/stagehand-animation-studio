@@ -720,11 +720,12 @@ button {
   outline: 2px solid var(--blue);
   outline-offset: 1px;
 }
-.asset-motion-actions {
+.asset-list .asset-motion-actions {
   display: flex;
   align-items: center;
   gap: 4px;
   margin-top: 4px;
+  padding: 0;
   color: #8f867c;
   font-size: 8px;
 }
@@ -746,11 +747,13 @@ button {
   border-color: var(--violet);
   background: #f8f0fa;
 }
-.asset-transform-editor {
+.asset-list .asset-transform-editor {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 3px;
   margin-top: 5px;
+  padding: 0;
+  border-radius: 0;
   color: #8f867c;
   font-size: 8px;
 }
