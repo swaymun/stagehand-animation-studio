@@ -3776,6 +3776,7 @@ export default function Home() {
           brief: defaultAssetBrief(input.kind),
           source: 'placeholder',
           frameLayout: 'single',
+          style: defaultAssetStyle(input.kind),
         };
         commitRef.current(
           (next) => {
@@ -5315,6 +5316,7 @@ export default function Home() {
         brief: defaultAssetBrief(kind),
         source: 'placeholder',
         frameLayout: 'single',
+        style: defaultAssetStyle(kind),
       });
     }, `Add asset ${label}`);
   };
@@ -5566,6 +5568,7 @@ export default function Home() {
               brief: defaultAssetBrief(assetImportKind),
               source: 'imported',
               frameLayout,
+              style: defaultAssetStyle(assetImportKind),
               mimeType: file.type,
               dataUrl: reader.result as string,
               ...(frameCount > 1 ? { frameCount } : {}),

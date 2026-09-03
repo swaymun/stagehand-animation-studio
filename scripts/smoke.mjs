@@ -244,6 +244,14 @@ const poseSheet = await page
 if (poseSheet !== 1) {
   throw new Error(`wide pose sheet was not auto-detected: ${poseSheet}`);
 }
+const assetValidation = await page.evaluate(() =>
+  window.__stagehandTools.get('validate_project').execute({}),
+);
+if (!assetValidation.ok) {
+  throw new Error(
+    `freshly added/imported assets should carry valid style defaults: ${JSON.stringify(assetValidation)}`,
+  );
+}
 const unnamedNumberInputs = await page
   .locator('input[type="number"]')
   .evaluateAll((inputs) =>
@@ -665,6 +673,10 @@ const result = {
   humanAudioVolume,
   humanPropX,
   poseSheet,
+  assetValidation: {
+    ok: assetValidation.ok,
+    issueCount: assetValidation.issues?.length ?? 0,
+  },
   storyboardCards,
   sequencePreview: {
     advanced: previewSceneBefore !== previewSceneAfter,
@@ -729,6 +741,7 @@ if (
   bridge.assetStyle.palette?.join(',') !== 'amber,coral' ||
   result.humanPropX !== '63.0' ||
   result.poseSheet !== 1 ||
+  !result.assetValidation.ok ||
   !bridge.undone.ok ||
   !bridge.redone.ok ||
   !rendered.ok ||
