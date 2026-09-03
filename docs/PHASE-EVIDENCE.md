@@ -6,9 +6,9 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement �
 
 - Date: 2026-09-03
 - Private source: [github.com/swaymun/stagehand-animation-studio](https://github.com/swaymun/stagehand-animation-studio)
-- Verified source commit: `430b7a687962be8c58695ad64f5ab1ee45a1a31d`
+- Verified source commit: `4e5106cc3b2f29913b724563c72b00f9f369b4f6`
 - Public Site: [stagehand-animation-studio.saimun-h-shahee.chatgpt.site](https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site)
-- Sites version: `77`
+- Sites version: `79`
 - Scope at this checkpoint: structured per-asset visual direction, clarified motion actions, revision-safe and idempotent WebMCP mutations, partial render-settings preservation, synchronized Storyboard/Board navigation, review-first Preview with editing controls removed, readable two-line scene labels, semantic heading/dialog landmarks, accessible transform controls, wide four-column pose-sheet detection, and imported-prop/sequence coverage.
 
 ## Implement
@@ -28,6 +28,7 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement �
 - The studio brand is a descriptive `h1`, and the modal surface declares `aria-modal` alongside its labelled heading.
 - Timeline keyframe buttons retain small diamonds but use 22×22 px hit targets.
 - The smoke harness now opens the Help dialog through the human UI and reloads the mutated project to prove its local recovery path.
+- Inspector editing groups now collapse independently so the working surface can stay focused without losing access to controls.
 
 ## Local verification
 
@@ -60,6 +61,7 @@ The local smoke result verified:
 - Reload recovery: renamed two-scene project and imported asset restored from local storage: PASS.
 - Sequence Preview: playback advanced from Scene 02 to Scene 01 across the 500 ms scene boundary: PASS.
 - Wide pose-sheet import: 400×100 PNG auto-detected as a four-column sheet and bound to the selected rig: PASS.
+- Inspector groups: five editing sections expose native collapse/reopen behavior while preserving accessible controls: PASS.
 
 ## Hosted verification
 
@@ -67,16 +69,16 @@ The local smoke result verified:
 STAGEHAND_URL=https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site npm run smoke
 ```
 
-Result: PASS. The hosted run verified the same 51-tool injected bridge, stale-write conflict, idempotent replay, frame inspection, PNG frame download, wide pose-sheet auto-detection, asset-style update, partial render-settings preservation, prop workflow, two-scene WebM download, sequence Preview scene transition, synchronized Storyboard/Board context, clarified motion copy, clean Preview state with global editing controls removed, readable scene-label layout, semantic `h1`, labelled Help modal, reload recovery, and zero page errors. This is labeled a Playwright fallback: the public Site did not expose live WebMCP enumeration to the available runner, so it does not prove that ChatGPT’s production host enumerates the tools.
+Result: PASS. The hosted run verified the same 51-tool injected bridge, stale-write conflict, idempotent replay, frame inspection, PNG frame download, wide pose-sheet auto-detection, asset-style update, partial render-settings preservation, prop workflow, two-scene WebM download, sequence Preview scene transition, synchronized Storyboard/Board context, clarified motion copy, collapsible Inspector groups, clean Preview state with global editing controls removed, readable scene-label layout, semantic `h1`, labelled Help modal, reload recovery, and zero page errors. This is labeled a Playwright fallback: the public Site did not expose live WebMCP enumeration to the available runner, so it does not prove that ChatGPT’s production host enumerates the tools.
 
 ## UI roast and fixes
 
-Evidence screenshots are captured from the hosted v77 build at 1440×960:
+Evidence screenshots are captured from the hosted v79 build at 1440×960:
 
-- [`v77-animate.png`](evidence/v77-animate.png): editing workspace with clarified motion actions and readable scene labels.
-- [`v77-assets-style.png`](evidence/v77-assets-style.png): expandable per-asset style editor.
-- [`v77-storyboard.png`](evidence/v77-storyboard.png): Storyboard mode with the Board rail selected.
-- [`v77-preview.png`](evidence/v77-preview.png): clean review-first Preview player with only review outputs in the header.
+- [`v79-animate.png`](evidence/v79-animate.png): editing workspace with clarified motion actions and readable scene labels.
+- [`v79-assets-style.png`](evidence/v79-assets-style.png): expandable per-asset style editor.
+- [`v79-storyboard.png`](evidence/v79-storyboard.png): Storyboard mode with the Board rail selected.
+- [`v79-preview.png`](evidence/v79-preview.png): clean review-first Preview player with only review outputs in the header.
 
 Findings from the current screenshot review:
 
@@ -94,6 +96,7 @@ Findings from the current screenshot review:
 12. Scene titles competed with the ready badge and were visually shortened. Fixed with a two-line title clamp and a badge positioned outside the text flow; hosted smoke asserts two rendered title lines.
 13. The brand lacked a document-level heading and the modal lacked an explicit modal landmark. Fixed with a descriptive `h1` and `aria-modal="true"`.
 14. The existing smoke gate did not exercise the recovery, modal, or sequence transition paths. Added a real Help open/close assertion, a post-mutation reload assertion, and a cross-scene Preview playback assertion to both local and hosted runs.
+15. The Inspector was a long scroll dump. Converted the major editing groups to native collapsible sections and added a smoke assertion for collapse/reopen behavior.
 
 ## Limits and warnings
 
