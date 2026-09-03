@@ -252,6 +252,20 @@ button {
   border-radius: 50%;
   font-size: 9px;
 }
+.add-beat-button {
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--blue);
+  background: #fffaf2;
+  font:
+    9px ui-monospace,
+    monospace;
+}
+.add-beat-button:hover {
+  border-color: var(--blue);
+  background: #f0f5f2;
+}
 .scene-card {
   position: relative;
   display: grid;
@@ -582,6 +596,37 @@ button {
 .board-promote:hover {
   border-color: var(--blue);
   background: #f0f5f2;
+}
+.board-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.board-actions .board-promote {
+  margin-right: 0;
+}
+.board-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 8px 8px 0;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--muted);
+  background: #fffaf2;
+  font:
+    9px ui-monospace,
+    monospace;
+}
+.board-edit:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+.beat-time-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
 }
 .panel-hint {
   display: block;

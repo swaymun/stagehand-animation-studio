@@ -136,6 +136,7 @@ type Project = {
   captions: Caption[];
   audioCues: AudioCue[];
   assets: Asset[];
+  storyboardBeats: StoryBeat[];
   scenes: SceneMeta[];
   activeSceneId: string;
   templateId?: TemplateId;
@@ -147,7 +148,7 @@ type ValidationIssue = {
   path: string;
   message: string;
 };
-const WEBMCP_TOOL_COUNT = 36;
+const WEBMCP_TOOL_COUNT = 39;
 type ModelTool = {
   name: string;
   title: string;
@@ -454,6 +455,7 @@ const starterProject: Project = {
   ],
   audioCues: starterAudioCues,
   assets: starterAssets,
+  storyboardBeats,
   scenes: starterScenes,
   activeSceneId: 'scene-01',
   templateId: 'first-meeting',
@@ -673,6 +675,16 @@ function nextSceneId(scenes: SceneMeta[]) {
   while (scenes.some((scene) => scene.id === id)) {
     index += 1;
     id = `scene-${String(index).padStart(2, '0')}`;
+  }
+  return id;
+}
+
+function nextBeatId(beats: StoryBeat[]) {
+  let index = beats.length + 1;
+  let id = `beat-${String(index).padStart(2, '0')}`;
+  while (beats.some((beat) => beat.id === id)) {
+    index += 1;
+    id = `beat-${String(index).padStart(2, '0')}`;
   }
   return id;
 }
@@ -922,6 +934,10 @@ const hydrateProject = (value: Partial<Project>): Project => {
     Array.isArray(value.scenes) && value.scenes.length > 0
       ? value.scenes
       : base.scenes;
+  const rawBeats =
+    Array.isArray(value.storyboardBeats) && value.storyboardBeats.length > 0
+      ? value.storyboardBeats
+      : base.storyboardBeats;
   const requestedActiveId = value.activeSceneId ?? rawScenes[0].id;
   const scenes = rawScenes.map((scene) => ({
     ...scene,
@@ -952,6 +968,7 @@ const hydrateProject = (value: Partial<Project>): Project => {
     ...base,
     ...value,
     scenes: copy(scenes),
+    storyboardBeats: copy(rawBeats),
     activeSceneId: activeScene.id,
     templateId: activeScene.templateId ?? value.templateId,
     duration: activeScene.duration,
@@ -1601,7 +1618,12 @@ export default function Home() {
     [dialog, setDialog] = useState<'help' | 'settings' | null>(null),
     [rendering, setRendering] = useState(false),
     [notice, setNotice] = useState('Ready for direction'),
-    [saved, setSaved] = useState(true);
+    [saved, setSaved] = useState(true),
+    [editingBeatId, setEditingBeatId] = useState<string | null>(null),
+    [beatTitleDraft, setBeatTitleDraft] = useState(''),
+    [beatDescriptionDraft, setBeatDescriptionDraft] = useState(''),
+    [beatStartDraft, setBeatStartDraft] = useState(''),
+    [beatEndDraft, setBeatEndDraft] = useState('');
   const importInputRef = useRef<HTMLInputElement>(null);
   const assetImportInputRef = useRef<HTMLInputElement>(null);
   const [lastCommand, setLastCommand] = useState('set_pose( alice )');
@@ -1796,6 +1818,7 @@ export default function Home() {
           captionCount: current.captions.length,
           audioCueCount: current.audioCues.length,
           assetCount: current.assets.length,
+          storyboardBeatCount: current.storyboardBeats.length,
         };
       },
       true,
@@ -1873,9 +1896,171 @@ export default function Home() {
       () => ({
         ok: true,
         revision: projectRef.current.revision,
-        beats: storyboardBeats,
+        beats: projectRef.current.storyboardBeats,
       }),
       true,
+    );
+    register(
+      'add_storyboard_beat',
+      'Add storyboard beat',
+      'Add an editable timed beat to the project storyboard without changing scene content.',
+      {
+        type: 'object',
+        required: ['title'],
+        additionalProperties: false,
+        properties: {
+          title: { type: 'string', minLength: 1 },
+          description: { type: 'string' },
+          startMs: { type: 'number', minimum: 0 },
+          endMs: { type: 'number', minimum: 0 },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const title = typeof input.title === 'string' ? input.title.trim() : '';
+        if (!title) return { ok: false, code: 'INVALID_INPUT' };
+        const startMs =
+          typeof input.startMs === 'number'
+            ? input.startMs
+            : current.currentTime;
+        const endMs =
+          typeof input.endMs === 'number' ? input.endMs : startMs + 1000;
+        if (
+          !Number.isFinite(startMs) ||
+          !Number.isFinite(endMs) ||
+          startMs < 0 ||
+          endMs <= startMs ||
+          endMs > current.duration
+        )
+          return { ok: false, code: 'INVALID_TIMING' };
+        const beat: StoryBeat = {
+          id: nextBeatId(current.storyboardBeats),
+          index: String(current.storyboardBeats.length + 1).padStart(2, '0'),
+          title,
+          description:
+            typeof input.description === 'string' && input.description.trim()
+              ? input.description.trim()
+              : 'New story beat ready for blocking.',
+          startMs,
+          endMs,
+        };
+        commitRef.current(
+          (next) => next.storyboardBeats.push(beat),
+          `Add beat ${beat.title}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          beat,
+          changedEntityIds: [beat.id],
+        };
+      },
+    );
+    register(
+      'update_storyboard_beat',
+      'Update storyboard beat',
+      'Edit a storyboard beat title, description, or bounded timing.',
+      {
+        type: 'object',
+        required: ['beatId'],
+        additionalProperties: false,
+        properties: {
+          beatId: { type: 'string' },
+          title: { type: 'string', minLength: 1 },
+          description: { type: 'string' },
+          startMs: { type: 'number', minimum: 0 },
+          endMs: { type: 'number', minimum: 0 },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const beatId = typeof input.beatId === 'string' ? input.beatId : '';
+        const target = current.storyboardBeats.find(
+          (beat) => beat.id === beatId,
+        );
+        if (!target) return { ok: false, code: 'NOT_FOUND' };
+        const title =
+          input.title === undefined
+            ? target.title
+            : typeof input.title === 'string'
+              ? input.title.trim()
+              : '';
+        const description =
+          input.description === undefined
+            ? target.description
+            : typeof input.description === 'string'
+              ? input.description.trim()
+              : '';
+        const startMs =
+          input.startMs === undefined ? target.startMs : input.startMs;
+        const endMs = input.endMs === undefined ? target.endMs : input.endMs;
+        if (
+          !title ||
+          typeof startMs !== 'number' ||
+          typeof endMs !== 'number' ||
+          !Number.isFinite(startMs) ||
+          !Number.isFinite(endMs) ||
+          startMs < 0 ||
+          endMs <= startMs ||
+          endMs > current.duration
+        )
+          return { ok: false, code: 'INVALID_INPUT' };
+        const updated = { ...target, title, description, startMs, endMs };
+        commitRef.current(
+          (next) => {
+            const beat = next.storyboardBeats.find(
+              (item) => item.id === beatId,
+            );
+            if (beat) Object.assign(beat, updated);
+          },
+          `Update beat ${updated.title}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          beat: updated,
+          changedEntityIds: [beatId],
+        };
+      },
+    );
+    register(
+      'remove_storyboard_beat',
+      'Remove storyboard beat',
+      'Remove one editable beat from the project storyboard.',
+      {
+        type: 'object',
+        required: ['beatId'],
+        additionalProperties: false,
+        properties: { beatId: { type: 'string' } },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const beatId = typeof input.beatId === 'string' ? input.beatId : '';
+        const target = current.storyboardBeats.find(
+          (beat) => beat.id === beatId,
+        );
+        if (!target) return { ok: false, code: 'NOT_FOUND' };
+        commitRef.current(
+          (next) => {
+            next.storyboardBeats = next.storyboardBeats
+              .filter((beat) => beat.id !== beatId)
+              .map((beat, index) => ({
+                ...beat,
+                index: String(index + 1).padStart(2, '0'),
+              }));
+          },
+          `Remove beat ${target.title}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          removedBeatId: beatId,
+          beatCount: current.storyboardBeats.length - 1,
+        };
+      },
     );
     register(
       'get_timeline',
@@ -2665,7 +2850,9 @@ export default function Home() {
       },
       (input) => {
         const current = projectRef.current;
-        const beat = storyboardBeats.find((item) => item.id === input.beatId);
+        const beat = current.storyboardBeats.find(
+          (item) => item.id === input.beatId,
+        );
         if (!beat) return { ok: false, code: 'NOT_FOUND' };
         if (beat.startMs >= current.duration || beat.endMs <= beat.startMs) {
           return { ok: false, code: 'INVALID_TIMING' };
@@ -3449,6 +3636,69 @@ export default function Home() {
     }, `Apply ${scene.title}`);
     setPanel('scenes');
   };
+  const addStoryboardBeat = () => {
+    const startMs = Math.min(
+      project.currentTime,
+      Math.max(0, project.duration - 1000),
+    );
+    const endMs = Math.min(project.duration, startMs + 1000);
+    const beat: StoryBeat = {
+      id: nextBeatId(project.storyboardBeats),
+      index: String(project.storyboardBeats.length + 1).padStart(2, '0'),
+      title: `Beat ${String(project.storyboardBeats.length + 1).padStart(2, '0')}`,
+      description: 'New story beat ready for blocking.',
+      startMs,
+      endMs,
+    };
+    commit((next) => next.storyboardBeats.push(beat), `Add beat ${beat.title}`);
+    setEditingBeatId(beat.id);
+    setBeatTitleDraft(beat.title);
+    setBeatDescriptionDraft(beat.description);
+    setBeatStartDraft(String(beat.startMs));
+    setBeatEndDraft(String(beat.endMs));
+  };
+  const beginBeatEdit = (beat: StoryBeat) => {
+    setEditingBeatId(beat.id);
+    setBeatTitleDraft(beat.title);
+    setBeatDescriptionDraft(beat.description);
+    setBeatStartDraft(String(beat.startMs));
+    setBeatEndDraft(String(beat.endMs));
+  };
+  const finishBeatEdit = () => {
+    if (!editingBeatId) return;
+    const title = beatTitleDraft.trim();
+    const description = beatDescriptionDraft.trim() || 'Untitled story beat.';
+    const startMs = Number(beatStartDraft);
+    const endMs = Number(beatEndDraft);
+    if (
+      !title ||
+      !Number.isFinite(startMs) ||
+      !Number.isFinite(endMs) ||
+      startMs < 0 ||
+      endMs <= startMs ||
+      endMs > project.duration
+    ) {
+      setNotice('Beat timing must fit inside the active scene');
+      return;
+    }
+    const beatId = editingBeatId;
+    commit((next) => {
+      const beat = next.storyboardBeats.find((item) => item.id === beatId);
+      if (beat) Object.assign(beat, { title, description, startMs, endMs });
+    }, `Update beat ${title}`);
+    setEditingBeatId(null);
+  };
+  const removeStoryboardBeat = (beat: StoryBeat) => {
+    commit((next) => {
+      next.storyboardBeats = next.storyboardBeats
+        .filter((item) => item.id !== beat.id)
+        .map((item, index) => ({
+          ...item,
+          index: String(index + 1).padStart(2, '0'),
+        }));
+    }, `Remove beat ${beat.title}`);
+    setEditingBeatId(null);
+  };
   const promoteBeat = (beat: StoryBeat) => {
     if (beat.startMs >= project.duration) {
       setNotice('Beat does not fit inside this scene');
@@ -4069,13 +4319,20 @@ export default function Home() {
             <div className="rail-content">
               <div className="section-label">
                 <span>
-                  BEATS <b>{storyboardBeats.length}</b>
+                  BEATS <b>{project.storyboardBeats.length}</b>
                 </span>
+                <button
+                  className="add-beat-button"
+                  type="button"
+                  onClick={addStoryboardBeat}
+                >
+                  + Beat
+                </button>
               </div>
               <small className="panel-hint">
-                Select a beat to move the playhead before promoting timing.
+                Edit timing, then promote any beat into a new scene.
               </small>
-              {storyboardBeats.map((beat) => {
+              {project.storyboardBeats.map((beat) => {
                 const active =
                   project.currentTime >= beat.startMs &&
                   project.currentTime < beat.endMs;
@@ -4084,30 +4341,105 @@ export default function Home() {
                     className={`board-card ${active ? 'active' : ''}`}
                     key={beat.id}
                   >
-                    <button
-                      className="board-card-main"
-                      type="button"
-                      disabled={beat.startMs >= project.duration}
-                      onClick={() =>
-                        setProject((current) => ({
-                          ...current,
-                          currentTime: beat.startMs,
-                        }))
-                      }
-                      aria-label={`Select beat ${beat.index}: ${beat.title}`}
-                    >
-                      <span className="beat-index">{beat.index}</span>
-                      <strong>{beat.title}</strong>
-                      <small>{beat.description}</small>
-                    </button>
-                    <button
-                      className="board-promote"
-                      type="button"
-                      disabled={beat.startMs >= project.duration}
-                      onClick={() => promoteBeat(beat)}
-                    >
-                      Promote to scene <ArrowUpRight size={11} />
-                    </button>
+                    {editingBeatId === beat.id ? (
+                      <div className="scene-editor beat-editor">
+                        <label>
+                          Beat title
+                          <input
+                            value={beatTitleDraft}
+                            onChange={(event) =>
+                              setBeatTitleDraft(event.target.value)
+                            }
+                          />
+                        </label>
+                        <label>
+                          Description
+                          <input
+                            value={beatDescriptionDraft}
+                            onChange={(event) =>
+                              setBeatDescriptionDraft(event.target.value)
+                            }
+                          />
+                        </label>
+                        <div className="beat-time-fields">
+                          <label>
+                            Start ms
+                            <input
+                              type="number"
+                              min="0"
+                              value={beatStartDraft}
+                              onChange={(event) =>
+                                setBeatStartDraft(event.target.value)
+                              }
+                            />
+                          </label>
+                          <label>
+                            End ms
+                            <input
+                              type="number"
+                              min="1"
+                              value={beatEndDraft}
+                              onChange={(event) =>
+                                setBeatEndDraft(event.target.value)
+                              }
+                            />
+                          </label>
+                        </div>
+                        <div className="scene-editor-actions">
+                          <button
+                            type="button"
+                            onClick={() => setEditingBeatId(null)}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeStoryboardBeat(beat)}
+                          >
+                            Remove
+                          </button>
+                          <button type="button" onClick={finishBeatEdit}>
+                            Done
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          className="board-card-main"
+                          type="button"
+                          disabled={beat.startMs >= project.duration}
+                          onClick={() =>
+                            setProject((current) => ({
+                              ...current,
+                              currentTime: beat.startMs,
+                            }))
+                          }
+                          aria-label={`Select beat ${beat.index}: ${beat.title}`}
+                        >
+                          <span className="beat-index">{beat.index}</span>
+                          <strong>{beat.title}</strong>
+                          <small>{beat.description}</small>
+                        </button>
+                        <div className="board-actions">
+                          <button
+                            className="board-promote"
+                            type="button"
+                            disabled={beat.startMs >= project.duration}
+                            onClick={() => promoteBeat(beat)}
+                          >
+                            Promote <ArrowUpRight size={11} />
+                          </button>
+                          <button
+                            className="board-edit"
+                            type="button"
+                            onClick={() => beginBeatEdit(beat)}
+                          >
+                            <Pencil size={11} /> Edit
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               })}
