@@ -3702,10 +3702,37 @@ export default function Home() {
       project.keyframes
         .filter((frame) => frame.characterId === characterId)
         .map((frame) => (frame.time / project.duration) * 100);
+    const rangeFor = (times: number[]) => {
+      if (times.length === 0) return { start: 0, end: project.duration };
+      const start = Math.min(...times);
+      const end = Math.max(...times);
+      return { start, end: end > start ? end : project.duration };
+    };
+    const rangeForCharacter = (characterId: string) =>
+      rangeFor(
+        project.keyframes
+          .filter((frame) => frame.characterId === characterId)
+          .map((frame) => frame.time),
+      );
+    const rangeForCaptions = rangeFor(
+      project.captions.flatMap((caption) => [caption.start, caption.end]),
+    );
+    const rangeForAudio = (kind?: AudioCueKind) =>
+      rangeFor(
+        project.audioCues
+          .filter((cue) => !kind || cue.kind === kind)
+          .flatMap((cue) => [cue.start, cue.end]),
+      );
+    const rangeForSfx = rangeFor(
+      project.audioCues
+        .filter((cue) => cue.kind !== 'music')
+        .flatMap((cue) => [cue.start, cue.end]),
+    );
     return [
       {
         name: 'Camera',
         color: 'blue',
+        range: { start: 0, end: project.duration },
         marks: project.cameraKeyframes.map(
           (frame) => (frame.time / project.duration) * 100,
         ),
@@ -3713,12 +3740,19 @@ export default function Home() {
       {
         name: 'Alice · rig',
         color: 'coral',
+        range: rangeForCharacter('alice'),
         marks: marksForCharacter('alice'),
       },
-      { name: 'Bob · rig', color: 'teal', marks: marksForCharacter('bob') },
+      {
+        name: 'Bob · rig',
+        color: 'teal',
+        range: rangeForCharacter('bob'),
+        marks: marksForCharacter('bob'),
+      },
       {
         name: 'Captions',
         color: 'yellow',
+        range: rangeForCaptions,
         marks: project.captions.map(
           (caption) => (caption.start / project.duration) * 100,
         ),
@@ -3726,6 +3760,7 @@ export default function Home() {
       {
         name: 'Music · low',
         color: 'violet',
+        range: rangeForAudio('music'),
         marks: project.audioCues
           .filter((cue) => cue.kind === 'music')
           .map((cue) => (cue.start / project.duration) * 100),
@@ -3733,6 +3768,7 @@ export default function Home() {
       {
         name: 'SFX',
         color: 'yellow',
+        range: rangeForSfx,
         marks: project.audioCues
           .filter((cue) => cue.kind !== 'music')
           .map((cue) => (cue.start / project.duration) * 100),
@@ -3745,6 +3781,14 @@ export default function Home() {
     project.audioCues,
     project.keyframes,
   ]);
+  const rulerTimes = useMemo(() => {
+    const times = Array.from(
+      { length: Math.floor(project.duration / 1000) + 1 },
+      (_, index) => index * 1000,
+    );
+    if (times.at(-1) !== project.duration) times.push(project.duration);
+    return times;
+  }, [project.duration]);
   const activeSceneIndex = Math.max(
     0,
     project.scenes.findIndex((scene) => scene.id === project.activeSceneId),
@@ -4484,12 +4528,14 @@ export default function Home() {
               </div>
               <div className="track-area">
                 <div className="ruler">
-                  {[0, 1, 2, 3, 4, 5].map((second) => (
+                  {rulerTimes.map((time) => (
                     <span
-                      key={second}
-                      style={{ left: `${(second / 5) * 100}%` }}
+                      key={time}
+                      style={{
+                        left: `${(time / project.duration) * 100}%`,
+                      }}
                     >
-                      0{second}
+                      {(time / 1000).toFixed(time === project.duration ? 2 : 1)}
                     </span>
                   ))}
                 </div>
@@ -4498,18 +4544,8 @@ export default function Home() {
                     <div
                       className={`clip clip-${track.color}`}
                       style={{
-                        left:
-                          track.name === 'Bob · rig'
-                            ? '50%'
-                            : track.name === 'Captions'
-                              ? '30%'
-                              : '0%',
-                        width:
-                          track.name === 'Captions'
-                            ? '40%'
-                            : track.name === 'Bob · rig'
-                              ? '44%'
-                              : '100%',
+                        left: `${(track.range.start / project.duration) * 100}%`,
+                        width: `${((track.range.end - track.range.start) / project.duration) * 100}%`,
                       }}
                     >
                       {track.name === 'Captions' && (
@@ -4520,12 +4556,12 @@ export default function Home() {
                       )}
                       {track.name === 'SFX' && <span>footsteps + sting</span>}
                     </div>
-                    {track.marks.map((mark) => (
+                    {track.marks.map((mark, index) => (
                       <button
                         type="button"
                         className={`key key-${track.color}`}
                         style={{ left: `${mark}%` }}
-                        key={mark}
+                        key={`${track.name}-${mark}-${index}`}
                         aria-label={`Move playhead to ${timecode((mark / 100) * project.duration)}`}
                         title={`Go to ${timecode((mark / 100) * project.duration)}`}
                         onClick={() =>
