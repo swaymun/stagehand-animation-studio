@@ -147,7 +147,7 @@ type ValidationIssue = {
   path: string;
   message: string;
 };
-const WEBMCP_TOOL_COUNT = 35;
+const WEBMCP_TOOL_COUNT = 36;
 type ModelTool = {
   name: string;
   title: string;
@@ -606,7 +606,48 @@ function makeBeatScene(
     cameraKeyframes,
     captions,
     audioCues,
+    lockedTrackIds: copy(project.lockedTrackIds),
   };
+}
+
+function makeSplitScenes(
+  project: Project,
+  splitTime: number,
+  beforeId: string,
+  afterId: string,
+) {
+  const source = project.scenes.find(
+    (scene) => scene.id === project.activeSceneId,
+  );
+  const before = makeBeatScene(
+    project,
+    {
+      id: 'split-before',
+      index: 'A',
+      title: 'before split',
+      description: 'The first half of the scene.',
+      startMs: 0,
+      endMs: splitTime,
+    },
+    beforeId,
+  );
+  const after = makeBeatScene(
+    project,
+    {
+      id: 'split-after',
+      index: 'B',
+      title: 'after split',
+      description: 'The second half of the scene.',
+      startMs: splitTime,
+      endMs: project.duration,
+    },
+    afterId,
+  );
+  before.title = `A · ${source?.title ?? 'Scene'}`;
+  before.description = `First half · ends at ${timecode(splitTime)}.`;
+  after.title = `B · ${source?.title ?? 'Scene'}`;
+  after.description = `Second half · starts at ${timecode(splitTime)}.`;
+  return [before, after] as const;
 }
 
 const copy = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
@@ -2282,6 +2323,62 @@ export default function Home() {
       },
     );
     register(
+      'split_scene',
+      'Split scene at playhead',
+      'Replace the active scene with two independent editable scenes split at the playhead or an explicit timestamp.',
+      {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          timeMs: { type: 'number', minimum: 0 },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const splitTime =
+          input.timeMs === undefined ? current.currentTime : input.timeMs;
+        if (
+          typeof splitTime !== 'number' ||
+          !Number.isFinite(splitTime) ||
+          splitTime <= 0 ||
+          splitTime >= current.duration
+        )
+          return { ok: false, code: 'INVALID_TIMING' };
+        const index = current.scenes.findIndex(
+          (scene) => scene.id === current.activeSceneId,
+        );
+        if (index < 0) return { ok: false, code: 'NOT_FOUND' };
+        const beforeId = nextSceneId(current.scenes);
+        const afterId = nextSceneId([
+          ...current.scenes,
+          { id: beforeId } as SceneMeta,
+        ]);
+        const [before, after] = makeSplitScenes(
+          current,
+          splitTime,
+          beforeId,
+          afterId,
+        );
+        commitRef.current(
+          (next) => {
+            next.scenes.splice(index, 1, before, after);
+            loadSceneContent(next, after.id);
+          },
+          `Split ${current.activeSceneId} at ${Math.round(splitTime)}ms`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          sourceSceneId: current.activeSceneId,
+          splitTimeMs: splitTime,
+          scenes: [before, after],
+          activeSceneId: after.id,
+          changedEntityIds: [before.id, after.id],
+        };
+      },
+    );
+    register(
       'add_scene',
       'Add scene',
       'Append an editable scene with an independent copy of the current structured content.',
@@ -3169,6 +3266,38 @@ export default function Home() {
     commit((next) => {
       upsertCameraKeyframe(next, next.currentTime, {});
     }, 'Keyframe camera');
+  const splitAtPlayhead = () => {
+    const splitTime = project.currentTime;
+    if (splitTime <= 0 || splitTime >= project.duration) {
+      setNotice('Move the playhead inside the scene before splitting');
+      return;
+    }
+    const index = project.scenes.findIndex(
+      (scene) => scene.id === project.activeSceneId,
+    );
+    if (index < 0) return;
+    const beforeId = nextSceneId(project.scenes);
+    const afterId = nextSceneId([
+      ...project.scenes,
+      { id: beforeId } as SceneMeta,
+    ]);
+    const [before, after] = makeSplitScenes(
+      project,
+      splitTime,
+      beforeId,
+      afterId,
+    );
+    commit(
+      (next) => {
+        next.scenes.splice(index, 1, before, after);
+        loadSceneContent(next, after.id);
+      },
+      `Split ${project.activeSceneId} at ${Math.round(splitTime)}ms`,
+    );
+    setPanel('scenes');
+    setViewMode('animate');
+    setNotice(`Split scene at ${timecode(splitTime)} · editing Scene B`);
+  };
   const toggleTrackLock = () => {
     const locked = isTrackLocked(project, project.selectedId);
     commit(
@@ -4308,8 +4437,12 @@ export default function Home() {
                 </button>
                 <button
                   type="button"
-                  disabled
-                  title="Coming soon · clip splitting"
+                  onClick={splitAtPlayhead}
+                  disabled={
+                    project.currentTime <= 0 ||
+                    project.currentTime >= project.duration
+                  }
+                  title="Split the active scene at the playhead"
                 >
                   <Scissors size={14} /> Split
                 </button>
