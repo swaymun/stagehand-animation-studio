@@ -1550,6 +1550,73 @@ function drawRenderFrame(
   }
 }
 
+function StoryboardThumbnail({
+  project,
+  timeMs,
+}: {
+  project: Project;
+  timeMs: number;
+}) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const imageCacheRef = useRef(new Map<string, HTMLImageElement>());
+  const imagePendingRef = useRef(new Set<string>());
+  const redrawRef = useRef<() => void>(() => {});
+  const draw = useCallback(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const width = Math.max(1, rect.width);
+    const height = Math.max(1, rect.height);
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    project.assets
+      .filter(
+        (asset) =>
+          (asset.kind === 'rigged-character' ||
+            asset.kind === 'background' ||
+            asset.kind === 'prop') &&
+          asset.dataUrl,
+      )
+      .forEach((asset) => {
+        if (
+          imageCacheRef.current.has(asset.id) ||
+          imagePendingRef.current.has(asset.id) ||
+          !asset.dataUrl
+        )
+          return;
+        imagePendingRef.current.add(asset.id);
+        const image = new Image();
+        image.onload = () => {
+          imageCacheRef.current.set(asset.id, image);
+          imagePendingRef.current.delete(asset.id);
+          redrawRef.current();
+        };
+        image.onerror = () => imagePendingRef.current.delete(asset.id);
+        image.src = asset.dataUrl;
+      });
+    drawRenderFrame(
+      context,
+      { ...project, currentTime: timeMs },
+      width,
+      height,
+      imageCacheRef.current,
+    );
+  }, [project, timeMs]);
+  useEffect(() => {
+    redrawRef.current = draw;
+    draw();
+    window.addEventListener('resize', draw);
+    return () => window.removeEventListener('resize', draw);
+  }, [draw]);
+  return (
+    <canvas ref={ref} className="storyboard-thumb-canvas" aria-hidden="true" />
+  );
+}
+
 function StageCanvas({
   project,
   onSelect,
@@ -5170,9 +5237,13 @@ export default function Home() {
                         aria-label={`Go to beat ${beat.index}: ${beat.title}`}
                       >
                         <span className="storyboard-thumb">
-                          <span>{beat.index}</span>
-                          <i />
-                          <b />
+                          <StoryboardThumbnail
+                            project={project}
+                            timeMs={(beat.startMs + beat.endMs) / 2}
+                          />
+                          <span className="storyboard-thumb-index">
+                            {beat.index}
+                          </span>
                         </span>
                         <span className="storyboard-beat-copy">
                           <strong>{beat.title}</strong>

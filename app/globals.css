@@ -1811,44 +1811,13 @@ button {
   overflow: hidden;
   background: #ead5b6;
 }
-.storyboard-thumb::before {
-  content: '';
-  position: absolute;
-  inset: 16% 10% 18%;
-  border-radius: 3px;
-  background: #f5ead7;
-  box-shadow: inset 0 -12px #bd855d;
-}
-.storyboard-thumb::after {
-  content: '';
-  position: absolute;
-  left: 21%;
-  right: 21%;
-  top: 38%;
-  height: 5px;
-  background: #587276;
-  box-shadow: 0 26px #714b3c;
-}
-.storyboard-thumb i,
-.storyboard-thumb b {
-  position: absolute;
-  z-index: 1;
+.storyboard-thumb-canvas {
   display: block;
-  width: 29px;
-  height: 42px;
-  bottom: 18%;
-  border: 3px solid #29272a;
-  border-radius: 9px 9px 6px 6px;
-  background: var(--coral);
+  width: 100%;
+  height: 100%;
+  min-height: 96px;
 }
-.storyboard-thumb i {
-  left: 28%;
-}
-.storyboard-thumb b {
-  right: 28%;
-  background: var(--blue);
-}
-.storyboard-thumb > span {
+.storyboard-thumb-index {
   position: absolute;
   z-index: 2;
   top: 7px;
