@@ -6419,7 +6419,7 @@ export default function Home() {
                 </>
               )}
               <button
-                className="mobile-only"
+                className="mobile-only rail-drawer-action"
                 type="button"
                 role="menuitem"
                 onClick={() => {
