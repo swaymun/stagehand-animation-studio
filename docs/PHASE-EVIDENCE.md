@@ -6,9 +6,9 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement �
 
 - Date: 2026-09-03
 - Private source: [github.com/swaymun/stagehand-animation-studio](https://github.com/swaymun/stagehand-animation-studio)
-- Verified source commit: `02c86e3fdd012ce9609398677d182dc6dbde98bc`
+- Verified source commit: `bf9a9a8933c88637a632ba3f74b1d67f43621354`
 - Public Site: [stagehand-animation-studio.saimun-h-shahee.chatgpt.site](https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site)
-- Sites version: `81`
+- Sites version: `83`
 - Scope at this checkpoint: structured per-asset visual direction, clarified motion actions, revision-safe and idempotent WebMCP mutations, partial render-settings preservation, synchronized human/agent playhead reads, semantic scene speed retiming across timed tracks, synchronized Storyboard/Board navigation, review-first Preview with editing controls removed, readable two-line scene labels, semantic heading/dialog landmarks, accessible transform controls, wide four-column pose-sheet detection, and imported-prop/sequence coverage.
 
 ## Implement
@@ -31,6 +31,7 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement �
 - Inspector editing groups now collapse independently so the working surface can stay focused without losing access to controls.
 - Human scrubbing, beat jumps, and canvas selection now synchronize the project snapshot read by WebMCP tools before the next agent command.
 - Human `0.8×` / `1.25×` controls and agent `retime_scene` synchronize scene duration, keyframes, captions, cues, and storyboard beats.
+- The timeline now has symmetric one-frame step controls and stage-focused `← / →` keyboard stepping.
 
 ## Local verification
 
@@ -66,6 +67,7 @@ The local smoke result verified:
 - Inspector groups: five editing sections expose native collapse/reopen behavior while preserving accessible controls: PASS.
 - Human scrub parity: a scrub to approximately 1.25 s is immediately returned by `get_timeline`: PASS.
 - Scene retiming: human 1.25× / 0.8× controls and agent `retime_scene` preserve synchronized track timing while changing 5.00 s → 4.00 s → 5.00 s: PASS.
+- Keyboard stepping: focused stage `ArrowRight` advances the same playhead returned by `get_timeline`: PASS.
 
 ## Hosted verification
 
@@ -73,16 +75,16 @@ The local smoke result verified:
 STAGEHAND_URL=https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site npm run smoke
 ```
 
-Result: PASS. The hosted run verified the same 52-tool injected bridge, 39 guarded mutations, stale-write conflict, idempotent replay, human and agent scene retiming, frame inspection, PNG frame download, wide pose-sheet auto-detection, asset-style update, partial render-settings preservation, prop workflow, two-scene WebM download, sequence Preview scene transition, synchronized Storyboard/Board context, human-scrubbed playhead visibility through `get_timeline`, clarified motion copy, collapsible Inspector groups, clean Preview state with global editing controls removed, readable scene-label layout, semantic `h1`, labelled Help modal, reload recovery, and zero page errors. This is labeled a Playwright fallback: the public Site did not expose live WebMCP enumeration to the available runner, so it does not prove that ChatGPT’s production host enumerates the tools.
+Result: PASS. The hosted run verified the same 52-tool injected bridge, 39 guarded mutations, stale-write conflict, idempotent replay, human and agent scene retiming, focused-stage keyboard stepping, frame inspection, PNG frame download, wide pose-sheet auto-detection, asset-style update, partial render-settings preservation, prop workflow, two-scene WebM download, sequence Preview scene transition, synchronized Storyboard/Board context, human-scrubbed playhead visibility through `get_timeline`, clarified motion copy, collapsible Inspector groups, clean Preview state with global editing controls removed, readable scene-label layout, semantic `h1`, labelled Help modal, reload recovery, and zero page errors. This is labeled a Playwright fallback: the public Site did not expose live WebMCP enumeration to the available runner, so it does not prove that ChatGPT’s production host enumerates the tools.
 
 ## UI roast and fixes
 
-Evidence screenshots are captured from the hosted v81 build at 1440×960:
+Evidence screenshots are captured from the hosted v83 build at 1440×960:
 
-- [`v81-animate.png`](evidence/v81-animate.png): editing workspace with semantic scene speed controls, clarified motion actions, readable scene labels, and synchronized Inspector groups.
-- [`v81-assets-style.png`](evidence/v81-assets-style.png): expandable per-asset style editor.
-- [`v81-storyboard.png`](evidence/v81-storyboard.png): Storyboard mode with the Board rail selected.
-- [`v81-preview.png`](evidence/v81-preview.png): clean review-first Preview player with only review outputs in the header.
+- [`v83-animate.png`](evidence/v83-animate.png): editing workspace with semantic scene speed controls, symmetric frame stepping, clarified motion actions, readable scene labels, and synchronized Inspector groups.
+- [`v83-assets-style.png`](evidence/v83-assets-style.png): expandable per-asset style editor.
+- [`v83-storyboard.png`](evidence/v83-storyboard.png): Storyboard mode with the Board rail selected.
+- [`v83-preview.png`](evidence/v83-preview.png): clean review-first Preview player with only review outputs in the header.
 
 Findings from the current screenshot review:
 
@@ -103,6 +105,7 @@ Findings from the current screenshot review:
 15. The Inspector was a long scroll dump. Converted the major editing groups to native collapsible sections and added a smoke assertion for collapse/reopen behavior.
 16. Human timeline scrubbing could leave agent reads one event behind. Synchronized ephemeral view updates through the shared project reference and added a smoke assertion that `get_timeline` sees the scrubbed playhead immediately.
 17. Basic speed-up/slow-down editing was missing. Added human 0.8× / 1.25× controls and the guarded `retime_scene` operation across all timed tracks, with local and hosted coverage.
+18. The timeline exposed step-back only and keyboard stepping was unreliable after scrub focus. Added a symmetric step-forward control, a keyboard-focusable stage target, and hosted smoke coverage.
 
 ## Limits and warnings
 
