@@ -202,7 +202,10 @@ button {
 }
 .left-rail {
   position: relative;
+  display: flex;
+  flex-direction: column;
   border-right: 1px solid var(--line);
+  overflow: hidden;
 }
 .rail-tabs {
   height: 49px;
@@ -227,7 +230,10 @@ button {
   border-bottom-color: var(--coral);
 }
 .rail-content {
-  padding: 18px 14px;
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 14px 24px;
 }
 .section-label {
   justify-content: space-between;
@@ -637,6 +643,57 @@ button {
 .asset-hint {
   margin-top: 9px;
 }
+.template-label {
+  margin-top: 18px;
+}
+.template-list {
+  display: grid;
+  gap: 5px;
+}
+.template-list button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--ink);
+  background: #fffaf2;
+  text-align: left;
+}
+.template-list button:hover {
+  border-color: var(--coral);
+  background: #fff6eb;
+}
+.template-list button > span {
+  display: grid;
+  flex: 1;
+  gap: 3px;
+  min-width: 0;
+}
+.template-list strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+}
+.template-list small {
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 8px;
+}
+.template-list em {
+  flex: 0 0 auto;
+  color: var(--violet);
+  font:
+    7px ui-monospace,
+    monospace;
+  text-transform: uppercase;
+}
 .asset-swatch {
   width: 22px;
   height: 22px;
@@ -668,10 +725,7 @@ button {
   background: #e3bf75;
 }
 .rail-footer {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  flex: 0 0 auto;
   padding: 12px 14px;
   border-top: 1px solid var(--line);
 }

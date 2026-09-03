@@ -41,6 +41,11 @@ import {
 
 type Pose = 'idle' | 'nervous' | 'wave' | 'lean-in';
 type AssetKind = 'rigged-character' | 'background' | 'prop' | 'audio';
+type TemplateId =
+  | 'first-meeting'
+  | 'coffee-spill'
+  | 'wrong-booth'
+  | 'the-apology';
 type Asset = {
   id: string;
   kind: AssetKind;
@@ -87,6 +92,7 @@ type SceneMeta = {
   title: string;
   description: string;
   duration: number;
+  templateId?: TemplateId;
   characters?: Character[];
   keyframes?: Keyframe[];
   cameraKeyframes?: CameraKeyframe[];
@@ -112,6 +118,7 @@ type Project = {
   assets: Asset[];
   scenes: SceneMeta[];
   activeSceneId: string;
+  templateId?: TemplateId;
   dirty: boolean;
 };
 type ValidationIssue = {
@@ -120,7 +127,7 @@ type ValidationIssue = {
   path: string;
   message: string;
 };
-const WEBMCP_TOOL_COUNT = 25;
+const WEBMCP_TOOL_COUNT = 26;
 type ModelTool = {
   name: string;
   title: string;
@@ -142,6 +149,7 @@ const starterScenes: SceneMeta[] = [
     title: 'Diner · first meeting',
     description: 'Alice waits. Bob arrives behind her.',
     duration: 5000,
+    templateId: 'first-meeting',
   },
 ];
 const starterAssets: Asset[] = [
@@ -236,6 +244,37 @@ const storyboardBeats: StoryBeat[] = [
     description: 'Neither knows what to do.',
     startMs: 3100,
     endMs: 5000,
+  },
+];
+const starterTemplates: Array<{
+  id: TemplateId;
+  title: string;
+  description: string;
+  tag: string;
+}> = [
+  {
+    id: 'first-meeting',
+    title: 'First meeting',
+    description: 'Alice waits. Bob arrives behind her.',
+    tag: 'canonical',
+  },
+  {
+    id: 'coffee-spill',
+    title: 'Coffee spill',
+    description: 'A tiny accident makes the silence worse.',
+    tag: 'reaction',
+  },
+  {
+    id: 'wrong-booth',
+    title: 'Wrong booth',
+    description: 'They both thought the other picked the table.',
+    tag: 'blocking',
+  },
+  {
+    id: 'the-apology',
+    title: 'The apology',
+    description: 'One sentence arrives much too late.',
+    tag: 'caption-led',
   },
 ];
 const starterProject: Project = {
@@ -358,7 +397,74 @@ const starterProject: Project = {
   assets: starterAssets,
   scenes: starterScenes,
   activeSceneId: 'scene-01',
+  templateId: 'first-meeting',
 };
+
+function makeTemplateScene(templateId: TemplateId, id: string): SceneMeta {
+  const base = copy(starterProject);
+  const variants: Record<
+    TemplateId,
+    {
+      title: string;
+      description: string;
+      captions: [string, string];
+      cameraZoom: number;
+      cameraPanX: number;
+    }
+  > = {
+    'first-meeting': {
+      title: 'Diner · first meeting',
+      description: 'Alice waits. Bob arrives behind her.',
+      captions: ['You actually came', 'I almost didn’t'],
+      cameraZoom: 1.16,
+      cameraPanX: -4,
+    },
+    'coffee-spill': {
+      title: 'Diner · coffee spill',
+      description: 'A tiny accident makes the silence worse.',
+      captions: ['That was my coffee', 'I panicked'],
+      cameraZoom: 1.22,
+      cameraPanX: -2,
+    },
+    'wrong-booth': {
+      title: 'Diner · wrong booth',
+      description: 'They both thought the other picked the table.',
+      captions: ['I reserved this booth', 'For someone else?'],
+      cameraZoom: 1.1,
+      cameraPanX: 2,
+    },
+    'the-apology': {
+      title: 'Diner · the apology',
+      description: 'One sentence arrives much too late.',
+      captions: ['I’m sorry I vanished', 'You did wave first'],
+      cameraZoom: 1.2,
+      cameraPanX: -3,
+    },
+  };
+  const variant = variants[templateId];
+  const cameraKeyframes = base.cameraKeyframes.map((frame) => ({ ...frame }));
+  cameraKeyframes.forEach((frame) => {
+    if (frame.time >= 3100 && frame.time < 5000) {
+      frame.zoom = variant.cameraZoom;
+      frame.panX = variant.cameraPanX;
+    }
+  });
+  return {
+    id,
+    title: variant.title,
+    description: variant.description,
+    duration: base.duration,
+    templateId,
+    characters: base.characters,
+    keyframes: base.keyframes,
+    cameraKeyframes,
+    captions: base.captions.map((caption, index) => ({
+      ...caption,
+      text: variant.captions[index],
+    })),
+  };
+}
+
 const copy = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const timecode = (ms: number) => `${(ms / 1000).toFixed(2).padStart(4, '0')}s`;
 const clamp = (value: number, min: number, max: number) =>
@@ -408,6 +514,7 @@ function loadSceneContent(project: Project, sceneId: string) {
   const target = project.scenes.find((scene) => scene.id === sceneId);
   if (!target) return false;
   project.activeSceneId = sceneId;
+  project.templateId = target.templateId;
   project.duration = target.duration;
   project.characters = copy(target.characters ?? project.characters);
   project.keyframes = copy(target.keyframes ?? project.keyframes);
@@ -514,6 +621,7 @@ function syncActiveScene(project: Project) {
   );
   if (!activeScene) return;
   activeScene.duration = project.duration;
+  activeScene.templateId = project.templateId;
   activeScene.characters = copy(project.characters);
   activeScene.keyframes = copy(project.keyframes);
   activeScene.cameraKeyframes = copy(project.cameraKeyframes);
@@ -569,6 +677,7 @@ const hydrateProject = (value: Partial<Project>): Project => {
     ...value,
     scenes: copy(scenes),
     activeSceneId: activeScene.id,
+    templateId: activeScene.templateId ?? value.templateId,
     duration: activeScene.duration,
     characters: copy(activeScene.characters ?? fallbackCharacters),
     keyframes: copy(activeScene.keyframes ?? fallbackKeyframes),
@@ -1271,6 +1380,7 @@ export default function Home() {
           durationMs: current.duration,
           sceneCount: current.scenes.length,
           activeSceneId: current.activeSceneId,
+          templateId: current.templateId ?? null,
           selectedId: current.selectedId,
           characterCount: current.characters.length,
           keyframeCount: current.keyframes.length,
@@ -1780,6 +1890,55 @@ export default function Home() {
           revision: current.revision + 1,
           deletedSceneId: sceneId,
           activeSceneId: nextActiveId,
+        };
+      },
+    );
+    register(
+      'apply_template',
+      'Apply starter template',
+      'Create a new editable scene from a starter recipe without overwriting existing scenes.',
+      {
+        type: 'object',
+        required: ['templateId'],
+        additionalProperties: false,
+        properties: {
+          templateId: {
+            type: 'string',
+            enum: [
+              'first-meeting',
+              'coffee-spill',
+              'wrong-booth',
+              'the-apology',
+            ],
+          },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        if (
+          input.templateId !== 'first-meeting' &&
+          input.templateId !== 'coffee-spill' &&
+          input.templateId !== 'wrong-booth' &&
+          input.templateId !== 'the-apology'
+        )
+          return { ok: false, code: 'INVALID_INPUT' };
+        const scene = makeTemplateScene(
+          input.templateId,
+          nextSceneId(current.scenes),
+        );
+        commitRef.current(
+          (next) => {
+            next.scenes.push(scene);
+            loadSceneContent(next, scene.id);
+          },
+          `Apply ${scene.title}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          scene,
+          changedEntityIds: [scene.id],
         };
       },
     );
@@ -2304,6 +2463,14 @@ export default function Home() {
     };
     reader.onerror = () => setNotice('Image import failed');
     reader.readAsDataURL(file);
+  };
+  const applyTemplate = (template: (typeof starterTemplates)[number]) => {
+    const scene = makeTemplateScene(template.id, nextSceneId(project.scenes));
+    commit((next) => {
+      next.scenes.push(scene);
+      loadSceneContent(next, scene.id);
+    }, `Apply ${scene.title}`);
+    setPanel('scenes');
   };
   const addScene = () => {
     const sceneNumber = project.scenes.length + 1;
@@ -2918,6 +3085,25 @@ export default function Home() {
                 onChange={importAsset}
                 aria-label="Import image asset"
               />
+              <div className="asset-add-label template-label">
+                STARTER TEMPLATES
+              </div>
+              <div className="template-list">
+                {starterTemplates.map((template) => (
+                  <button
+                    type="button"
+                    key={template.id}
+                    onClick={() => applyTemplate(template)}
+                    title={`Create ${template.title} scene`}
+                  >
+                    <span>
+                      <strong>{template.title}</strong>
+                      <small>{template.description}</small>
+                    </span>
+                    <em>{template.tag}</em>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           <div className="rail-footer">
