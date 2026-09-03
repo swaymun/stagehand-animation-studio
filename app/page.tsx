@@ -145,7 +145,7 @@ type ValidationIssue = {
   path: string;
   message: string;
 };
-const WEBMCP_TOOL_COUNT = 33;
+const WEBMCP_TOOL_COUNT = 34;
 type ModelTool = {
   name: string;
   title: string;
@@ -1837,6 +1837,48 @@ export default function Home() {
           keyframes: current.keyframes,
           cameraKeyframes: current.cameraKeyframes,
           audioCues: current.audioCues,
+        };
+      },
+      true,
+    );
+    register(
+      'inspect_frame',
+      'Inspect frame',
+      'Read the deterministic scene state at a bounded timestamp for visual direction and QA.',
+      {
+        type: 'object',
+        additionalProperties: false,
+        properties: { timeMs: { type: 'number', minimum: 0 } },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const timeMs =
+          input.timeMs === undefined ? current.currentTime : input.timeMs;
+        if (
+          typeof timeMs !== 'number' ||
+          !Number.isFinite(timeMs) ||
+          timeMs < 0 ||
+          timeMs > current.duration
+        )
+          return { ok: false, code: 'INVALID_TIMING' };
+        return {
+          ok: true,
+          revision: current.revision,
+          timeMs,
+          durationMs: current.duration,
+          camera: evaluateCamera(current, timeMs),
+          characters: evaluateCharacters(current, timeMs),
+          captions: current.captions.filter(
+            (caption) => timeMs >= caption.start && timeMs <= caption.end,
+          ),
+          audioCues: current.audioCues.filter(
+            (cue) => timeMs >= cue.start && timeMs <= cue.end,
+          ),
+          renderSize: {
+            width: current.renderWidth,
+            height: current.renderHeight,
+            fps: current.fps,
+          },
         };
       },
       true,
