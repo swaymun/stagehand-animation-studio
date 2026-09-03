@@ -27,7 +27,7 @@ await page.waitForTimeout(700);
 await page.evaluate(() => localStorage.clear());
 await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
 await page.waitForTimeout(700);
-await page.waitForFunction(() => window.__stagehandTools?.size === 47);
+await page.waitForFunction(() => window.__stagehandTools?.size === 50);
 
 const marks = page.locator('button[aria-label^="Alice keyframe"]');
 const beforeDrag = await marks.nth(1).getAttribute('aria-label');
@@ -48,6 +48,19 @@ await page.mouse.up();
 await page.waitForTimeout(100);
 const afterDrag = await marks.nth(1).getAttribute('aria-label');
 
+await page.getByRole('tab', { name: 'Assets' }).click();
+await page.getByRole('button', { name: 'Import prop' }).click();
+await page.locator('input[aria-label="Import image asset"]').setInputFiles({
+  name: 'smoke-prop.png',
+  mimeType: 'image/png',
+  buffer: Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+    'base64',
+  ),
+});
+await page.getByText('smoke-prop', { exact: true }).waitFor({ timeout: 5000 });
+await page.waitForTimeout(250);
+
 const bridge = await page.evaluate(async () => {
   const tools = window.__stagehandTools;
   const call = (name, input = {}) => tools.get(name).execute(input);
@@ -61,6 +74,29 @@ const bridge = await page.evaluate(async () => {
     cueId: 'music-low',
     volume: 0.03,
   });
+  const manifest = await call('get_asset_manifest');
+  const prop = manifest.assets.find(
+    (asset) => asset.kind === 'prop' && asset.source === 'imported',
+  );
+  if (!prop) throw new Error('Imported smoke prop unavailable');
+  const propReadBefore = await call('get_prop_keyframes', {
+    assetId: prop.id,
+  });
+  const propKeyframe = await call('set_prop_keyframe', {
+    assetId: prop.id,
+    timeMs: 0,
+    x: 64,
+    y: 58,
+    scale: 1.1,
+    rotation: -3,
+  });
+  const propPreset = await call('apply_prop_preset', {
+    assetId: prop.id,
+    preset: 'pop-in',
+  });
+  const propReadAfter = await call('get_prop_keyframes', {
+    assetId: prop.id,
+  });
   const undone = await call('undo_command');
   const redone = await call('redo_command');
   const duration = await call('set_scene_duration', { durationMs: 500 });
@@ -70,6 +106,13 @@ const bridge = await page.evaluate(async () => {
     renamed: { ok: renamed.ok, revision: renamed.revision },
     posed: { ok: posed.ok, revision: posed.revision },
     audio: { ok: audio.ok, volume: audio.cue?.volume },
+    prop: {
+      id: prop.id,
+      before: propReadBefore.propKeyframes.length,
+      keyframe: { ok: propKeyframe.ok, x: propKeyframe.keyframe?.x },
+      preset: { ok: propPreset.ok, count: propPreset.keyframes?.length },
+      after: propReadAfter.propKeyframes.length,
+    },
     undone: { ok: undone.ok, revision: undone.revision },
     redone: { ok: redone.ok, revision: redone.revision },
     duration: { ok: duration.ok, durationMs: duration.durationMs },
@@ -134,10 +177,16 @@ const result = {
 };
 
 if (
-  result.toolCount !== 47 ||
+  result.toolCount !== 50 ||
   !result.timelineDrag.moved ||
   !bridge.audio.ok ||
   bridge.audio.volume !== 0.03 ||
+  bridge.prop.before !== 0 ||
+  !bridge.prop.keyframe.ok ||
+  bridge.prop.keyframe.x !== 64 ||
+  !bridge.prop.preset.ok ||
+  bridge.prop.preset.count < 2 ||
+  bridge.prop.after < 2 ||
   !bridge.undone.ok ||
   !bridge.redone.ok ||
   !rendered.ok ||

@@ -89,6 +89,15 @@ type Keyframe = {
   rotation: number;
   pose: Pose;
 };
+type PropKeyframe = {
+  id: string;
+  assetId: string;
+  time: number;
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+};
 type CameraKeyframe = {
   id: string;
   time: number;
@@ -112,6 +121,7 @@ type SceneMeta = {
   templateId?: TemplateId;
   characters?: Character[];
   keyframes?: Keyframe[];
+  propKeyframes?: PropKeyframe[];
   cameraKeyframes?: CameraKeyframe[];
   captions?: Caption[];
   audioCues?: AudioCue[];
@@ -144,6 +154,7 @@ type Project = {
   lockedTrackIds: string[];
   characters: Character[];
   keyframes: Keyframe[];
+  propKeyframes: PropKeyframe[];
   cameraKeyframes: CameraKeyframe[];
   captions: Caption[];
   audioCues: AudioCue[];
@@ -161,7 +172,7 @@ type ValidationIssue = {
   path: string;
   message: string;
 };
-const WEBMCP_TOOL_COUNT = 47;
+const WEBMCP_TOOL_COUNT = 50;
 type ModelTool = {
   name: string;
   title: string;
@@ -179,8 +190,9 @@ type ModelContext = {
 type TimelineMark = {
   time: number;
   id: string;
-  kind: 'camera' | 'character' | 'cue';
+  kind: 'camera' | 'character' | 'prop' | 'cue';
   characterId?: string;
+  assetId?: string;
   label: string;
 };
 const STORAGE_KEY = 'stagehand-paper-cutout-comedy-v1';
@@ -476,6 +488,7 @@ const starterProject: Project = {
       pose: 'lean-in',
     },
   ],
+  propKeyframes: [],
   cameraKeyframes: starterCameraKeyframes,
   captions: [
     {
@@ -559,6 +572,7 @@ function makeTemplateScene(templateId: TemplateId, id: string): SceneMeta {
     templateId,
     characters: base.characters,
     keyframes: base.keyframes,
+    propKeyframes: base.propKeyframes,
     cameraKeyframes,
     captions: base.captions.map((caption, index) => ({
       ...caption,
@@ -605,6 +619,29 @@ function makeBeatScene(
         time: frame.time - start,
       });
     });
+  const propKeyframes: PropKeyframe[] = evaluateProps(project, start).map(
+    (prop) => ({
+      ...prop,
+      id: `pkf-${id}-${prop.assetId}-0000`,
+      time: 0,
+    }),
+  );
+  project.propKeyframes
+    .filter(
+      (frame) =>
+        frame.time > start &&
+        frame.time <= end &&
+        project.assets.some(
+          (asset) => asset.id === frame.assetId && asset.kind === 'prop',
+        ),
+    )
+    .forEach((frame) => {
+      propKeyframes.push({
+        ...frame,
+        id: `${frame.id}-${id}`,
+        time: frame.time - start,
+      });
+    });
   const cameraAtStart = evaluateCamera(project, start);
   const cameraKeyframes: CameraKeyframe[] = [
     {
@@ -646,6 +683,7 @@ function makeBeatScene(
     templateId: project.templateId,
     characters,
     keyframes,
+    propKeyframes,
     cameraKeyframes,
     captions,
     audioCues,
@@ -808,9 +846,13 @@ function retimeTimelineMark(
   const frames =
     mark.kind === 'camera'
       ? project.cameraKeyframes
-      : project.keyframes.filter(
-          (frame) => frame.characterId === mark.characterId,
-        );
+      : mark.kind === 'prop'
+        ? project.propKeyframes.filter(
+            (frame) => frame.assetId === mark.assetId,
+          )
+        : project.keyframes.filter(
+            (frame) => frame.characterId === mark.characterId,
+          );
   const target = frames.find((frame) => frame.id === mark.id);
   if (!target) return false;
   const ordered = [...frames].sort((a, b) => a.time - b.time);
@@ -826,6 +868,10 @@ function retimeTimelineMark(
   target.time = nextTime;
   if (mark.kind === 'camera') {
     project.cameraKeyframes.sort((a, b) => a.time - b.time);
+  } else if (mark.kind === 'prop') {
+    project.propKeyframes.sort(
+      (a, b) => a.time - b.time || a.assetId.localeCompare(b.assetId),
+    );
   } else {
     project.keyframes.sort(
       (a, b) => a.time - b.time || a.characterId.localeCompare(b.characterId),
@@ -842,6 +888,7 @@ function loadSceneContent(project: Project, sceneId: string) {
   project.duration = target.duration;
   project.characters = copy(target.characters ?? project.characters);
   project.keyframes = copy(target.keyframes ?? project.keyframes);
+  project.propKeyframes = copy(target.propKeyframes ?? project.propKeyframes);
   project.cameraKeyframes = copy(
     target.cameraKeyframes ?? project.cameraKeyframes,
   );
@@ -923,6 +970,36 @@ function validateProjectState(project: Project): ValidationIssue[] {
         message: `${frame.id} points to a missing character.`,
       });
   });
+  project.propKeyframes.forEach((frame) => {
+    const asset = project.assets.find(
+      (candidate) => candidate.id === frame.assetId,
+    );
+    if (
+      !asset ||
+      asset.kind !== 'prop' ||
+      !Number.isFinite(frame.time) ||
+      frame.time < 0 ||
+      frame.time > project.duration ||
+      !Number.isFinite(frame.x) ||
+      frame.x < 0 ||
+      frame.x > 100 ||
+      !Number.isFinite(frame.y) ||
+      frame.y < 0 ||
+      frame.y > 100 ||
+      !Number.isFinite(frame.scale) ||
+      frame.scale < 0.25 ||
+      frame.scale > 2.5 ||
+      !Number.isFinite(frame.rotation) ||
+      frame.rotation < -180 ||
+      frame.rotation > 180
+    )
+      issues.push({
+        code: 'PROP_KEYFRAME_OUT_OF_BOUNDS',
+        severity: 'error',
+        path: `propKeyframes.${frame.id}`,
+        message: `${frame.id} has an invalid prop asset or transform.`,
+      });
+  });
   if (project.cameraKeyframes.length === 0)
     issues.push({
       code: 'NO_CAMERA_KEYFRAMES',
@@ -999,6 +1076,7 @@ function syncActiveScene(project: Project) {
   activeScene.templateId = project.templateId;
   activeScene.characters = copy(project.characters);
   activeScene.keyframes = copy(project.keyframes);
+  activeScene.propKeyframes = copy(project.propKeyframes);
   activeScene.cameraKeyframes = copy(project.cameraKeyframes);
   activeScene.captions = copy(project.captions);
   activeScene.audioCues = copy(project.audioCues);
@@ -1015,6 +1093,9 @@ const hydrateProject = (value: Partial<Project>): Project => {
     Array.isArray(value.keyframes) && value.keyframes.length > 0
       ? value.keyframes
       : base.keyframes;
+  const fallbackPropKeyframes = Array.isArray(value.propKeyframes)
+    ? value.propKeyframes
+    : base.propKeyframes;
   const fallbackCameraKeyframes =
     Array.isArray(value.cameraKeyframes) && value.cameraKeyframes.length > 0
       ? value.cameraKeyframes
@@ -1064,6 +1145,9 @@ const hydrateProject = (value: Partial<Project>): Project => {
       Array.isArray(scene.keyframes) && scene.keyframes.length > 0
         ? scene.keyframes
         : fallbackKeyframes,
+    propKeyframes: Array.isArray(scene.propKeyframes)
+      ? scene.propKeyframes
+      : fallbackPropKeyframes,
     cameraKeyframes:
       Array.isArray(scene.cameraKeyframes) && scene.cameraKeyframes.length > 0
         ? scene.cameraKeyframes
@@ -1116,6 +1200,7 @@ const hydrateProject = (value: Partial<Project>): Project => {
     duration: activeScene.duration,
     characters: copy(activeScene.characters ?? fallbackCharacters),
     keyframes: copy(activeScene.keyframes ?? fallbackKeyframes),
+    propKeyframes: copy(activeScene.propKeyframes ?? fallbackPropKeyframes),
     cameraKeyframes: copy(
       activeScene.cameraKeyframes ?? fallbackCameraKeyframes,
     ),
@@ -1132,6 +1217,9 @@ function resizeProjectDuration(project: Project, durationMs: number) {
   project.duration = duration;
   project.currentTime = Math.min(project.currentTime, duration);
   project.keyframes = project.keyframes.filter(
+    (frame) => frame.time <= duration,
+  );
+  project.propKeyframes = project.propKeyframes.filter(
     (frame) => frame.time <= duration,
   );
   project.cameraKeyframes = project.cameraKeyframes.filter(
@@ -1195,6 +1283,76 @@ function evaluateCharacters(project: Project, time: number) {
       pose: amount < 0.5 ? left.pose : right.pose,
     };
   });
+}
+
+function defaultPropKeyframe(assetId: string, index: number): PropKeyframe {
+  return {
+    id: `prop-default-${assetId}`,
+    assetId,
+    time: 0,
+    x: 68.5 + index * 6.48,
+    y: 56 - index * 1.28,
+    scale: 1,
+    rotation: 0,
+  };
+}
+
+function evaluateProps(project: Project, time: number): PropKeyframe[] {
+  return project.assets
+    .filter((asset) => asset.kind === 'prop' && asset.dataUrl)
+    .map((asset, index) => {
+      const fallback = defaultPropKeyframe(asset.id, index);
+      const frames = project.propKeyframes
+        .filter((frame) => frame.assetId === asset.id)
+        .sort((a, b) => a.time - b.time);
+      if (frames.length === 0) return fallback;
+      const first = frames[0];
+      if (time <= first.time) return { ...fallback, ...first };
+      const last = frames.at(-1);
+      if (!last || time >= last.time) return last ?? fallback;
+      const nextIndex = frames.findIndex((frame) => frame.time > time);
+      const right = frames[nextIndex];
+      const left = frames[nextIndex - 1];
+      const amount = (time - left.time) / (right.time - left.time);
+      return {
+        ...fallback,
+        assetId: asset.id,
+        time,
+        x: left.x + (right.x - left.x) * amount,
+        y: left.y + (right.y - left.y) * amount,
+        scale: left.scale + (right.scale - left.scale) * amount,
+        rotation: left.rotation + (right.rotation - left.rotation) * amount,
+      };
+    });
+}
+
+function upsertPropKeyframe(
+  project: Project,
+  assetId: string,
+  time: number,
+  changes: Partial<Pick<PropKeyframe, 'x' | 'y' | 'scale' | 'rotation'>>,
+) {
+  const prop = evaluateProps(project, time).find(
+    (item) => item.assetId === assetId,
+  );
+  if (!prop) return null;
+  const safeTime = clamp(time, 0, project.duration);
+  const existing = project.propKeyframes.find(
+    (frame) => frame.assetId === assetId && frame.time === safeTime,
+  );
+  const frame: PropKeyframe = {
+    id: existing?.id ?? `pkf-${assetId}-${Math.round(safeTime)}`,
+    assetId,
+    time: safeTime,
+    x: clamp(changes.x ?? prop.x, 0, 100),
+    y: clamp(changes.y ?? prop.y, 0, 100),
+    scale: clamp(changes.scale ?? prop.scale, 0.25, 2.5),
+    rotation: clamp(changes.rotation ?? prop.rotation, -180, 180),
+  };
+  if (existing) Object.assign(existing, frame);
+  else project.propKeyframes.push(frame);
+  project.propKeyframes.sort((a, b) => a.time - b.time);
+  return frame;
 }
 
 function evaluateCamera(project: Project, time: number): CameraKeyframe {
@@ -1305,21 +1463,22 @@ function drawDinerBackground(
 
 function drawImportedProps(
   ctx: CanvasRenderingContext2D,
-  assets: Asset[],
+  project: Project,
+  time: number,
   width: number,
   height: number,
   imageMap?: Map<string, CanvasImageSource>,
 ) {
-  assets
-    .filter((asset) => asset.kind === 'prop' && asset.dataUrl)
-    .forEach((asset, index) => {
-      const image = imageMap?.get(asset.id);
-      if (!image) return;
-      const size = Math.min(width, height) * 0.16;
-      const x = width * 0.64 + index * size * 0.72;
-      const y = height * 0.48 - index * size * 0.08;
-      ctx.drawImage(image, x, y, size, size);
-    });
+  evaluateProps(project, time).forEach((prop) => {
+    const image = imageMap?.get(prop.assetId);
+    if (!image) return;
+    const size = Math.min(width, height) * 0.16 * prop.scale;
+    ctx.save();
+    ctx.translate((prop.x / 100) * width, (prop.y / 100) * height);
+    ctx.rotate((prop.rotation * Math.PI) / 180);
+    ctx.drawImage(image, -size / 2, -size / 2, size, size);
+    ctx.restore();
+  });
 }
 
 function applyCameraTransform(
@@ -1599,7 +1758,7 @@ function drawRenderFrame(
         : undefined,
     ),
   );
-  drawImportedProps(ctx, project.assets, width, height, imageMap);
+  drawImportedProps(ctx, project, project.currentTime, width, height, imageMap);
   ctx.restore();
   const caption = project.captions.find(
     (item) =>
@@ -1781,7 +1940,8 @@ function StageCanvas({
     );
     drawImportedProps(
       ctx,
-      project.assets,
+      project,
+      project.currentTime,
       width,
       height,
       imageCacheRef.current,
@@ -2231,6 +2391,7 @@ export default function Home() {
           lockedTrackIds: current.lockedTrackIds,
           characterCount: current.characters.length,
           keyframeCount: current.keyframes.length,
+          propKeyframeCount: current.propKeyframes.length,
           cameraKeyframeCount: current.cameraKeyframes.length,
           captionCount: current.captions.length,
           audioCueCount: current.audioCues.length,
@@ -2329,6 +2490,7 @@ export default function Home() {
           ),
           characterCount: current.characters.length,
           keyframeCount: current.keyframes.length,
+          propKeyframeCount: current.propKeyframes.length,
           cameraKeyframeCount: current.cameraKeyframes.length,
           captionCount: current.captions.length,
           audioCueCount: current.audioCues.length,
@@ -2524,9 +2686,18 @@ export default function Home() {
           fps: current.fps,
           currentTimeMs: current.currentTime,
           durationMs: current.duration,
-          tracks: ['camera', 'alice', 'bob', 'captions', 'music', 'sfx'],
+          tracks: [
+            'camera',
+            'alice',
+            'bob',
+            'props',
+            'captions',
+            'music',
+            'sfx',
+          ],
           captions: current.captions,
           keyframes: current.keyframes,
+          propKeyframes: current.propKeyframes,
           cameraKeyframes: current.cameraKeyframes,
           audioCues: current.audioCues,
           lockedTrackIds: current.lockedTrackIds,
@@ -2561,6 +2732,7 @@ export default function Home() {
           durationMs: current.duration,
           camera: evaluateCamera(current, timeMs),
           characters: evaluateCharacters(current, timeMs),
+          props: evaluateProps(current, timeMs),
           captions: current.captions.filter(
             (caption) => timeMs >= caption.start && timeMs <= caption.end,
           ),
@@ -2764,6 +2936,29 @@ export default function Home() {
           revision: current.revision,
           camera: evaluateCamera(current, current.currentTime),
           cameraKeyframes: current.cameraKeyframes,
+        };
+      },
+      true,
+    );
+    register(
+      'get_prop_keyframes',
+      'Get prop keyframes',
+      'Inspect imported prop animation keyframes for one prop or the whole active scene.',
+      {
+        type: 'object',
+        additionalProperties: false,
+        properties: { assetId: { type: 'string' } },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const assetId =
+          typeof input.assetId === 'string' ? input.assetId : undefined;
+        return {
+          ok: true,
+          revision: current.revision,
+          propKeyframes: current.propKeyframes.filter(
+            (frame) => !assetId || frame.assetId === assetId,
+          ),
         };
       },
       true,
@@ -2979,6 +3174,9 @@ export default function Home() {
         commitRef.current(
           (next) => {
             next.assets = next.assets.filter((item) => item.id !== assetId);
+            next.propKeyframes = next.propKeyframes.filter(
+              (frame) => frame.assetId !== assetId,
+            );
             next.characters.forEach((character) => {
               if (character.assetId === assetId) character.assetId = undefined;
             });
@@ -3201,6 +3399,7 @@ export default function Home() {
           duration: current.duration,
           characters: copy(current.characters),
           keyframes: copy(current.keyframes),
+          propKeyframes: copy(current.propKeyframes),
           cameraKeyframes: copy(current.cameraKeyframes),
           captions: copy(current.captions),
           audioCues: copy(current.audioCues),
@@ -3789,6 +3988,157 @@ export default function Home() {
       },
     );
     register(
+      'set_prop_keyframe',
+      'Set prop keyframe',
+      'Create or update an imported prop transform keyframe at an explicit time.',
+      {
+        type: 'object',
+        required: ['assetId', 'timeMs'],
+        additionalProperties: false,
+        properties: {
+          assetId: { type: 'string' },
+          timeMs: { type: 'number', minimum: 0 },
+          x: { type: 'number', minimum: 0, maximum: 100 },
+          y: { type: 'number', minimum: 0, maximum: 100 },
+          scale: { type: 'number', minimum: 0.25, maximum: 2.5 },
+          rotation: { type: 'number', minimum: -180, maximum: 180 },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const assetId = typeof input.assetId === 'string' ? input.assetId : '';
+        const asset = current.assets.find((item) => item.id === assetId);
+        const timeMs = input.timeMs;
+        if (!asset) return { ok: false, code: 'NOT_FOUND' };
+        if (asset.kind !== 'prop' || !asset.dataUrl)
+          return { ok: false, code: 'INVALID_ASSET' };
+        if (
+          typeof timeMs !== 'number' ||
+          !Number.isFinite(timeMs) ||
+          timeMs < 0 ||
+          timeMs > current.duration
+        )
+          return { ok: false, code: 'INVALID_TIMING' };
+        const numericKeys = ['x', 'y', 'scale', 'rotation'] as const;
+        if (
+          numericKeys.some(
+            (key) =>
+              input[key] !== undefined &&
+              (typeof input[key] !== 'number' || !Number.isFinite(input[key])),
+          )
+        )
+          return { ok: false, code: 'INVALID_INPUT' };
+        if (
+          (typeof input.x === 'number' && (input.x < 0 || input.x > 100)) ||
+          (typeof input.y === 'number' && (input.y < 0 || input.y > 100)) ||
+          (typeof input.scale === 'number' &&
+            (input.scale < 0.25 || input.scale > 2.5)) ||
+          (typeof input.rotation === 'number' &&
+            (input.rotation < -180 || input.rotation > 180))
+        )
+          return { ok: false, code: 'OUT_OF_BOUNDS' };
+        let keyframe: PropKeyframe | null = null;
+        commitRef.current(
+          (next) => {
+            keyframe = upsertPropKeyframe(next, assetId, timeMs, {
+              x: typeof input.x === 'number' ? input.x : undefined,
+              y: typeof input.y === 'number' ? input.y : undefined,
+              scale: typeof input.scale === 'number' ? input.scale : undefined,
+              rotation:
+                typeof input.rotation === 'number' ? input.rotation : undefined,
+            });
+          },
+          `Keyframe ${asset.label}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          keyframe,
+          changedEntityIds: [assetId],
+        };
+      },
+    );
+    register(
+      'apply_prop_preset',
+      'Apply prop motion preset',
+      'Apply a deterministic entrance or nudge motion phrase to an imported prop.',
+      {
+        type: 'object',
+        required: ['assetId', 'preset'],
+        additionalProperties: false,
+        properties: {
+          assetId: { type: 'string' },
+          preset: { type: 'string', enum: ['pop-in', 'nudge'] },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const assetId = typeof input.assetId === 'string' ? input.assetId : '';
+        const asset = current.assets.find((item) => item.id === assetId);
+        if (!asset) return { ok: false, code: 'NOT_FOUND' };
+        if (asset.kind !== 'prop' || !asset.dataUrl)
+          return { ok: false, code: 'INVALID_ASSET' };
+        if (input.preset !== 'pop-in' && input.preset !== 'nudge')
+          return { ok: false, code: 'INVALID_INPUT' };
+        const start = current.currentTime;
+        let applied: PropKeyframe[] = [];
+        commitRef.current(
+          (next) => {
+            const base = evaluateProps(next, start).find(
+              (item) => item.assetId === assetId,
+            );
+            if (!base) return;
+            const points =
+              input.preset === 'pop-in'
+                ? [
+                    { ...base, time: start, scale: 0.25, rotation: -4 },
+                    {
+                      ...base,
+                      time: Math.min(next.duration, start + 220),
+                      scale: base.scale,
+                      rotation: 0,
+                    },
+                  ]
+                : [
+                    { ...base, time: start, rotation: -5 },
+                    {
+                      ...base,
+                      time: Math.min(next.duration, start + 180),
+                      rotation: 5,
+                    },
+                    {
+                      ...base,
+                      time: Math.min(next.duration, start + 360),
+                      rotation: 0,
+                    },
+                  ];
+            const unique = points.filter(
+              (point, index) =>
+                points.findIndex(
+                  (candidate) => candidate.time === point.time,
+                ) === index,
+            );
+            applied = unique
+              .map((point) =>
+                upsertPropKeyframe(next, assetId, point.time, point),
+              )
+              .filter((point): point is PropKeyframe => Boolean(point));
+          },
+          `Apply ${input.preset} to ${asset.label}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          assetId,
+          preset: input.preset,
+          keyframes: applied,
+          changedEntityIds: [assetId],
+        };
+      },
+    );
+    register(
       'set_camera_keyframe',
       'Set camera keyframe',
       'Create or update an explicit camera keyframe without changing character tracks.',
@@ -4267,8 +4617,17 @@ export default function Home() {
       setFuture([]);
       setSaved(false);
       setLastCommand(`Retimed ${drag.mark.label}`);
+      const movedTime =
+        drag.mark.kind === 'camera'
+          ? current.cameraKeyframes.find((frame) => frame.id === drag.mark.id)
+              ?.time
+          : drag.mark.kind === 'prop'
+            ? current.propKeyframes.find((frame) => frame.id === drag.mark.id)
+                ?.time
+            : current.keyframes.find((frame) => frame.id === drag.mark.id)
+                ?.time;
       setNotice(
-        `Human · Retimed ${drag.mark.label} · ${timecode(current.keyframes.find((frame) => frame.id === drag.mark.id)?.time ?? current.cameraKeyframes.find((frame) => frame.id === drag.mark.id)?.time ?? current.currentTime)}`,
+        `Human · Retimed ${drag.mark.label} · ${timecode(movedTime ?? current.currentTime)}`,
       );
     }
     timelineDragRef.current = null;
@@ -4343,6 +4702,9 @@ export default function Home() {
   const removeAsset = (asset: Asset) => {
     commit((next) => {
       next.assets = next.assets.filter((item) => item.id !== asset.id);
+      next.propKeyframes = next.propKeyframes.filter(
+        (frame) => frame.assetId !== asset.id,
+      );
       next.characters.forEach((character) => {
         if (character.assetId === asset.id) character.assetId = undefined;
       });
@@ -4408,6 +4770,51 @@ export default function Home() {
       },
       `Set ${cue.label} volume to ${Math.round(safeVolume * 100)}%`,
     );
+  };
+  const applyPropPreset = (asset: Asset, preset: 'pop-in' | 'nudge') => {
+    if (asset.kind !== 'prop' || !asset.dataUrl) {
+      setNotice('Import a prop before animating it');
+      return;
+    }
+    const start = project.currentTime;
+    const base = evaluateProps(project, start).find(
+      (item) => item.assetId === asset.id,
+    );
+    if (!base) return;
+    const points =
+      preset === 'pop-in'
+        ? [
+            { ...base, time: start, scale: 0.25, rotation: -4 },
+            {
+              ...base,
+              time: Math.min(project.duration, start + 220),
+              scale: base.scale,
+              rotation: 0,
+            },
+          ]
+        : [
+            { ...base, time: start, rotation: -5 },
+            {
+              ...base,
+              time: Math.min(project.duration, start + 180),
+              rotation: 5,
+            },
+            {
+              ...base,
+              time: Math.min(project.duration, start + 360),
+              rotation: 0,
+            },
+          ];
+    const unique = points.filter(
+      (point, index) =>
+        points.findIndex((candidate) => candidate.time === point.time) ===
+        index,
+    );
+    commit((next) => {
+      unique.forEach((point) =>
+        upsertPropKeyframe(next, asset.id, point.time, point),
+      );
+    }, `Apply ${preset} to ${asset.label}`);
   };
   const updateRenderSettings = (changes: {
     fps?: number;
@@ -4615,6 +5022,7 @@ export default function Home() {
       duration: project.duration,
       characters: copy(project.characters),
       keyframes: copy(project.keyframes),
+      propKeyframes: copy(project.propKeyframes),
       cameraKeyframes: copy(project.cameraKeyframes),
       captions: copy(project.captions),
       audioCues: copy(project.audioCues),
@@ -4914,6 +5322,15 @@ export default function Home() {
           characterId,
           label: `${project.characters.find((character) => character.id === characterId)?.name ?? characterId} keyframe`,
         }));
+    const marksForProps: TimelineMark[] = project.propKeyframes.map(
+      (frame) => ({
+        time: frame.time,
+        id: frame.id,
+        kind: 'prop',
+        assetId: frame.assetId,
+        label: `${project.assets.find((asset) => asset.id === frame.assetId)?.label ?? frame.assetId} keyframe`,
+      }),
+    );
     const rangeFor = (times: number[]) => {
       if (times.length === 0) return { start: 0, end: project.duration };
       const start = Math.min(...times);
@@ -4965,6 +5382,12 @@ export default function Home() {
         marks: marksForCharacter('bob'),
       },
       {
+        name: 'Props · imported',
+        color: 'violet',
+        range: rangeFor(project.propKeyframes.map((frame) => frame.time)),
+        marks: marksForProps,
+      },
+      {
         name: 'Captions',
         color: 'yellow',
         range: rangeForCaptions,
@@ -5009,6 +5432,8 @@ export default function Home() {
     project.duration,
     project.audioCues,
     project.keyframes,
+    project.propKeyframes,
+    project.assets,
   ]);
   const rulerTimes = useMemo(() => {
     const times = Array.from(
@@ -5233,6 +5658,8 @@ export default function Home() {
                               characters:
                                 scene.characters ?? project.characters,
                               keyframes: scene.keyframes ?? project.keyframes,
+                              propKeyframes:
+                                scene.propKeyframes ?? project.propKeyframes,
                               cameraKeyframes:
                                 scene.cameraKeyframes ??
                                 project.cameraKeyframes,
@@ -5545,6 +5972,23 @@ export default function Home() {
                             ))}
                           </select>
                         </label>
+                      )}
+                      {asset.kind === 'prop' && asset.dataUrl && (
+                        <div className="asset-motion-actions">
+                          <span>Motion</span>
+                          <button
+                            type="button"
+                            onClick={() => applyPropPreset(asset, 'pop-in')}
+                          >
+                            Pop in
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applyPropPreset(asset, 'nudge')}
+                          >
+                            Nudge
+                          </button>
+                        </div>
                       )}
                       <textarea
                         className="asset-brief"
