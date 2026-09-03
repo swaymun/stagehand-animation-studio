@@ -19,6 +19,7 @@ import {
   FolderOpen,
   Grid2X2,
   Hand,
+  Image as ImageIcon,
   Layers3,
   Lock,
   Maximize2,
@@ -159,7 +160,7 @@ type ValidationIssue = {
   path: string;
   message: string;
 };
-const WEBMCP_TOOL_COUNT = 42;
+const WEBMCP_TOOL_COUNT = 43;
 type ModelTool = {
   name: string;
   title: string;
@@ -1779,6 +1780,12 @@ export default function Home() {
     originX: number;
     originY: number;
   } | null>(null);
+  const exportStillRef = useRef<() => Promise<Record<string, unknown>>>(
+    async () => ({
+      ok: false,
+      code: 'UNAVAILABLE',
+    }),
+  );
   const evaluatedCharacters = evaluateCharacters(project, project.currentTime),
     selected =
       evaluatedCharacters.find((c) => c.id === project.selectedId) ??
@@ -1835,6 +1842,51 @@ export default function Home() {
       return items.slice(1);
     });
   }, [project]);
+  const exportStill = useCallback(async () => {
+    const output = document.createElement('canvas');
+    output.width = project.renderWidth;
+    output.height = project.renderHeight;
+    const context = output.getContext('2d');
+    if (!context) return { ok: false, code: 'CANVAS_UNAVAILABLE' };
+    const imageMap = new Map<string, HTMLImageElement>();
+    await Promise.all(
+      project.assets
+        .filter(
+          (asset) =>
+            (asset.kind === 'rigged-character' ||
+              asset.kind === 'background' ||
+              asset.kind === 'prop') &&
+            asset.dataUrl,
+        )
+        .map(
+          (asset) =>
+            new Promise<void>((resolve) => {
+              const image = new Image();
+              image.onload = () => {
+                imageMap.set(asset.id, image);
+                resolve();
+              };
+              image.onerror = () => resolve();
+              image.src = asset.dataUrl as string;
+            }),
+        ),
+    );
+    drawRenderFrame(context, project, output.width, output.height, imageMap);
+    const fileName = `stagehand-frame-${String(Math.round(project.currentTime)).padStart(5, '0')}ms.png`;
+    const link = document.createElement('a');
+    link.href = output.toDataURL('image/png');
+    link.download = fileName;
+    link.click();
+    setLastCommand('export_frame()');
+    setNotice('PNG frame downloaded');
+    return {
+      ok: true,
+      fileName,
+      timeMs: project.currentTime,
+      width: output.width,
+      height: output.height,
+    };
+  }, [project]);
   const projectRef = useRef(project),
     selectedRef = useRef(selected),
     commitRef = useRef(commit),
@@ -1844,7 +1896,8 @@ export default function Home() {
     selectedRef.current = selected;
     commitRef.current = commit;
     undoRef.current = undo;
-  }, [project, selected, commit, undo]);
+    exportStillRef.current = exportStill;
+  }, [project, selected, commit, undo, exportStill]);
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const stored = window.localStorage.getItem(STORAGE_KEY);
@@ -2286,6 +2339,13 @@ export default function Home() {
         );
         return { ok: true, revision: current.revision + 1, timeMs };
       },
+    );
+    register(
+      'export_frame',
+      'Export current frame',
+      'Download the deterministic current scene frame as a PNG for review or sharing.',
+      { type: 'object', properties: {}, additionalProperties: false },
+      () => exportStillRef.current(),
     );
     register(
       'set_scene_duration',
@@ -4425,6 +4485,14 @@ export default function Home() {
           </IconButton>
           <button className="render-button" type="button" onClick={renderWebM}>
             <Film size={16} /> {rendering ? 'Rendering…' : 'Render WebM'}
+          </button>
+          <button
+            className="top-secondary-button"
+            type="button"
+            onClick={() => void exportStill()}
+            title="Download the current frame as a PNG"
+          >
+            <ImageIcon size={14} /> PNG frame
           </button>
           <button
             className="top-secondary-button"
