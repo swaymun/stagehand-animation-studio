@@ -495,22 +495,43 @@ button {
 }
 .board-card {
   width: 100%;
-  display: grid;
-  grid-template-columns: 25px 1fr;
-  gap: 1px 7px;
-  padding: 10px 8px;
+  padding: 0;
   margin-bottom: 6px;
   border: 1px solid transparent;
   border-radius: 6px;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+}
+.board-card.active {
+  border-color: var(--coral);
+  background: #fffaf2;
+}
+.board-card-main {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 25px 1fr;
+  gap: 1px 7px;
+  padding: 10px 8px 7px;
+  border: 0;
+  border-radius: 5px 5px 0 0;
   color: var(--ink);
   background: transparent;
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
-.board-card.active {
-  border-color: var(--coral);
+.board-card-main:hover {
   background: #fffaf2;
+}
+.board-card-main:disabled,
+.board-promote:disabled {
+  color: #b5aca1;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.board-card-main:disabled:hover {
+  background: transparent;
 }
 .board-card strong,
 .board-card small {
@@ -529,6 +550,25 @@ button {
 .board-card small {
   color: var(--muted);
   line-height: 1.35;
+}
+.board-promote {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 8px 8px 40px;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--blue);
+  background: #fffaf2;
+  font:
+    9px ui-monospace,
+    monospace;
+  cursor: pointer;
+}
+.board-promote:hover {
+  border-color: var(--blue);
+  background: #f0f5f2;
 }
 .panel-hint {
   display: block;

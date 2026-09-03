@@ -9,6 +9,7 @@ import {
   useState,
 } from 'react';
 import {
+  ArrowUpRight,
   CircleHelp,
   Clapperboard,
   ChevronDown,
@@ -138,7 +139,7 @@ type ValidationIssue = {
   path: string;
   message: string;
 };
-const WEBMCP_TOOL_COUNT = 29;
+const WEBMCP_TOOL_COUNT = 30;
 type ModelTool = {
   name: string;
   title: string;
@@ -509,6 +510,90 @@ function makeTemplateScene(templateId: TemplateId, id: string): SceneMeta {
       text: variant.captions[index],
     })),
     audioCues: base.audioCues,
+  };
+}
+
+function makeBeatScene(
+  project: Project,
+  beat: StoryBeat,
+  id: string,
+): SceneMeta {
+  const sourceScene = project.scenes.find(
+    (scene) => scene.id === project.activeSceneId,
+  );
+  const start = clamp(beat.startMs, 0, project.duration);
+  const end = clamp(beat.endMs, start + 1, project.duration);
+  const duration = end - start;
+  const characters = evaluateCharacters(project, start).map((character) => ({
+    ...character,
+  }));
+  const keyframes: Keyframe[] = characters.map((character) => ({
+    id: `kf-${id}-${character.id}-0000`,
+    characterId: character.id,
+    time: 0,
+    x: character.x,
+    y: character.y,
+    rotation: character.rotation,
+    pose: character.pose,
+  }));
+  project.keyframes
+    .filter(
+      (frame) =>
+        frame.time > start &&
+        frame.time <= end &&
+        characters.some((character) => character.id === frame.characterId),
+    )
+    .forEach((frame) => {
+      keyframes.push({
+        ...frame,
+        id: `${frame.id}-${id}`,
+        time: frame.time - start,
+      });
+    });
+  const cameraAtStart = evaluateCamera(project, start);
+  const cameraKeyframes: CameraKeyframe[] = [
+    {
+      ...cameraAtStart,
+      id: `cam-${id}-0000`,
+      time: 0,
+    },
+  ];
+  project.cameraKeyframes
+    .filter((frame) => frame.time > start && frame.time <= end)
+    .forEach((frame) => {
+      cameraKeyframes.push({
+        ...frame,
+        id: `${frame.id}-${id}`,
+        time: frame.time - start,
+      });
+    });
+  const captions = project.captions
+    .filter((caption) => caption.end > start && caption.start < end)
+    .map((caption) => ({
+      ...caption,
+      id: `${caption.id}-${id}`,
+      start: Math.max(caption.start, start) - start,
+      end: Math.min(caption.end, end) - start,
+    }));
+  const audioCues = project.audioCues
+    .filter((cue) => cue.end > start && cue.start < end)
+    .map((cue) => ({
+      ...cue,
+      id: `${cue.id}-${id}`,
+      start: Math.max(cue.start, start) - start,
+      end: Math.min(cue.end, end) - start,
+    }));
+  return {
+    id,
+    title: `${sourceScene?.title ?? 'Scene'} · ${beat.title}`,
+    description: beat.description,
+    duration,
+    templateId: project.templateId,
+    characters,
+    keyframes,
+    cameraKeyframes,
+    captions,
+    audioCues,
   };
 }
 
@@ -2116,6 +2201,41 @@ export default function Home() {
       },
     );
     register(
+      'promote_storyboard_beat',
+      'Promote storyboard beat',
+      'Create a new editable scene from one storyboard beat while preserving the source scene.',
+      {
+        type: 'object',
+        required: ['beatId'],
+        additionalProperties: false,
+        properties: { beatId: { type: 'string' } },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const beat = storyboardBeats.find((item) => item.id === input.beatId);
+        if (!beat) return { ok: false, code: 'NOT_FOUND' };
+        if (beat.startMs >= current.duration || beat.endMs <= beat.startMs) {
+          return { ok: false, code: 'INVALID_TIMING' };
+        }
+        const scene = makeBeatScene(current, beat, nextSceneId(current.scenes));
+        commitRef.current(
+          (next) => {
+            next.scenes.push(scene);
+            loadSceneContent(next, scene.id);
+          },
+          `Promote ${beat.title}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          scene,
+          sourceSceneId: current.activeSceneId,
+          changedEntityIds: [scene.id],
+        };
+      },
+    );
+    register(
       'add_audio_cue',
       'Add audio cue',
       'Add a bounded non-voice music, footstep, or reaction sting cue to the active scene.',
@@ -2765,6 +2885,19 @@ export default function Home() {
     }, `Apply ${scene.title}`);
     setPanel('scenes');
   };
+  const promoteBeat = (beat: StoryBeat) => {
+    if (beat.startMs >= project.duration) {
+      setNotice('Beat does not fit inside this scene');
+      return;
+    }
+    const scene = makeBeatScene(project, beat, nextSceneId(project.scenes));
+    commit((next) => {
+      next.scenes.push(scene);
+      loadSceneContent(next, scene.id);
+    }, `Promote ${beat.title}`);
+    setPanel('scenes');
+    setViewMode('animate');
+  };
   const addScene = () => {
     const sceneNumber = project.scenes.length + 1;
     const scene = {
@@ -3305,22 +3438,35 @@ export default function Home() {
                   project.currentTime >= beat.startMs &&
                   project.currentTime < beat.endMs;
                 return (
-                  <button
+                  <div
                     className={`board-card ${active ? 'active' : ''}`}
                     key={beat.id}
-                    type="button"
-                    onClick={() =>
-                      setProject((current) => ({
-                        ...current,
-                        currentTime: beat.startMs,
-                      }))
-                    }
-                    aria-label={`Select beat ${beat.index}: ${beat.title}`}
                   >
-                    <span className="beat-index">{beat.index}</span>
-                    <strong>{beat.title}</strong>
-                    <small>{beat.description}</small>
-                  </button>
+                    <button
+                      className="board-card-main"
+                      type="button"
+                      disabled={beat.startMs >= project.duration}
+                      onClick={() =>
+                        setProject((current) => ({
+                          ...current,
+                          currentTime: beat.startMs,
+                        }))
+                      }
+                      aria-label={`Select beat ${beat.index}: ${beat.title}`}
+                    >
+                      <span className="beat-index">{beat.index}</span>
+                      <strong>{beat.title}</strong>
+                      <small>{beat.description}</small>
+                    </button>
+                    <button
+                      className="board-promote"
+                      type="button"
+                      disabled={beat.startMs >= project.duration}
+                      onClick={() => promoteBeat(beat)}
+                    >
+                      Promote to scene <ArrowUpRight size={11} />
+                    </button>
+                  </div>
                 );
               })}
             </div>
