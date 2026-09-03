@@ -4608,6 +4608,12 @@ export default function Home() {
                     className={selected.pose === pose ? 'active' : ''}
                     type="button"
                     key={pose}
+                    disabled={isTrackLocked(project, selected.id)}
+                    title={
+                      isTrackLocked(project, selected.id)
+                        ? 'Unlock the character track to edit poses'
+                        : `Apply ${pose.replace('-', ' ')} pose`
+                    }
                     onClick={() => setSelectedPose(pose)}
                   >
                     <span className={`pose-dot pose-${pose}`} />
