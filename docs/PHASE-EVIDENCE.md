@@ -6,10 +6,10 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement �
 
 - Date: 2026-09-03
 - Private source: [github.com/swaymun/stagehand-animation-studio](https://github.com/swaymun/stagehand-animation-studio)
-- Verified source commit: `4e5106cc3b2f29913b724563c72b00f9f369b4f6`
+- Verified source commit: `61a9038c09dd29d928c94bc691291850be59afa4`
 - Public Site: [stagehand-animation-studio.saimun-h-shahee.chatgpt.site](https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site)
-- Sites version: `79`
-- Scope at this checkpoint: structured per-asset visual direction, clarified motion actions, revision-safe and idempotent WebMCP mutations, partial render-settings preservation, synchronized Storyboard/Board navigation, review-first Preview with editing controls removed, readable two-line scene labels, semantic heading/dialog landmarks, accessible transform controls, wide four-column pose-sheet detection, and imported-prop/sequence coverage.
+- Sites version: `80`
+- Scope at this checkpoint: structured per-asset visual direction, clarified motion actions, revision-safe and idempotent WebMCP mutations, partial render-settings preservation, synchronized human/agent playhead reads, synchronized Storyboard/Board navigation, review-first Preview with editing controls removed, readable two-line scene labels, semantic heading/dialog landmarks, accessible transform controls, wide four-column pose-sheet detection, and imported-prop/sequence coverage.
 
 ## Implement
 
@@ -29,6 +29,7 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement �
 - Timeline keyframe buttons retain small diamonds but use 22×22 px hit targets.
 - The smoke harness now opens the Help dialog through the human UI and reloads the mutated project to prove its local recovery path.
 - Inspector editing groups now collapse independently so the working surface can stay focused without losing access to controls.
+- Human scrubbing, beat jumps, and canvas selection now synchronize the project snapshot read by WebMCP tools before the next agent command.
 
 ## Local verification
 
@@ -49,7 +50,7 @@ The local smoke result verified:
 - Human asset-style editor and agent `set_asset_style` update: PASS.
 - Agent partial render-settings update preserves 1080p before an explicit reset to 720p: PASS.
 - Agent `inspect_frame` at 125 ms returns deterministic scene state and 720×405 render metadata: PASS.
-- Agent `export_frame` produced a 720×405 PNG download (`38,521` bytes): PASS.
+- Agent `export_frame` produced a 720×405 PNG download (`29,592` bytes): PASS.
 - Human prop X edit: `63.0`.
 - Agent prop keyframe at explicit time and Pop in preset: PASS.
 - Undo/redo revisions: PASS.
@@ -62,6 +63,7 @@ The local smoke result verified:
 - Sequence Preview: playback advanced from Scene 02 to Scene 01 across the 500 ms scene boundary: PASS.
 - Wide pose-sheet import: 400×100 PNG auto-detected as a four-column sheet and bound to the selected rig: PASS.
 - Inspector groups: five editing sections expose native collapse/reopen behavior while preserving accessible controls: PASS.
+- Human scrub parity: a scrub to approximately 1.25 s is immediately returned by `get_timeline`: PASS.
 
 ## Hosted verification
 
@@ -73,12 +75,12 @@ Result: PASS. The hosted run verified the same 51-tool injected bridge, stale-wr
 
 ## UI roast and fixes
 
-Evidence screenshots are captured from the hosted v79 build at 1440×960:
+Evidence screenshots are captured from the hosted v80 build at 1440×960:
 
-- [`v79-animate.png`](evidence/v79-animate.png): editing workspace with clarified motion actions and readable scene labels.
-- [`v79-assets-style.png`](evidence/v79-assets-style.png): expandable per-asset style editor.
-- [`v79-storyboard.png`](evidence/v79-storyboard.png): Storyboard mode with the Board rail selected.
-- [`v79-preview.png`](evidence/v79-preview.png): clean review-first Preview player with only review outputs in the header.
+- [`v80-animate.png`](evidence/v80-animate.png): editing workspace with clarified motion actions, readable scene labels, and synchronized Inspector groups.
+- [`v80-assets-style.png`](evidence/v80-assets-style.png): expandable per-asset style editor.
+- [`v80-storyboard.png`](evidence/v80-storyboard.png): Storyboard mode with the Board rail selected.
+- [`v80-preview.png`](evidence/v80-preview.png): clean review-first Preview player with only review outputs in the header.
 
 Findings from the current screenshot review:
 

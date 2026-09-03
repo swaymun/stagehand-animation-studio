@@ -43,10 +43,10 @@ def bullets(items):
 
 story = [
     p("Stagehand Phase Evidence", title),
-    p("Current checkpoint: public Site v79, verified 2026-09-03.", subtitle),
+    p("Current checkpoint: public Site v80, verified 2026-09-03.", subtitle),
     p("Project", heading),
     p("Stagehand is a WebMCP-native 2D animation studio for editable paper-cutout scenes. The current cut supports rigged characters, imported image props, per-asset visual direction, camera work, captions, non-voice audio cues, storyboard beats, multi-scene Preview, and deterministic WebM export.", body),
-    p("Private source: github.com/swaymun/stagehand-animation-studio<br/>Commit: 4e5106cc3b2f29913b724563c72b00f9f369b4f6<br/>Public Site: stagehand-animation-studio.saimun-h-shahee.chatgpt.site<br/>Sites version: 79", body),
+    p("Private source: github.com/swaymun/stagehand-animation-studio<br/>Commit: 61a9038c09dd29d928c94bc691291850be59afa4<br/>Public Site: stagehand-animation-studio.saimun-h-shahee.chatgpt.site<br/>Sites version: 80", body),
     p("Acceptance loop", heading),
     p("Implement - local tests - Sites deployment - hosted test - UI roast - fixes - second review.", body),
     p("Implemented at this checkpoint", heading),
@@ -61,15 +61,15 @@ story = [
     p("Verification", heading),
     p("Local gate:", body),
     p("npm run format<br/>npm run lint<br/>npm run build<br/>git diff --check<br/>npm run smoke", code),
-    p("Local and hosted smoke passed: 51 tools, 38 guarded mutations, stale-write conflict, idempotent replay, frame and PNG export, wide pose-sheet detection, asset-style parity, prop animation, undo/redo, two-scene WebM, sequence Preview transition, collapsible Inspector groups, Help modal semantics, reload recovery, and zero page errors.", body),
+    p("Local and hosted smoke passed: 51 tools, 38 guarded mutations, stale-write conflict, idempotent replay, human-scrubbed playhead visibility, frame and PNG export, wide pose-sheet detection, asset-style parity, prop animation, undo/redo, two-scene WebM, sequence Preview transition, collapsible Inspector groups, Help modal semantics, reload recovery, and zero page errors.", body),
     PageBreak(),
 ]
 
 screens = [
-    ("Animate editing workspace", "v79-animate.png", "Hosted Playwright capture at 1440 x 960. Motion actions identify their target character and duration; the scene label remains readable."),
-    ("Assets style editor", "v79-assets-style.png", "Hosted Playwright capture at 1440 x 960. The expandable Style control exposes structured visual direction without taking over the asset rail."),
-    ("Storyboard mode with Board rail", "v79-storyboard.png", "Hosted Playwright capture at 1440 x 960. The selected top-level mode and project rail stay synchronized."),
-    ("Review-first Preview player", "v79-preview.png", "Hosted Playwright capture at 1440 x 960. Scene-only context, transport, and Exit preview remain; global editing controls are hidden."),
+    ("Animate editing workspace", "v80-animate.png", "Hosted Playwright capture at 1440 x 960. Motion actions identify their target character and duration; the scene label remains readable."),
+    ("Assets style editor", "v80-assets-style.png", "Hosted Playwright capture at 1440 x 960. The expandable Style control exposes structured visual direction without taking over the asset rail."),
+    ("Storyboard mode with Board rail", "v80-storyboard.png", "Hosted Playwright capture at 1440 x 960. The selected top-level mode and project rail stay synchronized."),
+    ("Review-first Preview player", "v80-preview.png", "Hosted Playwright capture at 1440 x 960. Scene-only context, transport, and Exit preview remain; global editing controls are hidden."),
 ]
 
 for index, (heading_text, filename, caption_text) in enumerate(screens):
@@ -94,7 +94,7 @@ story.extend([
         "Preview still exposed global project-editing controls. Hid Settings, Import, Export JSON, and rename while retaining WebM and PNG review actions.",
         "Scene titles competed with the ready badge and were visually shortened. Used a two-line title clamp and positioned the badge outside the text flow.",
         "The smoke gate did not exercise recovery, modal semantics, or cross-scene playback. Added Help open/close, reload recovery, and sequence Preview transition checks to local and hosted runs.",
-        "The Inspector was a long scroll dump. Added native collapsible editing groups with keyboard-focusable summaries and collapse/reopen smoke coverage.",
+        "The Inspector was a long scroll dump, and human scrubbing could leave agent reads one event behind. Added native collapsible editing groups plus shared project-view synchronization and smoke coverage for both behaviors.",
     ]),
     p("Limits", heading),
     p("Direct CUA inspection was unavailable because the Mac was locked; Playwright was used for hosted interaction and screenshots. The smoke harness proves injected modelContext registration and execution, not live production ChatGPT WebMCP discovery. TTS, voice cloning, dialogue recording, phoneme extraction, and lip-sync remain out of scope.", body),
