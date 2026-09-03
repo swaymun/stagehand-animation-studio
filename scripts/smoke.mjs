@@ -219,7 +219,10 @@ await page.locator('input[aria-label="Import image asset"]').setInputFiles({
     'base64',
   ),
 });
-await page.getByText('smoke-prop', { exact: true }).waitFor({ timeout: 5000 });
+await page
+  .locator('.asset-list')
+  .getByText('smoke-prop', { exact: true })
+  .waitFor({ timeout: 5000 });
 await page.waitForTimeout(250);
 const humanPropXInput = page.locator('input[aria-label="X for smoke-prop"]');
 await humanPropXInput.fill('63');
@@ -236,7 +239,10 @@ await page.locator('input[aria-label="Import image asset"]').setInputFiles({
   mimeType: 'image/png',
   buffer: widePngFixture(),
 });
-await page.getByText('smoke-sheet', { exact: true }).waitFor({ timeout: 5000 });
+await page
+  .locator('.asset-list')
+  .getByText('smoke-sheet', { exact: true })
+  .waitFor({ timeout: 5000 });
 await page.waitForTimeout(120);
 const poseSheet = await page
   .locator('.asset-copy small')
@@ -253,6 +259,26 @@ if (!assetValidation.ok) {
     `freshly added/imported assets should carry valid style defaults: ${JSON.stringify(assetValidation)}`,
   );
 }
+if ((await page.locator('.asset-context-panel').count()) !== 1) {
+  throw new Error('Assets view should provide an asset-specific inspector');
+}
+if (
+  (await page
+    .locator('.asset-context-panel')
+    .getByText('smoke-prop', { exact: true })
+    .count()) !== 1
+) {
+  throw new Error('asset-specific inspector should identify the active asset');
+}
+if (
+  await page
+    .locator('.asset-context-inspector input[aria-label="Alice X position"]')
+    .isVisible()
+) {
+  throw new Error('Assets view should not expose character transform controls');
+}
+await page.getByRole('tab', { name: 'Scenes' }).click();
+await page.waitForTimeout(80);
 const unnamedNumberInputs = await page
   .locator('input[type="number"]')
   .evaluateAll((inputs) =>

@@ -2465,6 +2465,10 @@ export default function Home() {
     selected =
       evaluatedCharacters.find((c) => c.id === project.selectedId) ??
       evaluatedCharacters[0],
+    inspectorAsset =
+      project.assets.find((asset) => asset.id === expandedAssetStyleId) ??
+      project.assets.find((asset) => asset.dataUrl) ??
+      project.assets[0],
     activeCaption = project.captions.find(
       (c) => project.currentTime >= c.start && project.currentTime <= c.end,
     ),
@@ -7565,7 +7569,126 @@ export default function Home() {
             </div>
           </div>
         </section>
-        <aside className="inspector">
+        <aside
+          className={`inspector ${panel === 'assets' ? 'asset-context-inspector' : ''}`}
+        >
+          {panel === 'assets' && inspectorAsset && (
+            <div className="asset-context-panel">
+              <div className="inspector-header">
+                <span>ASSET INSPECTOR</span>
+                <FolderOpen size={14} />
+              </div>
+              <div className="asset-context-heading">
+                <span
+                  className={`asset-context-swatch asset-${inspectorAsset.kind.replace('rigged-character', 'rig')}`}
+                  style={
+                    inspectorAsset.dataUrl
+                      ? {
+                          backgroundImage: `url(${inspectorAsset.dataUrl})`,
+                          backgroundPosition: 'center',
+                          backgroundSize: 'cover',
+                          filter: assetTreatmentFilter(inspectorAsset),
+                        }
+                      : undefined
+                  }
+                />
+                <div>
+                  <strong>{inspectorAsset.label}</strong>
+                  <span>
+                    {assetKindLabel(inspectorAsset.kind)} ·{' '}
+                    {inspectorAsset.source}
+                  </span>
+                </div>
+              </div>
+              <div className="asset-context-section">
+                <div className="inspector-label">
+                  <span>PLACEMENT</span>
+                  <span>
+                    {inspectorAsset.kind === 'rigged-character'
+                      ? project.characters.some(
+                          (character) =>
+                            character.assetId === inspectorAsset.id,
+                        )
+                        ? 'bound'
+                        : 'unbound'
+                      : inspectorAsset.dataUrl
+                        ? 'on stage'
+                        : 'library'}
+                  </span>
+                </div>
+                <p>
+                  {inspectorAsset.kind === 'rigged-character'
+                    ? project.characters
+                        .filter(
+                          (character) =>
+                            character.assetId === inspectorAsset.id,
+                        )
+                        .map((character) => character.name)
+                        .join(', ') || 'Available for rig binding.'
+                    : (inspectorAsset.brief ??
+                      'Reusable visual asset for the current project.')}
+                </p>
+              </div>
+              <div className="asset-context-section">
+                <div className="inspector-label">
+                  <span>STYLE</span>
+                  <span>
+                    {
+                      (
+                        inspectorAsset.style ??
+                        defaultAssetStyle(inspectorAsset.kind)
+                      ).treatment
+                    }
+                  </span>
+                </div>
+                <div className="asset-context-style">
+                  <span>
+                    {
+                      (
+                        inspectorAsset.style ??
+                        defaultAssetStyle(inspectorAsset.kind)
+                      ).role
+                    }
+                  </span>
+                  <span>
+                    {
+                      (
+                        inspectorAsset.style ??
+                        defaultAssetStyle(inspectorAsset.kind)
+                      ).silhouette
+                    }{' '}
+                    silhouette
+                  </span>
+                </div>
+                <div
+                  className="asset-context-palette"
+                  aria-label={`${inspectorAsset.label} inspector palette`}
+                >
+                  {(
+                    inspectorAsset.style ??
+                    defaultAssetStyle(inspectorAsset.kind)
+                  ).palette.map((color) => (
+                    <span
+                      key={`${inspectorAsset.id}-inspector-${color}`}
+                      title={color}
+                      style={{ background: paletteColor(color) }}
+                    />
+                  ))}
+                </div>
+                <button
+                  className="asset-context-edit"
+                  type="button"
+                  onClick={() => setExpandedAssetStyleId(inspectorAsset.id)}
+                >
+                  Edit style in Assets <ArrowUpRight size={12} />
+                </button>
+              </div>
+              <small className="asset-context-help">
+                Asset identity and art direction live here. Motion and rig
+                controls return when you select Scenes.
+              </small>
+            </div>
+          )}
           <div className="inspector-header">
             <span>INSPECTOR</span>
             <Settings2 size={14} />

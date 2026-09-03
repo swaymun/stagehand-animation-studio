@@ -1601,6 +1601,105 @@ button {
   min-height: 0;
   overflow-y: auto;
 }
+.asset-context-inspector > :not(.asset-context-panel) {
+  display: none;
+}
+.asset-context-panel {
+  min-height: 100%;
+}
+.asset-context-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 15px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.asset-context-swatch {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border: 1px solid var(--ink);
+  border-radius: 5px;
+  background: #f3e3ca;
+}
+.asset-context-heading div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.asset-context-heading strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.asset-context-heading span {
+  color: var(--muted);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+.asset-context-section {
+  padding: 15px;
+  border-bottom: 1px solid var(--line);
+}
+.asset-context-section .inspector-label {
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.asset-context-section p {
+  margin: 0;
+  color: #766e68;
+  font-size: 10px;
+  line-height: 1.45;
+}
+.asset-context-style {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #766e68;
+  font-size: 10px;
+  text-transform: capitalize;
+}
+.asset-context-style span:last-child {
+  color: var(--muted);
+}
+.asset-context-palette {
+  display: flex;
+  gap: 5px;
+  margin-top: 12px;
+}
+.asset-context-palette span {
+  width: 15px;
+  height: 15px;
+  border: 1px solid rgb(41 39 42 / 14%);
+  border-radius: 50%;
+}
+.asset-context-edit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  margin-top: 14px;
+  padding: 8px 7px;
+  border: 1px solid #d9cfc2;
+  border-radius: 4px;
+  color: var(--blue);
+  background: #fffdf8;
+  font-size: 10px;
+  font-weight: 700;
+}
+.asset-context-edit:hover {
+  border-color: var(--blue);
+  background: #f3f7f4;
+}
+.asset-context-help {
+  display: block;
+  padding: 15px;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
 .inspector-header {
   height: 49px;
   justify-content: space-between;
