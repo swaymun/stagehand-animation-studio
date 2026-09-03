@@ -152,6 +152,21 @@ await page.mouse.move(
 await page.mouse.up();
 await page.waitForTimeout(100);
 const afterDrag = await marks.nth(1).getAttribute('aria-label');
+const scrubber = page.getByLabel('Timeline playhead');
+await scrubber.evaluate((input) => {
+  input.value = '1250';
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+});
+await page.waitForTimeout(80);
+const humanTimeline = await page.evaluate(() =>
+  window.__stagehandTools.get('get_timeline').execute({}),
+);
+if (!humanTimeline.ok || Math.abs(humanTimeline.currentTimeMs - 1250) > 1) {
+  throw new Error(
+    `agent timeline read should follow human scrubbing: ${JSON.stringify(humanTimeline)}`,
+  );
+}
 
 await page.getByRole('tab', { name: 'Assets' }).click();
 await page.getByRole('button', { name: 'Import prop' }).click();
@@ -485,6 +500,10 @@ const result = {
     before: beforeDrag,
     after: afterDrag,
   },
+  humanTimeline: {
+    ok: humanTimeline.ok,
+    currentTimeMs: humanTimeline.currentTimeMs,
+  },
   sceneTitleLines,
   h1: (await h1.textContent())?.trim(),
   modal: { heading: modalHeading },
@@ -537,6 +556,8 @@ const result = {
 if (
   result.toolCount !== 51 ||
   !result.timelineDrag.moved ||
+  !result.humanTimeline.ok ||
+  Math.abs(result.humanTimeline.currentTimeMs - 1250) > 1 ||
   result.sceneTitleLines < 2 ||
   result.h1 !== 'stagehand' ||
   result.modal.heading !== 'Help & shortcuts' ||

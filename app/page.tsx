@@ -2250,6 +2250,16 @@ export default function Home() {
     },
     [],
   );
+  const updateProjectView = useCallback(
+    (update: (current: Project) => Project) => {
+      setProject((current) => {
+        const next = update(current);
+        projectRef.current = next;
+        return next;
+      });
+    },
+    [],
+  );
   const beginProjectNameEdit = () => {
     setProjectNameDraft(project.name);
     setEditingProjectName(true);
@@ -5597,7 +5607,7 @@ export default function Home() {
           bytes: blob.size,
         });
       };
-      setProject((current) => ({ ...current, currentTime: 0 }));
+      updateProjectView((current) => ({ ...current, currentTime: 0 }));
       setNotice(
         `Rendering ${timecode(totalDuration)} WebM · ${sceneProjects.length} scene${sceneProjects.length === 1 ? '' : 's'} · ${currentProject.fps} fps · ${currentProject.renderWidth}×${currentProject.renderHeight}`,
       );
@@ -5631,7 +5641,7 @@ export default function Home() {
       drawNextFrame();
       timer = window.setInterval(drawNextFrame, 1000 / currentProject.fps);
     });
-  }, []);
+  }, [updateProjectView]);
   useEffect(() => {
     renderWebMRef.current = renderWebM;
   }, [renderWebM]);
@@ -6231,7 +6241,7 @@ export default function Home() {
                           type="button"
                           disabled={beat.startMs >= project.duration}
                           onClick={() =>
-                            setProject((current) => ({
+                            updateProjectView((current) => ({
                               ...current,
                               currentTime: beat.startMs,
                             }))
@@ -6819,7 +6829,7 @@ export default function Home() {
                         type="button"
                         key={beat.id}
                         onClick={() =>
-                          setProject((current) => ({
+                          updateProjectView((current) => ({
                             ...current,
                             currentTime: beat.startMs,
                           }))
@@ -6912,7 +6922,10 @@ export default function Home() {
                     viewMode === 'preview' ? 'preview' : stageTool
                   }
                   onSelect={(id) =>
-                    setProject((current) => ({ ...current, selectedId: id }))
+                    updateProjectView((current) => ({
+                      ...current,
+                      selectedId: id,
+                    }))
                   }
                 />
                 {activeCaption && (
@@ -6947,7 +6960,7 @@ export default function Home() {
                 <IconButton
                   label="Step back"
                   onClick={() =>
-                    setProject((current) => ({
+                    updateProjectView((current) => ({
                       ...current,
                       currentTime: Math.max(0, current.currentTime - 83.33),
                     }))
@@ -7083,7 +7096,7 @@ export default function Home() {
                             suppressTimelineClickRef.current = false;
                             return;
                           }
-                          setProject((current) => ({
+                          updateProjectView((current) => ({
                             ...current,
                             currentTime: mark.time,
                           }));
@@ -7104,7 +7117,7 @@ export default function Home() {
                   value={project.currentTime}
                   aria-label="Timeline playhead"
                   onChange={(e) =>
-                    setProject((current) => ({
+                    updateProjectView((current) => ({
                       ...current,
                       currentTime: Number(e.target.value),
                     }))
@@ -7528,6 +7541,7 @@ export default function Home() {
                   STORAGE_KEY,
                   JSON.stringify(savedProject),
                 );
+                projectRef.current = savedProject;
                 setProject(savedProject);
                 setSaved(true);
                 setNotice('Project saved locally');

@@ -69,7 +69,7 @@ The local smoke result verified:
 STAGEHAND_URL=https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site npm run smoke
 ```
 
-Result: PASS. The hosted run verified the same 51-tool injected bridge, stale-write conflict, idempotent replay, frame inspection, PNG frame download, wide pose-sheet auto-detection, asset-style update, partial render-settings preservation, prop workflow, two-scene WebM download, sequence Preview scene transition, synchronized Storyboard/Board context, clarified motion copy, collapsible Inspector groups, clean Preview state with global editing controls removed, readable scene-label layout, semantic `h1`, labelled Help modal, reload recovery, and zero page errors. This is labeled a Playwright fallback: the public Site did not expose live WebMCP enumeration to the available runner, so it does not prove that ChatGPT’s production host enumerates the tools.
+Result: PASS. The hosted run verified the same 51-tool injected bridge, stale-write conflict, idempotent replay, frame inspection, PNG frame download, wide pose-sheet auto-detection, asset-style update, partial render-settings preservation, prop workflow, two-scene WebM download, sequence Preview scene transition, synchronized Storyboard/Board context, human-scrubbed playhead visibility through `get_timeline`, clarified motion copy, collapsible Inspector groups, clean Preview state with global editing controls removed, readable scene-label layout, semantic `h1`, labelled Help modal, reload recovery, and zero page errors. This is labeled a Playwright fallback: the public Site did not expose live WebMCP enumeration to the available runner, so it does not prove that ChatGPT’s production host enumerates the tools.
 
 ## UI roast and fixes
 
@@ -97,6 +97,7 @@ Findings from the current screenshot review:
 13. The brand lacked a document-level heading and the modal lacked an explicit modal landmark. Fixed with a descriptive `h1` and `aria-modal="true"`.
 14. The existing smoke gate did not exercise the recovery, modal, or sequence transition paths. Added a real Help open/close assertion, a post-mutation reload assertion, and a cross-scene Preview playback assertion to both local and hosted runs.
 15. The Inspector was a long scroll dump. Converted the major editing groups to native collapsible sections and added a smoke assertion for collapse/reopen behavior.
+16. Human timeline scrubbing could leave agent reads one event behind. Synchronized ephemeral view updates through the shared project reference and added a smoke assertion that `get_timeline` sees the scrubbed playhead immediately.
 
 ## Limits and warnings
 

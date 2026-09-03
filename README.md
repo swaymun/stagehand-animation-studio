@@ -39,7 +39,8 @@ The app is intentionally local-first and currently implemented as one client-sid
 1. Structured `Project` state contains scenes, characters, assets, prop/character/camera keyframes, captions, cues, and style direction.
 2. `commit()` is the shared command path for human and agent mutations; it snapshots history, increments revisions, syncs the active scene, and persists recovery state.
 3. `evaluateCharacters()`, `evaluateProps()`, and `evaluateCamera()` are deterministic timestamp evaluators shared by the canvas, thumbnails, Preview, frame inspection, and WebM renderer.
-4. `document.modelContext.registerTool()` registers the imperative WebMCP surface when the host provides it.
+4. Human scrubbing, beat jumps, and canvas selection synchronize the current project snapshot that WebMCP reads, so agent commands never act on a stale playhead or selection.
+5. `document.modelContext.registerTool()` registers the imperative WebMCP surface when the host provides it.
 5. Sites packages the validated `dist/` output from the exact pushed commit and deploys it as a public ChatGPT Site.
 
 TTS, voice cloning, dialogue recording, phoneme extraction, and lip-sync are explicitly out of scope for this MVP.

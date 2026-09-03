@@ -12,6 +12,7 @@ The current cut is a deterministic, local-first Paper Cutout Comedy scene: two p
 - Human and agent actions share one command model. Mutations are revisioned and undoable.
 - Broad reads and narrow writes are preferred. Agent writes must preserve unrelated manual edits.
 - Preview, frame inspection, and final render must share one deterministic evaluator for character motion and camera framing.
+- Human view changes such as scrubbing, beat jumps, and canvas selection must update the same current project snapshot read by WebMCP tools before the next command runs.
 - Character motion is stored as explicit keyframes and interpolated at the playhead; human and agent edits use the same keyframe command path.
 - Camera framing is stored as explicit zoom, pan, and rotation keyframes and interpolated at the playhead; human and agent edits use the same camera command path.
 - Asset style direction is structured per asset as role, treatment, silhouette, palette, and notes; human and agent edits use the same command path.
