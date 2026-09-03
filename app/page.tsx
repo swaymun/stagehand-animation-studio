@@ -2469,6 +2469,9 @@ export default function Home() {
       project.assets.find((asset) => asset.id === expandedAssetStyleId) ??
       project.assets.find((asset) => asset.dataUrl) ??
       project.assets[0],
+    inspectorAssetStyle = inspectorAsset
+      ? (inspectorAsset.style ?? defaultAssetStyle(inspectorAsset.kind))
+      : null,
     activeCaption = project.captions.find(
       (c) => project.currentTime >= c.start && project.currentTime <= c.end,
     ),
@@ -6169,7 +6172,9 @@ export default function Home() {
     (issue) => issue.severity !== 'error',
   );
   return (
-    <main className="studio-shell">
+    <main
+      className={`studio-shell ${viewMode === 'preview' ? 'preview-shell' : ''}`}
+    >
       <header className="topbar">
         <div className="brand-lockup">
           <div className="brand-mark">
@@ -6737,89 +6742,6 @@ export default function Home() {
                           ))}
                           <span>{assetStyle.palette.join(' · ')}</span>
                         </div>
-                        {expandedAssetStyleId === asset.id && (
-                          <div className="asset-style-editor">
-                            <label>
-                              Role
-                              <select
-                                aria-label={`Role for ${asset.label}`}
-                                value={assetStyle.role}
-                                onChange={(event) =>
-                                  updateAssetStyle(asset, {
-                                    role: event.target.value as AssetRole,
-                                  })
-                                }
-                              >
-                                <option value="hero">Hero</option>
-                                <option value="support">Support</option>
-                                <option value="environment">Environment</option>
-                                <option value="accent">Accent</option>
-                              </select>
-                            </label>
-                            <label>
-                              Treatment
-                              <select
-                                aria-label={`Treatment for ${asset.label}`}
-                                value={assetStyle.treatment}
-                                onChange={(event) =>
-                                  updateAssetStyle(asset, {
-                                    treatment: event.target
-                                      .value as AssetTreatment,
-                                  })
-                                }
-                              >
-                                <option value="paper">Paper</option>
-                                <option value="inked">Inked</option>
-                                <option value="flat-color">Flat color</option>
-                                <option value="photo">Photo</option>
-                              </select>
-                            </label>
-                            <label>
-                              Silhouette
-                              <select
-                                aria-label={`Silhouette for ${asset.label}`}
-                                value={assetStyle.silhouette}
-                                onChange={(event) =>
-                                  updateAssetStyle(asset, {
-                                    silhouette: event.target
-                                      .value as AssetSilhouette,
-                                  })
-                                }
-                              >
-                                <option value="clear">Clear</option>
-                                <option value="detailed">Detailed</option>
-                              </select>
-                            </label>
-                            <label className="asset-style-palette">
-                              Palette
-                              <input
-                                aria-label={`Palette for ${asset.label}`}
-                                value={assetStyle.palette.join(', ')}
-                                onChange={(event) => {
-                                  const palette = event.target.value
-                                    .split(',')
-                                    .map((value) => value.trim())
-                                    .filter(Boolean);
-                                  if (palette.length > 0)
-                                    updateAssetStyle(asset, { palette });
-                                }}
-                              />
-                            </label>
-                            <label className="asset-style-notes">
-                              Direction
-                              <textarea
-                                aria-label={`Style direction for ${asset.label}`}
-                                value={assetStyle.notes}
-                                rows={2}
-                                onChange={(event) =>
-                                  updateAssetStyle(asset, {
-                                    notes: event.target.value,
-                                  })
-                                }
-                              />
-                            </label>
-                          </div>
-                        )}
                         {asset.kind === 'rigged-character' && asset.dataUrl && (
                           <label className="asset-bind-control">
                             <span>Rig binding</span>
@@ -6949,25 +6871,6 @@ export default function Home() {
                             })()}
                           </>
                         )}
-                        <textarea
-                          className="asset-brief"
-                          aria-label={`Brief for ${asset.label}`}
-                          value={
-                            assetBriefDrafts[asset.id] ??
-                            asset.brief ??
-                            defaultAssetBrief(asset.kind)
-                          }
-                          onChange={(event) =>
-                            setAssetBriefDrafts((drafts) => ({
-                              ...drafts,
-                              [asset.id]: event.target.value,
-                            }))
-                          }
-                          onBlur={(event) =>
-                            updateAssetBrief(asset, event.target.value)
-                          }
-                          rows={2}
-                        />
                       </span>
                       <button
                         type="button"
@@ -7352,6 +7255,48 @@ export default function Home() {
             </div>
           </div>
           <div className="timeline">
+            {viewMode === 'preview' && (
+              <div className="preview-transport">
+                <div className="preview-transport-meta">
+                  <IconButton
+                    label={playing ? 'Pause preview' : 'Play preview'}
+                    onClick={() => setPlaying((value) => !value)}
+                    active
+                  >
+                    {playing ? (
+                      <Pause size={15} />
+                    ) : (
+                      <Play size={15} fill="currentColor" />
+                    )}
+                  </IconButton>
+                  <span className="timecode">
+                    {timecode(project.currentTime)}{' '}
+                    <small>/ {timecode(project.duration)}</small>
+                  </span>
+                  <span className="preview-transport-scene">
+                    {activeScene.title}
+                  </span>
+                  <span className="preview-timing-note">
+                    Review playback · scene timing
+                  </span>
+                </div>
+                <input
+                  className="preview-scrubber"
+                  type="range"
+                  min="0"
+                  max={project.duration}
+                  step="83.33"
+                  value={project.currentTime}
+                  aria-label="Preview scrubber"
+                  onChange={(event) =>
+                    updateProjectView((current) => ({
+                      ...current,
+                      currentTime: Number(event.target.value),
+                    }))
+                  }
+                />
+              </div>
+            )}
             <div className="timeline-toolbar">
               <div className="play-controls">
                 <IconButton
@@ -7678,10 +7623,120 @@ export default function Home() {
                 <button
                   className="asset-context-edit"
                   type="button"
-                  onClick={() => setExpandedAssetStyleId(inspectorAsset.id)}
+                  onClick={() =>
+                    setExpandedAssetStyleId((current) =>
+                      current === inspectorAsset.id ? null : inspectorAsset.id,
+                    )
+                  }
                 >
-                  Edit style in Assets <ArrowUpRight size={12} />
+                  {expandedAssetStyleId === inspectorAsset.id
+                    ? 'Close style editor'
+                    : 'Edit style'}{' '}
+                  <ArrowUpRight size={12} />
                 </button>
+                {expandedAssetStyleId === inspectorAsset.id &&
+                  inspectorAssetStyle && (
+                    <div className="asset-context-style-editor">
+                      <label>
+                        Role
+                        <select
+                          aria-label={`Role for ${inspectorAsset.label}`}
+                          value={inspectorAssetStyle.role}
+                          onChange={(event) =>
+                            updateAssetStyle(inspectorAsset, {
+                              role: event.target.value as AssetRole,
+                            })
+                          }
+                        >
+                          <option value="hero">Hero</option>
+                          <option value="support">Support</option>
+                          <option value="environment">Environment</option>
+                          <option value="accent">Accent</option>
+                        </select>
+                      </label>
+                      <label>
+                        Treatment
+                        <select
+                          aria-label={`Treatment for ${inspectorAsset.label}`}
+                          value={inspectorAssetStyle.treatment}
+                          onChange={(event) =>
+                            updateAssetStyle(inspectorAsset, {
+                              treatment: event.target.value as AssetTreatment,
+                            })
+                          }
+                        >
+                          <option value="paper">Paper</option>
+                          <option value="inked">Inked</option>
+                          <option value="flat-color">Flat color</option>
+                          <option value="photo">Photo</option>
+                        </select>
+                      </label>
+                      <label>
+                        Silhouette
+                        <select
+                          aria-label={`Silhouette for ${inspectorAsset.label}`}
+                          value={inspectorAssetStyle.silhouette}
+                          onChange={(event) =>
+                            updateAssetStyle(inspectorAsset, {
+                              silhouette: event.target.value as AssetSilhouette,
+                            })
+                          }
+                        >
+                          <option value="clear">Clear</option>
+                          <option value="detailed">Detailed</option>
+                        </select>
+                      </label>
+                      <label className="asset-style-palette">
+                        Palette
+                        <input
+                          aria-label={`Palette for ${inspectorAsset.label}`}
+                          value={inspectorAssetStyle.palette.join(', ')}
+                          onChange={(event) => {
+                            const palette = event.target.value
+                              .split(',')
+                              .map((value) => value.trim())
+                              .filter(Boolean);
+                            if (palette.length > 0)
+                              updateAssetStyle(inspectorAsset, { palette });
+                          }}
+                        />
+                      </label>
+                      <label className="asset-style-notes">
+                        Direction
+                        <textarea
+                          aria-label={`Style direction for ${inspectorAsset.label}`}
+                          value={inspectorAssetStyle.notes}
+                          rows={3}
+                          onChange={(event) =>
+                            updateAssetStyle(inspectorAsset, {
+                              notes: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label className="asset-context-brief">
+                        Brief
+                        <textarea
+                          aria-label={`Brief for ${inspectorAsset.label}`}
+                          value={
+                            assetBriefDrafts[inspectorAsset.id] ??
+                            inspectorAsset.brief ??
+                            defaultAssetBrief(inspectorAsset.kind)
+                          }
+                          onChange={(event) =>
+                            setAssetBriefDrafts((drafts) => ({
+                              ...drafts,
+                              [inspectorAsset.id]: event.target.value,
+                            }))
+                          }
+                          onBlur={(event) =>
+                            updateAssetBrief(inspectorAsset, event.target.value)
+                          }
+                          rows={3}
+                        />
+                      </label>
+                    </div>
+                  )}
               </div>
               <small className="asset-context-help">
                 Asset identity and art direction live here. Motion and rig

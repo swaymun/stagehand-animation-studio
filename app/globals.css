@@ -239,6 +239,53 @@ button {
 .preview-workspace .timeline-hint {
   display: none;
 }
+.preview-workspace .timeline-toolbar,
+.preview-workspace .timeline-grid {
+  display: none;
+}
+.preview-workspace .timeline {
+  height: 82px;
+  flex: 0 0 82px;
+}
+.preview-transport {
+  display: grid;
+  gap: 8px;
+  padding: 10px 16px 12px;
+}
+.preview-transport-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 29px;
+}
+.preview-transport-meta .timecode {
+  margin-left: 0;
+}
+.preview-transport-scene {
+  overflow: hidden;
+  max-width: 320px;
+  margin-left: 9px;
+  color: #706a65;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 700;
+}
+.preview-timing-note {
+  margin-left: auto;
+  color: #9a9086;
+  font-size: 9px;
+}
+.preview-scrubber {
+  width: 100%;
+  height: 15px;
+  accent-color: var(--coral);
+  cursor: ew-resize;
+}
+.preview-scrubber:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
 .preview-exit {
   margin-left: auto;
   padding: 6px 9px;
@@ -1693,6 +1740,50 @@ button {
   border-color: var(--blue);
   background: #f3f7f4;
 }
+.asset-context-style-editor {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e6ddd2;
+  color: #8f867c;
+  font-size: 10px;
+}
+.asset-context-style-editor label {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.asset-context-style-editor select,
+.asset-context-style-editor input,
+.asset-context-style-editor textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 5px;
+  border: 1px solid #ded4c8;
+  border-radius: 3px;
+  color: var(--ink);
+  background: #fffdf8;
+  font: inherit;
+  font-size: 10px;
+}
+.asset-context-style-editor textarea {
+  line-height: 1.3;
+  resize: vertical;
+}
+.asset-context-style-editor select:focus-visible,
+.asset-context-style-editor input:focus-visible,
+.asset-context-style-editor textarea:focus-visible {
+  border-color: var(--blue);
+  outline: 2px solid rgb(50 116 143 / 16%);
+  outline-offset: 1px;
+}
+.asset-context-style-editor .asset-style-palette,
+.asset-context-style-editor .asset-style-notes,
+.asset-context-style-editor .asset-context-brief {
+  grid-column: 1 / -1;
+}
 .asset-context-help {
   display: block;
   padding: 15px;
@@ -2290,6 +2381,11 @@ button {
 }
 .preview-mode .canvas-frame {
   box-shadow: 0 12px 34px rgba(77, 59, 44, 0.17);
+}
+.preview-mode .stage-header-right,
+.preview-mode .canvas-frame.safe-area-visible::after,
+.preview-shell .toast {
+  display: none;
 }
 .storyboard-mode-grid {
   min-height: 0;

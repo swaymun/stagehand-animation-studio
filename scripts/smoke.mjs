@@ -229,6 +229,9 @@ await humanPropXInput.fill('63');
 await page.waitForTimeout(100);
 const humanPropX = await humanPropXInput.inputValue();
 await page.getByRole('button', { name: 'Edit style for smoke-prop' }).click();
+if (!(await page.locator('.asset-context-style-editor').isVisible())) {
+  throw new Error('asset style editor should open in the asset Inspector');
+}
 await page
   .locator('select[aria-label="Role for smoke-prop"]')
   .selectOption('accent');
@@ -560,6 +563,18 @@ if (storyboardRail !== 'true') {
 }
 await page.getByRole('tab', { name: 'Preview' }).click();
 await page.waitForTimeout(120);
+if (!(await page.locator('.preview-scrubber').isVisible())) {
+  throw new Error('Preview should expose a compact scrubber');
+}
+if (await page.locator('.preview-workspace .timeline-grid').isVisible()) {
+  throw new Error('Preview should hide the editable timeline grid');
+}
+if (await page.locator('.preview-shell .toast').isVisible()) {
+  throw new Error('Preview should hide editor status toasts');
+}
+if (await page.locator('.preview-mode .stage-header-right').isVisible()) {
+  throw new Error('Preview should hide editing guides');
+}
 const previewSceneBefore = (
   await page.locator('.preview-banner strong').textContent()
 )?.trim();
