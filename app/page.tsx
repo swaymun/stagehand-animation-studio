@@ -2112,6 +2112,7 @@ export default function Home() {
   );
   const renderingRef = useRef(false);
   const evaluatedCharacters = evaluateCharacters(project, project.currentTime),
+    evaluatedProps = evaluateProps(project, project.currentTime),
     selected =
       evaluatedCharacters.find((c) => c.id === project.selectedId) ??
       evaluatedCharacters[0],
@@ -4846,6 +4847,29 @@ export default function Home() {
       `Set scene duration to ${timecode(durationMs)}`,
     );
   };
+  const updatePropTransform = (
+    asset: Asset,
+    key: 'x' | 'y' | 'scale' | 'rotation',
+    value: number,
+  ) => {
+    if (asset.kind !== 'prop' || !asset.dataUrl || !Number.isFinite(value))
+      return;
+    const current = evaluatedProps.find((item) => item.assetId === asset.id);
+    if (!current) return;
+    const limits: Record<typeof key, [number, number]> = {
+      x: [0, 100],
+      y: [0, 100],
+      scale: [0.25, 2.5],
+      rotation: [-180, 180],
+    };
+    const safeValue = clamp(value, ...limits[key]);
+    if (Math.abs(current[key] - safeValue) < 0.001) return;
+    commit((next) => {
+      upsertPropKeyframe(next, asset.id, next.currentTime, {
+        [key]: safeValue,
+      });
+    }, `Set ${asset.label} ${key}`);
+  };
   const importAsset = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -5974,21 +5998,110 @@ export default function Home() {
                         </label>
                       )}
                       {asset.kind === 'prop' && asset.dataUrl && (
-                        <div className="asset-motion-actions">
-                          <span>Motion</span>
-                          <button
-                            type="button"
-                            onClick={() => applyPropPreset(asset, 'pop-in')}
-                          >
-                            Pop in
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => applyPropPreset(asset, 'nudge')}
-                          >
-                            Nudge
-                          </button>
-                        </div>
+                        <>
+                          <div className="asset-motion-actions">
+                            <span>Motion</span>
+                            <button
+                              type="button"
+                              onClick={() => applyPropPreset(asset, 'pop-in')}
+                            >
+                              Pop in
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => applyPropPreset(asset, 'nudge')}
+                            >
+                              Nudge
+                            </button>
+                          </div>
+                          {(() => {
+                            const prop = evaluatedProps.find(
+                              (item) => item.assetId === asset.id,
+                            );
+                            if (!prop) return null;
+                            return (
+                              <div className="asset-transform-editor">
+                                <span>At playhead</span>
+                                <label>
+                                  X
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    step="0.1"
+                                    aria-label={`X for ${asset.label}`}
+                                    value={prop.x.toFixed(1)}
+                                    onChange={(event) =>
+                                      updatePropTransform(
+                                        asset,
+                                        'x',
+                                        Number(event.target.value),
+                                      )
+                                    }
+                                  />
+                                  <b>%</b>
+                                </label>
+                                <label>
+                                  Y
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    step="0.1"
+                                    aria-label={`Y for ${asset.label}`}
+                                    value={prop.y.toFixed(1)}
+                                    onChange={(event) =>
+                                      updatePropTransform(
+                                        asset,
+                                        'y',
+                                        Number(event.target.value),
+                                      )
+                                    }
+                                  />
+                                  <b>%</b>
+                                </label>
+                                <label>
+                                  Scale
+                                  <input
+                                    type="number"
+                                    min="0.25"
+                                    max="2.5"
+                                    step="0.05"
+                                    aria-label={`Scale for ${asset.label}`}
+                                    value={prop.scale.toFixed(2)}
+                                    onChange={(event) =>
+                                      updatePropTransform(
+                                        asset,
+                                        'scale',
+                                        Number(event.target.value),
+                                      )
+                                    }
+                                  />
+                                  <b>×</b>
+                                </label>
+                                <label>
+                                  Rot
+                                  <input
+                                    type="number"
+                                    min="-180"
+                                    max="180"
+                                    step="1"
+                                    aria-label={`Rotation for ${asset.label}`}
+                                    value={prop.rotation.toFixed(0)}
+                                    onChange={(event) =>
+                                      updatePropTransform(
+                                        asset,
+                                        'rotation',
+                                        Number(event.target.value),
+                                      )
+                                    }
+                                  />
+                                  <b>°</b>
+                                </label>
+                              </div>
+                            );
+                          })()}
+                        </>
                       )}
                       <textarea
                         className="asset-brief"

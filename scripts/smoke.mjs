@@ -60,6 +60,10 @@ await page.locator('input[aria-label="Import image asset"]').setInputFiles({
 });
 await page.getByText('smoke-prop', { exact: true }).waitFor({ timeout: 5000 });
 await page.waitForTimeout(250);
+const humanPropXInput = page.locator('input[aria-label="X for smoke-prop"]');
+await humanPropXInput.fill('63');
+await page.waitForTimeout(100);
+const humanPropX = await humanPropXInput.inputValue();
 
 const bridge = await page.evaluate(async () => {
   const tools = window.__stagehandTools;
@@ -165,6 +169,7 @@ const result = {
     suggestedFilename: download.suggestedFilename(),
   },
   humanAudioVolume: await volume.inputValue(),
+  humanPropX,
   storyboardCards,
   preview,
   summary: {
@@ -181,12 +186,13 @@ if (
   !result.timelineDrag.moved ||
   !bridge.audio.ok ||
   bridge.audio.volume !== 0.03 ||
-  bridge.prop.before !== 0 ||
+  bridge.prop.before !== 1 ||
   !bridge.prop.keyframe.ok ||
   bridge.prop.keyframe.x !== 64 ||
   !bridge.prop.preset.ok ||
-  bridge.prop.preset.count < 2 ||
+  bridge.prop.preset.count !== 2 ||
   bridge.prop.after < 2 ||
+  result.humanPropX !== '63.0' ||
   !bridge.undone.ok ||
   !bridge.redone.ok ||
   !rendered.ok ||
