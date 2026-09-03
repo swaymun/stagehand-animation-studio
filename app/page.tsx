@@ -1550,12 +1550,14 @@ function drawRenderFrame(
   }
 }
 
-function StoryboardThumbnail({
+function RenderThumbnail({
   project,
   timeMs,
+  className,
 }: {
   project: Project;
   timeMs: number;
+  className: string;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const imageCacheRef = useRef(new Map<string, HTMLImageElement>());
@@ -1612,9 +1614,7 @@ function StoryboardThumbnail({
     window.addEventListener('resize', draw);
     return () => window.removeEventListener('resize', draw);
   }, [draw]);
-  return (
-    <canvas ref={ref} className="storyboard-thumb-canvas" aria-hidden="true" />
-  );
+  return <canvas ref={ref} className={className} aria-hidden="true" />;
 }
 
 function StageCanvas({
@@ -4690,8 +4690,29 @@ export default function Home() {
                         }
                       >
                         <div className="scene-thumbnail">
-                          <span>{String(index + 1).padStart(2, '0')}</span>
-                          <div className="thumb-diner" />
+                          <RenderThumbnail
+                            project={{
+                              ...project,
+                              activeSceneId: scene.id,
+                              duration: scene.duration,
+                              currentTime: scene.duration / 2,
+                              characters:
+                                scene.characters ?? project.characters,
+                              keyframes: scene.keyframes ?? project.keyframes,
+                              cameraKeyframes:
+                                scene.cameraKeyframes ??
+                                project.cameraKeyframes,
+                              captions: scene.captions ?? project.captions,
+                              audioCues: scene.audioCues ?? project.audioCues,
+                              lockedTrackIds:
+                                scene.lockedTrackIds ?? project.lockedTrackIds,
+                            }}
+                            timeMs={scene.duration / 2}
+                            className="scene-thumbnail-canvas"
+                          />
+                          <span className="scene-thumbnail-index">
+                            {String(index + 1).padStart(2, '0')}
+                          </span>
                         </div>
                         <div className="scene-meta">
                           <strong>{scene.title}</strong>
@@ -5237,9 +5258,10 @@ export default function Home() {
                         aria-label={`Go to beat ${beat.index}: ${beat.title}`}
                       >
                         <span className="storyboard-thumb">
-                          <StoryboardThumbnail
+                          <RenderThumbnail
                             project={project}
                             timeMs={(beat.startMs + beat.endMs) / 2}
+                            className="storyboard-thumb-canvas"
                           />
                           <span className="storyboard-thumb-index">
                             {beat.index}

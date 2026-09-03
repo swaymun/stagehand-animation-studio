@@ -304,10 +304,6 @@ button {
   position: relative;
   overflow: hidden;
   flex: 0 0 auto;
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-end;
-  padding: 4px;
   color: rgba(255, 255, 255, 0.8);
   background: #e4c39c;
   border-radius: 4px;
@@ -315,13 +311,15 @@ button {
     8px ui-monospace,
     monospace;
 }
-.thumb-diner {
-  position: absolute;
-  inset: 12px 4px 5px;
-  background: linear-gradient(#f3eadc 0 60%, #b87856 60%);
-  border-radius: 2px;
+.scene-thumbnail-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
-.scene-thumbnail span {
+.scene-thumbnail-index {
+  position: absolute;
+  top: 4px;
+  right: 4px;
   z-index: 1;
 }
 .scene-meta {
