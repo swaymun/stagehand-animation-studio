@@ -43,10 +43,10 @@ def bullets(items):
 
 story = [
     p("Stagehand Phase Evidence", title),
-    p("Current checkpoint: public Site v71, verified 2026-09-03.", subtitle),
+    p("Current checkpoint: public Site v72, verified 2026-09-03.", subtitle),
     p("Project", heading),
     p("Stagehand is a WebMCP-native 2D animation studio for editable paper-cutout scenes. The current cut supports rigged characters, imported image props, per-asset visual direction, camera work, captions, non-voice audio cues, storyboard beats, multi-scene Preview, and deterministic WebM export.", body),
-    p("Private source: github.com/swaymun/stagehand-animation-studio<br/>Commit: d17941f50df0f9e15beff9c7fd438b07ecb9f850<br/>Public Site: stagehand-animation-studio.saimun-h-shahee.chatgpt.site<br/>Sites version: 71", body),
+    p("Private source: github.com/swaymun/stagehand-animation-studio<br/>Commit: 3720e51d540d7f13ccd85303dc2c6d77963ae723<br/>Public Site: stagehand-animation-studio.saimun-h-shahee.chatgpt.site<br/>Sites version: 72", body),
     p("Acceptance loop", heading),
     p("Implement - local tests - Sites deployment - hosted test - UI roast - fixes - second review.", body),
     p("Implemented at this checkpoint", heading),
@@ -55,6 +55,7 @@ story = [
         "Idempotent WebMCP mutations with optional idempotencyKey replay protection.",
         "Structured per-asset role, treatment, silhouette, palette, and direction notes with human and agent parity.",
         "Motion actions show affected character and bounded duration; pose presets remain a separate group.",
+        "Agent frame-rate-only render updates preserve the existing resolution until a new preset is explicitly chosen.",
         "Storyboard mode selects the Board rail; Preview hides editing mutation surfaces and selection chrome.",
     ]),
     p("Verification", heading),
@@ -65,10 +66,10 @@ story = [
 ]
 
 screens = [
-    ("Animate editing workspace", "v71-animate.png", "Hosted Playwright capture at 1440 x 960. Motion actions identify their target character and duration."),
-    ("Assets style editor", "v71-assets-style.png", "Hosted Playwright capture at 1440 x 960. The expandable Style control exposes structured visual direction without taking over the asset rail."),
-    ("Storyboard mode with Board rail", "v71-storyboard.png", "Hosted Playwright capture at 1440 x 960. The selected top-level mode and project rail stay synchronized."),
-    ("Review-first Preview player", "v71-preview.png", "Hosted Playwright capture at 1440 x 960. Scene-only context, transport, and Exit preview remain; editing chrome is hidden."),
+    ("Animate editing workspace", "v72-animate.png", "Hosted Playwright capture at 1440 x 960. Motion actions identify their target character and duration."),
+    ("Assets style editor", "v72-assets-style.png", "Hosted Playwright capture at 1440 x 960. The expandable Style control exposes structured visual direction without taking over the asset rail."),
+    ("Storyboard mode with Board rail", "v72-storyboard.png", "Hosted Playwright capture at 1440 x 960. The selected top-level mode and project rail stay synchronized."),
+    ("Review-first Preview player", "v72-preview.png", "Hosted Playwright capture at 1440 x 960. Scene-only context, transport, and Exit preview remain; editing chrome is hidden."),
 ]
 
 for index, (heading_text, filename, caption_text) in enumerate(screens):
@@ -89,6 +90,7 @@ story.extend([
         "Character transform inputs lacked explicit accessible names. Added dynamic X/Y/rotation/opacity labels and a smoke check.",
         "Asset briefs carried style intent only as prose. Added structured role, treatment, silhouette, palette, and direction fields.",
         "Motion action buttons were visually mixed with pose presets. Added explicit durations, affected-character copy, and a Pose presets label.",
+        "Agent frame-rate-only render updates reset an existing 1080p choice. Preserved the current resolution when the preset is omitted and added smoke coverage.",
     ]),
     p("Limits", heading),
     p("Direct CUA inspection was unavailable because the Mac was locked; Playwright was used for hosted interaction and screenshots. The smoke harness proves injected modelContext registration and execution, not live production ChatGPT WebMCP discovery. TTS, voice cloning, dialogue recording, phoneme extraction, and lip-sync remain out of scope.", body),
