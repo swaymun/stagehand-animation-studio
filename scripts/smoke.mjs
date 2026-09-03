@@ -750,6 +750,63 @@ if (
   );
 }
 
+const splitContext = await browser.newContext({
+  viewport: { width: 960, height: 820 },
+});
+const splitPage = await splitContext.newPage();
+await splitPage.goto(`${baseUrl}?qa=split-pane-smoke`, {
+  waitUntil: 'domcontentloaded',
+  timeout: 15000,
+});
+await splitPage.evaluate(() => localStorage.clear());
+await splitPage.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
+await splitPage.waitForTimeout(400);
+const splitInspector = splitPage.locator(
+  '.workspace:not(.preview-workspace) > .inspector',
+);
+const splitInitiallyVisible = await splitInspector.isVisible();
+await splitPage
+  .getByRole('button', { name: 'More actions', exact: true })
+  .click();
+const splitInspectorMenu = splitPage.getByRole('menuitem', {
+  name: 'Open Inspector',
+  exact: true,
+});
+const splitRailMenu = splitPage.getByRole('menuitem', {
+  name: 'Open project drawer',
+  exact: true,
+});
+const splitMenu = {
+  inspector: await splitInspectorMenu.isVisible(),
+  rail: await splitRailMenu.isVisible(),
+};
+await splitInspectorMenu.click();
+const splitPane = {
+  bodyWidth: await splitPage.evaluate(() => document.body.scrollWidth),
+  documentWidth: await splitPage.evaluate(
+    () => document.documentElement.scrollWidth,
+  ),
+  inspectorInitiallyClosed: !splitInitiallyVisible,
+  inspectorMenu: splitMenu.inspector,
+  railMenuHidden: !splitMenu.rail,
+  inspectorDrawer: await splitInspector.isVisible(),
+  stageWidth: await splitPage
+    .locator('.stage-wrap')
+    .evaluate((node) => Math.round(node.getBoundingClientRect().width)),
+};
+await splitContext.close();
+if (
+  splitPane.bodyWidth !== 960 ||
+  splitPane.documentWidth !== 960 ||
+  !splitPane.inspectorInitiallyClosed ||
+  !splitPane.inspectorMenu ||
+  !splitPane.railMenuHidden ||
+  !splitPane.inspectorDrawer ||
+  splitPane.stageWidth < 500
+) {
+  throw new Error(`split-pane editor regression: ${JSON.stringify(splitPane)}`);
+}
+
 const result = {
   url: baseUrl,
   toolCount: bridge.toolCount,
@@ -774,6 +831,7 @@ const result = {
   h1: (await h1.textContent())?.trim(),
   uiChrome,
   responsive,
+  splitPane,
   modal: { heading: modalHeading },
   inspector: {
     groupCount: inspectorGroupCount,
