@@ -52,6 +52,7 @@ type Asset = {
   id: string;
   kind: AssetKind;
   label: string;
+  brief?: string;
   source: 'starter' | 'placeholder' | 'imported';
   mimeType?: string;
   dataUrl?: string;
@@ -156,7 +157,7 @@ type ValidationIssue = {
   path: string;
   message: string;
 };
-const WEBMCP_TOOL_COUNT = 40;
+const WEBMCP_TOOL_COUNT = 41;
 type ModelTool = {
   name: string;
   title: string;
@@ -186,24 +187,32 @@ const starterAssets: Asset[] = [
     id: 'alice',
     kind: 'rigged-character',
     label: 'Alice · rigged',
+    brief:
+      'Warm coral paper protagonist; keep her silhouette clear for awkward reactions.',
     source: 'starter',
   },
   {
     id: 'bob',
     kind: 'rigged-character',
     label: 'Bob · rigged',
+    brief:
+      'Diner teal foil character; enters from upstage with a readable lean-in.',
     source: 'starter',
   },
   {
     id: 'diner-background',
     kind: 'background',
     label: 'Diner background',
+    brief:
+      'Warm late-night diner backdrop; leave the lower third open for captions.',
     source: 'starter',
   },
   {
     id: 'coffee-mug',
     kind: 'prop',
     label: 'Coffee mug',
+    brief:
+      'Small amber prop for the coffee-spill business and close reaction beats.',
     source: 'starter',
   },
 ];
@@ -725,6 +734,16 @@ function assetKindLabel(kind: AssetKind) {
         : 'Audio';
 }
 
+function defaultAssetBrief(kind: AssetKind) {
+  return kind === 'rigged-character'
+    ? 'Readable character silhouette with a clear pose-change purpose.'
+    : kind === 'background'
+      ? 'Scene backdrop with enough negative space for characters and captions.'
+      : kind === 'prop'
+        ? 'Story prop with a simple silhouette and one clear animation beat.'
+        : 'Non-voice audio layer that supports the scene without competing with captions.';
+}
+
 function poseFrameIndex(pose: Pose, frameCount: number) {
   if (frameCount < 4) return 0;
   return pose === 'nervous'
@@ -942,10 +961,17 @@ const hydrateProject = (value: Partial<Project>): Project => {
     Array.isArray(value.audioCues) && value.audioCues.length > 0
       ? value.audioCues
       : base.audioCues;
-  const fallbackAssets =
+  const rawAssets =
     Array.isArray(value.assets) && value.assets.length > 0
       ? value.assets
       : base.assets;
+  const fallbackAssets = rawAssets.map((asset) => ({
+    ...asset,
+    brief:
+      typeof asset.brief === 'string' && asset.brief.trim()
+        ? asset.brief.trim()
+        : defaultAssetBrief(asset.kind),
+  }));
   const rawScenes =
     Array.isArray(value.scenes) && value.scenes.length > 0
       ? value.scenes
@@ -1672,6 +1698,9 @@ export default function Home() {
   const [editingSceneId, setEditingSceneId] = useState<string | null>(null);
   const [sceneTitleDraft, setSceneTitleDraft] = useState('');
   const [sceneDescriptionDraft, setSceneDescriptionDraft] = useState('');
+  const [assetBriefDrafts, setAssetBriefDrafts] = useState<
+    Record<string, string>
+  >({});
   const [assetImportKind, setAssetImportKind] = useState<
     'rigged-character' | 'background' | 'prop'
   >('prop');
@@ -2413,6 +2442,45 @@ export default function Home() {
       true,
     );
     register(
+      'set_asset_brief',
+      'Set asset brief',
+      'Update the concise visual and story-direction brief for one structured asset.',
+      {
+        type: 'object',
+        required: ['assetId', 'brief'],
+        additionalProperties: false,
+        properties: {
+          assetId: { type: 'string' },
+          brief: { type: 'string', minLength: 1 },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const assetId = typeof input.assetId === 'string' ? input.assetId : '';
+        const brief = typeof input.brief === 'string' ? input.brief.trim() : '';
+        const asset = current.assets.find((item) => item.id === assetId);
+        if (!asset) return { ok: false, code: 'NOT_FOUND' };
+        if (!brief) return { ok: false, code: 'INVALID_INPUT' };
+        commitRef.current(
+          (next) => {
+            const item = next.assets.find(
+              (candidate) => candidate.id === assetId,
+            );
+            if (item) item.brief = brief;
+          },
+          `Set brief for ${asset.label}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          assetId,
+          brief,
+          changedPaths: [`assets.${assetId}.brief`],
+        };
+      },
+    );
+    register(
       'add_asset',
       'Add asset',
       'Add a structured placeholder asset to the project asset library for later media replacement.',
@@ -2437,6 +2505,7 @@ export default function Home() {
           id: nextAssetId(current.assets, input.kind),
           kind: input.kind,
           label,
+          brief: defaultAssetBrief(input.kind),
           source: 'placeholder',
         };
         commitRef.current(
@@ -3629,9 +3698,27 @@ export default function Home() {
         id: nextAssetId(next.assets, kind),
         kind,
         label,
+        brief: defaultAssetBrief(kind),
         source: 'placeholder',
       });
     }, `Add asset ${label}`);
+  };
+  const updateAssetBrief = (asset: Asset, value: string) => {
+    const brief = value.trim();
+    setAssetBriefDrafts((drafts) => {
+      const next = { ...drafts };
+      delete next[asset.id];
+      return next;
+    });
+    if (!brief) {
+      setNotice('Asset brief cannot be empty');
+      return;
+    }
+    if (brief === (asset.brief ?? defaultAssetBrief(asset.kind))) return;
+    commit((next) => {
+      const item = next.assets.find((candidate) => candidate.id === asset.id);
+      if (item) item.brief = brief;
+    }, `Set brief for ${asset.label}`);
   };
   const removeAsset = (asset: Asset) => {
     commit((next) => {
@@ -3710,6 +3797,7 @@ export default function Home() {
             id: assetId,
             kind: assetImportKind,
             label,
+            brief: defaultAssetBrief(assetImportKind),
             source: 'imported',
             mimeType: file.type,
             dataUrl: reader.result as string,
@@ -4602,6 +4690,25 @@ export default function Home() {
                           ? ` · bound to ${project.characters.find((character) => character.assetId === asset.id)?.name}`
                           : ''}
                       </small>
+                      <textarea
+                        className="asset-brief"
+                        aria-label={`Brief for ${asset.label}`}
+                        value={
+                          assetBriefDrafts[asset.id] ??
+                          asset.brief ??
+                          defaultAssetBrief(asset.kind)
+                        }
+                        onChange={(event) =>
+                          setAssetBriefDrafts((drafts) => ({
+                            ...drafts,
+                            [asset.id]: event.target.value,
+                          }))
+                        }
+                        onBlur={(event) =>
+                          updateAssetBrief(asset, event.target.value)
+                        }
+                        rows={2}
+                      />
                     </span>
                     <button
                       type="button"
