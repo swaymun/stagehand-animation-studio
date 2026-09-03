@@ -2127,13 +2127,31 @@ export default function Home() {
     if (!playing) return;
     const timer = window.setInterval(
       () =>
-        setProject((current) => ({
-          ...current,
-          currentTime:
-            current.currentTime >= current.duration
-              ? 0
-              : current.currentTime + 1000 / current.fps,
-        })),
+        setProject((current) => {
+          const nextTime = current.currentTime + 1000 / current.fps;
+          if (nextTime < current.duration) {
+            const next = { ...current, currentTime: nextTime };
+            projectRef.current = next;
+            return next;
+          }
+          const activeIndex = current.scenes.findIndex(
+            (scene) => scene.id === current.activeSceneId,
+          );
+          const nextScene =
+            current.scenes.length > 1
+              ? current.scenes[(activeIndex + 1) % current.scenes.length]
+              : undefined;
+          if (nextScene) {
+            const next = copy(current);
+            loadSceneContent(next, nextScene.id);
+            next.currentTime = 0;
+            projectRef.current = next;
+            return next;
+          }
+          const next = { ...current, currentTime: 0 };
+          projectRef.current = next;
+          return next;
+        }),
       1000 / project.fps,
     );
     return () => window.clearInterval(timer);
@@ -5733,7 +5751,11 @@ export default function Home() {
                     : 'Paused at ' + timecode(project.currentTime)}
                 </strong>
                 <small>
-                  Preview uses the same deterministic scene clock as render.
+                  Preview uses the same deterministic clock as render
+                  {project.scenes.length > 1
+                    ? ` · sequence loops through ${project.scenes.length} scenes`
+                    : ''}
+                  .
                 </small>
               </div>
             )}
