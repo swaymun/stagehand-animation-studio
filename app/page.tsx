@@ -122,6 +122,9 @@ type Project = {
   revision: number;
   duration: number;
   currentTime: number;
+  fps: number;
+  renderWidth: number;
+  renderHeight: number;
   selectedId: string;
   characters: Character[];
   keyframes: Keyframe[];
@@ -140,7 +143,7 @@ type ValidationIssue = {
   path: string;
   message: string;
 };
-const WEBMCP_TOOL_COUNT = 31;
+const WEBMCP_TOOL_COUNT = 32;
 type ModelTool = {
   name: string;
   title: string;
@@ -328,6 +331,9 @@ const starterProject: Project = {
   revision: 7,
   duration: 5000,
   currentTime: 1800,
+  fps: 12,
+  renderWidth: 720,
+  renderHeight: 405,
   selectedId: 'alice',
   dirty: false,
   characters: [
@@ -698,6 +704,21 @@ function validateProjectState(project: Project): ValidationIssue[] {
       severity: 'error',
       path: 'duration',
       message: 'Active scene needs a positive duration.',
+    });
+  if (
+    !Number.isFinite(project.fps) ||
+    ![12, 24].includes(project.fps) ||
+    !Number.isFinite(project.renderWidth) ||
+    !Number.isFinite(project.renderHeight) ||
+    project.renderWidth <= 0 ||
+    project.renderHeight <= 0 ||
+    Math.abs(project.renderWidth / project.renderHeight - 16 / 9) > 0.02
+  )
+    issues.push({
+      code: 'INVALID_RENDER_SETTINGS',
+      severity: 'error',
+      path: 'renderSettings',
+      message: 'Render settings must use 12 or 24 fps and a 16:9 frame.',
     });
   project.captions.forEach((caption) => {
     if (
@@ -1589,12 +1610,12 @@ export default function Home() {
           currentTime:
             current.currentTime >= current.duration
               ? 0
-              : current.currentTime + 1000 / 12,
+              : current.currentTime + 1000 / current.fps,
         })),
-      1000 / 12,
+      1000 / project.fps,
     );
     return () => window.clearInterval(timer);
-  }, [playing]);
+  }, [playing, project.fps]);
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -1651,6 +1672,11 @@ export default function Home() {
           revision: current.revision,
           name: 'Paper Cutout Comedy',
           durationMs: current.duration,
+          fps: current.fps,
+          renderSize: {
+            width: current.renderWidth,
+            height: current.renderHeight,
+          },
           sceneCount: current.scenes.length,
           activeSceneId: current.activeSceneId,
           templateId: current.templateId ?? null,
@@ -1664,6 +1690,48 @@ export default function Home() {
         };
       },
       true,
+    );
+    register(
+      'set_render_settings',
+      'Set render settings',
+      'Set the bounded 16:9 WebM frame rate and resolution for the project.',
+      {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          fps: { type: 'number', enum: [12, 24] },
+          preset: { type: 'string', enum: ['720p', '1080p'] },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const fps = input.fps === undefined ? current.fps : input.fps;
+        const preset = input.preset === undefined ? '720p' : input.preset;
+        if (
+          (fps !== 12 && fps !== 24) ||
+          (preset !== '720p' && preset !== '1080p')
+        )
+          return { ok: false, code: 'INVALID_INPUT' };
+        const renderWidth = preset === '1080p' ? 1920 : 720;
+        const renderHeight = preset === '1080p' ? 1080 : 405;
+        commitRef.current(
+          (next) => {
+            next.fps = fps;
+            next.renderWidth = renderWidth;
+            next.renderHeight = renderHeight;
+          },
+          `Set render ${preset} · ${fps} fps`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          fps,
+          preset,
+          width: renderWidth,
+          height: renderHeight,
+        };
+      },
     );
     register(
       'get_scene',
@@ -1709,7 +1777,7 @@ export default function Home() {
         return {
           ok: true,
           revision: current.revision,
-          fps: 12,
+          fps: current.fps,
           currentTimeMs: current.currentTime,
           durationMs: current.duration,
           tracks: ['camera', 'alice', 'bob', 'captions', 'music', 'sfx'],
@@ -2930,6 +2998,21 @@ export default function Home() {
       next.audioCues = next.audioCues.filter((item) => item.id !== cue.id);
     }, `Remove audio ${cue.label}`);
   };
+  const updateRenderSettings = (changes: {
+    fps?: number;
+    preset?: '720p' | '1080p';
+  }) => {
+    const fps = changes.fps ?? project.fps;
+    const preset =
+      changes.preset ?? (project.renderWidth >= 1920 ? '1080p' : '720p');
+    const width = preset === '1080p' ? 1920 : 720;
+    const height = preset === '1080p' ? 1080 : 405;
+    commit((next) => {
+      next.fps = fps;
+      next.renderWidth = width;
+      next.renderHeight = height;
+    }, `Set render ${preset} · ${fps} fps`);
+  };
   const importAsset = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -3137,8 +3220,8 @@ export default function Home() {
         ),
     );
     const output = document.createElement('canvas');
-    output.width = 720;
-    output.height = 405;
+    output.width = project.renderWidth;
+    output.height = project.renderHeight;
     const outputContext = output.getContext('2d');
     if (!outputContext) {
       setRendering(false);
@@ -3194,7 +3277,9 @@ export default function Home() {
       setNotice('WebM downloaded · preview render complete');
     };
     setProject((current) => ({ ...current, currentTime: 0 }));
-    setNotice('Rendering 5-second WebM with cue mix');
+    setNotice(
+      `Rendering ${timecode(project.duration)} WebM · ${project.fps} fps · ${project.renderWidth}×${project.renderHeight}`,
+    );
     recorder.start();
     const drawNextFrame = () => {
       drawRenderFrame(
@@ -3205,14 +3290,14 @@ export default function Home() {
         imageMap,
       );
       track.requestFrame();
-      frame += 1000 / 12;
+      frame += 1000 / project.fps;
       if (frame > project.duration) {
         window.clearInterval(timer);
         window.setTimeout(() => recorder.stop(), 300);
       }
     };
     drawNextFrame();
-    timer = window.setInterval(drawNextFrame, 1000 / 12);
+    timer = window.setInterval(drawNextFrame, 1000 / project.fps);
   }, [project, rendering]);
   const tracks = useMemo(() => {
     const marksForCharacter = (characterId: string) =>
@@ -3437,7 +3522,7 @@ export default function Home() {
                         <div className="scene-meta">
                           <strong>{scene.title}</strong>
                           <span>
-                            {timecode(scene.duration)} <i>12 fps</i>
+                            {timecode(scene.duration)} <i>{project.fps} fps</i>
                           </span>
                         </div>
                         <span className="scene-status">ready</span>
@@ -3813,8 +3898,8 @@ export default function Home() {
             <div className="stage-header">
               <span>
                 <span className="live-dot" /> SCENE{' '}
-                {String(activeSceneIndex + 1).padStart(2, '0')} <em>·</em> 12
-                FPS
+                {String(activeSceneIndex + 1).padStart(2, '0')} <em>·</em>{' '}
+                {project.fps} FPS
               </span>
               <span className="stage-header-right">
                 SAFE AREA{' '}
@@ -3881,7 +3966,7 @@ export default function Home() {
             <div className="stage-footer">
               <span>Paper cutout / limited motion</span>
               <span>
-                720 × 405 <i>16:9</i>
+                {project.renderWidth} × {project.renderHeight} <i>16:9</i>
               </span>
             </div>
           </div>
@@ -4420,7 +4505,31 @@ export default function Home() {
                 <p>Project data stays in this browser until you export it.</p>
                 <div className="setting-line">
                   <span>Frame rate</span>
-                  <strong>12 fps · paper cutout</strong>
+                  <select
+                    aria-label="Render frame rate"
+                    value={project.fps}
+                    onChange={(event) =>
+                      updateRenderSettings({ fps: Number(event.target.value) })
+                    }
+                  >
+                    <option value="12">12 fps · paper cutout</option>
+                    <option value="24">24 fps · smoother motion</option>
+                  </select>
+                </div>
+                <div className="setting-line">
+                  <span>Render size</span>
+                  <select
+                    aria-label="Render resolution"
+                    value={project.renderWidth >= 1920 ? '1080p' : '720p'}
+                    onChange={(event) =>
+                      updateRenderSettings({
+                        preset: event.target.value as '720p' | '1080p',
+                      })
+                    }
+                  >
+                    <option value="720p">720p · 720×405</option>
+                    <option value="1080p">1080p · 1920×1080</option>
+                  </select>
                 </div>
                 <div className="setting-line">
                   <span>Storage</span>

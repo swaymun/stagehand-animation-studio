@@ -1678,11 +1678,21 @@ button {
   font-weight: 800;
 }
 .dialog-copy dd,
-.setting-line strong {
+.setting-line strong,
+.setting-line select {
   margin: 0;
   text-align: right;
   font-size: 11px;
   font-weight: 600;
+}
+.setting-line select {
+  max-width: 190px;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--ink);
+  background: #fffaf2;
+  font-size: 10px;
 }
 .rail-tabs button[aria-selected='true'],
 .mode-tabs button[aria-selected='true'] {
