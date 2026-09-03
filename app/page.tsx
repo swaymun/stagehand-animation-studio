@@ -161,7 +161,7 @@ type ValidationIssue = {
   path: string;
   message: string;
 };
-const WEBMCP_TOOL_COUNT = 46;
+const WEBMCP_TOOL_COUNT = 47;
 type ModelTool = {
   name: string;
   title: string;
@@ -1944,6 +1944,13 @@ export default function Home() {
       code: 'UNAVAILABLE',
     }),
   );
+  const renderWebMRef = useRef<() => Promise<Record<string, unknown>>>(
+    async () => ({
+      ok: false,
+      code: 'UNAVAILABLE',
+    }),
+  );
+  const renderingRef = useRef(false);
   const evaluatedCharacters = evaluateCharacters(project, project.currentTime),
     selected =
       evaluatedCharacters.find((c) => c.id === project.selectedId) ??
@@ -2600,6 +2607,13 @@ export default function Home() {
       'Download the deterministic current scene frame as a PNG for review or sharing.',
       { type: 'object', properties: {}, additionalProperties: false },
       () => exportStillRef.current(),
+    );
+    register(
+      'render_webm',
+      'Render project WebM',
+      'Render and download the complete project scene sequence as a WebM with deterministic captions and non-voice cues.',
+      { type: 'object', properties: {}, additionalProperties: false },
+      () => renderWebMRef.current(),
     );
     register(
       'set_scene_duration',
@@ -4715,19 +4729,21 @@ export default function Home() {
       })
       .catch(() => setNotice('Import failed · expected Stagehand JSON'));
   };
-  const renderWebM = useCallback(async () => {
-    if (rendering) return;
+  const renderWebM = useCallback(async (): Promise<Record<string, unknown>> => {
+    if (renderingRef.current) return { ok: false, code: 'RENDER_IN_PROGRESS' };
+    const currentProject = projectRef.current;
     const canvas = document.querySelector(
       '.stage-canvas',
     ) as HTMLCanvasElement | null;
     if (!canvas?.captureStream || !('MediaRecorder' in window)) {
       setNotice('WebM export is not supported in this browser');
-      return;
+      return { ok: false, code: 'UNSUPPORTED_BROWSER' };
     }
+    renderingRef.current = true;
     setRendering(true);
     setPlaying(false);
     setNotice('Preparing local media for WebM render');
-    const renderBase = copy(project);
+    const renderBase = copy(currentProject);
     syncActiveScene(renderBase);
     const sceneProjects =
       renderBase.scenes.length > 0
@@ -4754,7 +4770,7 @@ export default function Home() {
     });
     const imageMap = new Map<string, HTMLImageElement>();
     await Promise.all(
-      project.assets
+      currentProject.assets
         .filter(
           (asset) =>
             (asset.kind === 'rigged-character' ||
@@ -4780,9 +4796,10 @@ export default function Home() {
     output.height = renderBase.renderHeight;
     const outputContext = output.getContext('2d');
     if (!outputContext) {
+      renderingRef.current = false;
       setRendering(false);
       setNotice('Render surface could not be created');
-      return;
+      return { ok: false, code: 'CANVAS_UNAVAILABLE' };
     }
     const canvasStream = output.captureStream(0);
     const track =
@@ -4817,57 +4834,75 @@ export default function Home() {
     };
     let frame = 0;
     let timer = 0;
-    recorder.onstop = () => {
-      window.clearInterval(timer);
-      const url = URL.createObjectURL(new Blob(chunks, { type: 'video/webm' }));
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${projectFileStem(project.name)}.webm`;
-      link.click();
-      URL.revokeObjectURL(url);
-      stream.getTracks().forEach((track) => track.stop());
-      audioStream?.getTracks().forEach((audioTrack) => audioTrack.stop());
-      void audioContext?.close();
-      setPlaying(false);
-      setRendering(false);
-      setNotice(
-        `WebM downloaded · ${sceneProjects.length} scene${sceneProjects.length === 1 ? '' : 's'} rendered`,
-      );
-    };
-    setProject((current) => ({ ...current, currentTime: 0 }));
-    setNotice(
-      `Rendering ${timecode(totalDuration)} WebM · ${sceneProjects.length} scene${sceneProjects.length === 1 ? '' : 's'} · ${project.fps} fps · ${project.renderWidth}×${project.renderHeight}`,
-    );
-    recorder.start();
-    const drawNextFrame = () => {
-      let sceneOffset = 0;
-      let scene = sceneProjects[sceneProjects.length - 1];
-      let localTime = scene.duration;
-      for (const candidate of sceneProjects) {
-        if (frame < sceneOffset + candidate.duration) {
-          scene = candidate;
-          localTime = frame - sceneOffset;
-          break;
-        }
-        sceneOffset += candidate.duration;
-      }
-      drawRenderFrame(
-        outputContext,
-        { ...scene, currentTime: localTime },
-        output.width,
-        output.height,
-        imageMap,
-      );
-      track.requestFrame();
-      frame += 1000 / project.fps;
-      if (frame > totalDuration) {
+    return await new Promise<Record<string, unknown>>((resolve) => {
+      recorder.onstop = () => {
         window.clearInterval(timer);
-        window.setTimeout(() => recorder.stop(), 300);
-      }
-    };
-    drawNextFrame();
-    timer = window.setInterval(drawNextFrame, 1000 / project.fps);
-  }, [project, rendering]);
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const fileName = `${projectFileStem(currentProject.name)}.webm`;
+        link.href = url;
+        link.download = fileName;
+        link.click();
+        URL.revokeObjectURL(url);
+        stream.getTracks().forEach((track) => track.stop());
+        audioStream?.getTracks().forEach((audioTrack) => audioTrack.stop());
+        void audioContext?.close();
+        setPlaying(false);
+        renderingRef.current = false;
+        setRendering(false);
+        setNotice(
+          `WebM downloaded · ${sceneProjects.length} scene${sceneProjects.length === 1 ? '' : 's'} rendered`,
+        );
+        resolve({
+          ok: true,
+          fileName,
+          sceneCount: sceneProjects.length,
+          durationMs: totalDuration,
+          fps: currentProject.fps,
+          width: currentProject.renderWidth,
+          height: currentProject.renderHeight,
+          bytes: blob.size,
+        });
+      };
+      setProject((current) => ({ ...current, currentTime: 0 }));
+      setNotice(
+        `Rendering ${timecode(totalDuration)} WebM · ${sceneProjects.length} scene${sceneProjects.length === 1 ? '' : 's'} · ${currentProject.fps} fps · ${currentProject.renderWidth}×${currentProject.renderHeight}`,
+      );
+      recorder.start();
+      const drawNextFrame = () => {
+        let sceneOffset = 0;
+        let scene = sceneProjects[sceneProjects.length - 1];
+        let localTime = scene.duration;
+        for (const candidate of sceneProjects) {
+          if (frame < sceneOffset + candidate.duration) {
+            scene = candidate;
+            localTime = frame - sceneOffset;
+            break;
+          }
+          sceneOffset += candidate.duration;
+        }
+        drawRenderFrame(
+          outputContext,
+          { ...scene, currentTime: localTime },
+          output.width,
+          output.height,
+          imageMap,
+        );
+        track.requestFrame();
+        frame += 1000 / currentProject.fps;
+        if (frame > totalDuration) {
+          window.clearInterval(timer);
+          window.setTimeout(() => recorder.stop(), 300);
+        }
+      };
+      drawNextFrame();
+      timer = window.setInterval(drawNextFrame, 1000 / currentProject.fps);
+    });
+  }, []);
+  useEffect(() => {
+    renderWebMRef.current = renderWebM;
+  }, [renderWebM]);
   const tracks = useMemo(() => {
     const marksForCharacter = (characterId: string): TimelineMark[] =>
       project.keyframes
