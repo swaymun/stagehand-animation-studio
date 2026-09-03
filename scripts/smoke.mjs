@@ -123,7 +123,8 @@ if (sceneTitleLines < 2) {
     `scene title should remain readable across two lines: ${sceneTitleLines}`,
   );
 }
-await page.getByRole('button', { name: 'Help', exact: true }).click();
+await page.getByRole('button', { name: 'More actions', exact: true }).click();
+await page.getByRole('menuitem', { name: 'Help & shortcuts', exact: true }).click();
 const modal = page.locator('dialog[aria-modal="true"]');
 await modal.waitFor({ state: 'visible', timeout: 5000 });
 const modalHeading = (await modal.locator('h2').textContent())?.trim();
@@ -147,6 +148,17 @@ if (inspectorGroupCount !== 5 || !transformCollapsed) {
 }
 
 const marks = page.locator('button[aria-label^="Alice keyframe"]');
+const semanticEvents = page.locator('.timeline-event');
+const detailsToggle = page.getByRole('button', {
+  name: 'Show details',
+  exact: true,
+});
+if ((await semanticEvents.count()) < 4 || (await detailsToggle.count()) !== 1) {
+  throw new Error(
+    `timeline should default to semantic events with an optional detail disclosure: ${JSON.stringify({ events: await semanticEvents.count(), details: await detailsToggle.count() })}`,
+  );
+}
+await detailsToggle.click();
 const beforeDrag = await marks.nth(1).getAttribute('aria-label');
 const keyframeBox = await marks.nth(1).boundingBox();
 const trackBox = await page.locator('.track-area').boundingBox();
@@ -561,7 +573,7 @@ if (storyboardRail !== 'true') {
     `storyboard mode did not select Board rail: ${storyboardRail}`,
   );
 }
-await page.getByRole('tab', { name: 'Preview' }).click();
+await page.getByRole('button', { name: 'Preview', exact: true }).click();
 await page.waitForTimeout(120);
 if (!(await page.locator('.preview-scrubber').isVisible())) {
   throw new Error('Preview should expose a compact scrubber');
@@ -596,15 +608,9 @@ const preview = {
   canvas: await page.locator('.stage-canvas').count(),
   inspector: await page.locator('.preview-workspace .inspector').isVisible(),
   exit: await page.getByRole('button', { name: 'Exit preview' }).count(),
-  settings: await page
-    .getByRole('button', { name: 'Settings', exact: true })
-    .count(),
-  import: await page
-    .getByRole('button', { name: 'Import', exact: true })
-    .count(),
-  export: await page
-    .getByRole('button', { name: 'Export', exact: true })
-    .count(),
+  settings: await page.getByRole('menuitem', { name: 'Settings', exact: true }).count(),
+  import: await page.getByRole('menuitem', { name: 'Import project', exact: true }).count(),
+  export: await page.getByRole('menuitem', { name: 'Export project', exact: true }).count(),
   renameProject: await page
     .getByRole('button', { name: /Rename project/ })
     .count(),
@@ -613,9 +619,7 @@ const preview = {
     .getByRole('tab', { name: 'Assets', exact: true })
     .count(),
   addScene: await page.getByRole('button', { name: /Add scene/ }).count(),
-  resetStarter: await page
-    .getByRole('button', { name: /Reset to starter/ })
-    .count(),
+  resetStarter: await page.getByRole('menuitem', { name: /Reset starter/ }).count(),
 };
 const summary = await page.evaluate(() =>
   window.__stagehandTools.get('get_project_summary').execute({}),

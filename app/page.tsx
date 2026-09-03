@@ -183,7 +183,6 @@ type ValidationIssue = {
   path: string;
   message: string;
 };
-const WEBMCP_TOOL_COUNT = 52;
 type ModelTool = {
   name: string;
   title: string;
@@ -204,6 +203,11 @@ type TimelineMark = {
   kind: 'camera' | 'character' | 'prop' | 'cue';
   characterId?: string;
   assetId?: string;
+  label: string;
+};
+type TimelineEvent = {
+  start: number;
+  end: number;
   label: string;
 };
 const STORAGE_KEY = 'stagehand-paper-cutout-comedy-v1';
@@ -977,6 +981,8 @@ function makeSplitScenes(
 
 const copy = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const timecode = (ms: number) => `${(ms / 1000).toFixed(2).padStart(4, '0')}s`;
+const poseLabel = (pose: Pose) =>
+  pose.replace('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 const projectFileStem = (name: string) =>
   name
     .trim()
@@ -2398,9 +2404,11 @@ export default function Home() {
     [stageTool, setStageTool] = useState<'select' | 'pan'>('select'),
     [viewportZoom, setViewportZoom] = useState(100),
     [viewportPan, setViewportPan] = useState({ x: 0, y: 0 }),
-    [dialog, setDialog] = useState<'help' | 'settings' | null>(null),
+    [dialog, setDialog] = useState<'help' | 'settings' | 'templates' | null>(
+      null,
+    ),
     [rendering, setRendering] = useState(false),
-    [notice, setNotice] = useState('Ready for direction'),
+    [notice, setNotice] = useState(''),
     [saved, setSaved] = useState(true),
     [editingProjectName, setEditingProjectName] = useState(false),
     [projectNameDraft, setProjectNameDraft] = useState(starterProject.name),
@@ -2427,6 +2435,11 @@ export default function Home() {
   >({});
   const [expandedAssetStyleId, setExpandedAssetStyleId] = useState<
     string | null
+  >(null);
+  const [topMenuOpen, setTopMenuOpen] = useState(false);
+  const [showTimelineDetails, setShowTimelineDetails] = useState(false);
+  const [mobileDrawer, setMobileDrawer] = useState<
+    'rail' | 'inspector' | null
   >(null);
   const [assetImportKind, setAssetImportKind] = useState<
     'rigged-character' | 'background' | 'prop'
@@ -2495,7 +2508,7 @@ export default function Home() {
       setFuture([]);
       setSaved(false);
       setLastCommand(label);
-      setNotice(`${agent ? 'Agent' : 'Human'} · ${label}`);
+      setNotice(`${agent ? 'ChatGPT' : 'You'} · ${label}`);
     },
     [],
   );
@@ -2650,6 +2663,11 @@ export default function Home() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(''), 2800);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
   useEffect(() => {
     const timer = window.setTimeout(() => {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
@@ -5624,6 +5642,20 @@ export default function Home() {
     reader.onerror = () => setNotice('Image import failed');
     reader.readAsDataURL(file);
   };
+  const resetStarterProject = () => {
+    const starter = copy(starterProject);
+    projectRef.current = starter;
+    commandResultsRef.current.clear();
+    historyRef.current = [];
+    futureRef.current = [];
+    setHistory([]);
+    setFuture([]);
+    setProject(starter);
+    setSaved(true);
+    setLastCommand('reset_to_starter()');
+    setNotice('Starter restored');
+    setTopMenuOpen(false);
+  };
   const applyTemplate = (template: (typeof starterTemplates)[number]) => {
     const scene = makeTemplateScene(template.id, nextSceneId(project.scenes));
     commit((next) => {
@@ -5631,6 +5663,7 @@ export default function Home() {
       loadSceneContent(next, scene.id);
     }, `Apply ${scene.title}`);
     setPanel('scenes');
+    setDialog(null);
   };
   const addStoryboardBeat = () => {
     const startMs = Math.min(
@@ -5855,6 +5888,19 @@ export default function Home() {
   const renderWebM = useCallback(async (): Promise<Record<string, unknown>> => {
     if (renderingRef.current) return { ok: false, code: 'RENDER_IN_PROGRESS' };
     const currentProject = projectRef.current;
+    const renderIssues = validateProjectState(currentProject).filter(
+      (issue) => issue.severity === 'error',
+    );
+    if (renderIssues.length > 0) {
+      setNotice(
+        `${renderIssues.length} issue${renderIssues.length === 1 ? '' : 's'} need attention before rendering`,
+      );
+      return {
+        ok: false,
+        code: 'VALIDATION_ERROR',
+        issues: renderIssues,
+      };
+    }
     const canvas = document.querySelector(
       '.stage-canvas',
     ) as HTMLCanvasElement | null;
@@ -6058,6 +6104,35 @@ export default function Home() {
           .filter((frame) => frame.characterId === characterId)
           .map((frame) => frame.time),
       );
+    const eventsForKeyframes = (
+      frames: Array<{ time: number; label: string }>,
+    ): TimelineEvent[] => {
+      const ordered = [...frames].sort((a, b) => a.time - b.time);
+      return ordered
+        .map((frame, index) => ({
+          start: frame.time,
+          end: ordered[index + 1]?.time ?? project.duration,
+          label: frame.label,
+        }))
+        .filter((event) => event.end > event.start);
+    };
+    const cameraFrames = [...project.cameraKeyframes].sort(
+      (a, b) => a.time - b.time,
+    );
+    const characterEvents = (characterId: string) =>
+      eventsForKeyframes(
+        project.keyframes
+          .filter((frame) => frame.characterId === characterId)
+          .map((frame) => ({ time: frame.time, label: poseLabel(frame.pose) })),
+      );
+    const propEvents = eventsForKeyframes(
+      project.propKeyframes.map((frame) => ({
+        time: frame.time,
+        label:
+          project.assets.find((asset) => asset.id === frame.assetId)?.label ??
+          'Prop',
+      })),
+    );
     const rangeForCaptions = rangeFor(
       project.captions.flatMap((caption) => [caption.start, caption.end]),
     );
@@ -6077,6 +6152,12 @@ export default function Home() {
         name: 'Camera',
         color: 'blue',
         range: { start: 0, end: project.duration },
+        events: eventsForKeyframes(
+          cameraFrames.map((frame) => ({
+            time: frame.time,
+            label: frame.zoom > 1.08 ? 'Punch in' : 'Wide',
+          })),
+        ),
         marks: project.cameraKeyframes.map((frame) => ({
           time: frame.time,
           id: frame.id,
@@ -6085,27 +6166,35 @@ export default function Home() {
         })),
       },
       {
-        name: 'Alice · rig',
+        name: 'Alice',
         color: 'coral',
         range: rangeForCharacter('alice'),
+        events: characterEvents('alice'),
         marks: marksForCharacter('alice'),
       },
       {
-        name: 'Bob · rig',
+        name: 'Bob',
         color: 'teal',
         range: rangeForCharacter('bob'),
+        events: characterEvents('bob'),
         marks: marksForCharacter('bob'),
       },
       {
-        name: 'Props · imported',
+        name: 'Props',
         color: 'violet',
         range: rangeFor(project.propKeyframes.map((frame) => frame.time)),
+        events: propEvents,
         marks: marksForProps,
       },
       {
-        name: 'Captions',
+        name: 'Dialogue',
         color: 'yellow',
         range: rangeForCaptions,
+        events: project.captions.map((caption) => ({
+          start: caption.start,
+          end: caption.end,
+          label: `“${caption.text}”`,
+        })),
         marks: project.captions.map((caption) => ({
           time: caption.start,
           id: caption.id,
@@ -6114,9 +6203,16 @@ export default function Home() {
         })),
       },
       {
-        name: 'Music · low',
+        name: 'Music',
         color: 'violet',
         range: rangeForAudio('music'),
+        events: project.audioCues
+          .filter((cue) => cue.kind === 'music')
+          .map((cue) => ({
+            start: cue.start,
+            end: cue.end,
+            label: cue.label,
+          })),
         marks: project.audioCues
           .filter((cue) => cue.kind === 'music')
           .map((cue) => ({
@@ -6130,6 +6226,13 @@ export default function Home() {
         name: 'SFX',
         color: 'yellow',
         range: rangeForSfx,
+        events: project.audioCues
+          .filter((cue) => cue.kind !== 'music')
+          .map((cue) => ({
+            start: cue.start,
+            end: cue.end,
+            label: cue.label,
+          })),
         marks: project.audioCues
           .filter((cue) => cue.kind !== 'music')
           .map((cue) => ({
@@ -6167,10 +6270,6 @@ export default function Home() {
     (frame) => frame.characterId === selected.id,
   ).length;
   const cameraKeyframeCount = project.cameraKeyframes.length;
-  const validationIssues = validateProjectState(project);
-  const renderReady = validationIssues.every(
-    (issue) => issue.severity !== 'error',
-  );
   return (
     <main
       className={`studio-shell ${viewMode === 'preview' ? 'preview-shell' : ''}`}
@@ -6222,44 +6321,153 @@ export default function Home() {
         <div className="top-actions">
           <div className={`save-state ${saved ? '' : 'unsaved'}`}>
             <span className="status-dot" />
-            {saved ? 'Saved locally' : 'Saving…'}
+            {saved ? 'Saved' : 'Saving…'}
           </div>
-          <IconButton label="Help" onClick={() => setDialog('help')}>
-            <CircleHelp size={17} />
-          </IconButton>
-          {viewMode !== 'preview' && (
-            <IconButton label="Settings" onClick={() => setDialog('settings')}>
-              <Settings2 size={17} />
-            </IconButton>
-          )}
+          <button
+            className="preview-button"
+            type="button"
+            onClick={() => {
+              setTopMenuOpen(false);
+              if (viewMode === 'preview') {
+                setViewMode('animate');
+                setPlaying(false);
+              } else {
+                setEditingProjectName(false);
+                setMobileDrawer(null);
+                setViewMode('preview');
+                setPanel('scenes');
+                setPlaying(true);
+              }
+            }}
+          >
+            <Play size={14} />
+            {viewMode === 'preview' ? 'Exit preview' : 'Preview'}
+          </button>
           <button className="render-button" type="button" onClick={renderWebM}>
-            <Film size={16} /> {rendering ? 'Rendering…' : 'Render WebM'}
+            <Film size={16} /> {rendering ? 'Rendering…' : 'Render'}
           </button>
           <button
-            className="top-secondary-button"
+            className="top-overflow-trigger"
             type="button"
-            onClick={() => void exportStill()}
-            title="Download the current frame as a PNG"
+            aria-label="More actions"
+            aria-expanded={topMenuOpen}
+            onClick={() => setTopMenuOpen((value) => !value)}
           >
-            <ImageIcon size={14} /> PNG frame
+            <MoreHorizontal size={18} />
           </button>
-          {viewMode !== 'preview' && (
-            <>
+          {topMenuOpen && (
+            <div className="top-overflow-menu" role="menu">
+              {viewMode !== 'preview' && (
+                <>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setTopMenuOpen(false);
+                      void exportStill();
+                    }}
+                  >
+                    <ImageIcon size={14} /> Export frame
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setTopMenuOpen(false);
+                      importInputRef.current?.click();
+                    }}
+                  >
+                    <Upload size={14} /> Import project
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setTopMenuOpen(false);
+                      exportProject();
+                    }}
+                  >
+                    <Save size={14} /> Export project
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setTopMenuOpen(false);
+                      setDialog('templates');
+                    }}
+                  >
+                    <Layers3 size={14} /> Templates
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setTopMenuOpen(false);
+                      setDialog('settings');
+                    }}
+                  >
+                    <Settings2 size={14} /> Settings
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={resetStarterProject}
+                  >
+                    <RotateCcw size={14} /> Reset starter
+                  </button>
+                </>
+              )}
               <button
-                className="top-secondary-button"
+                className="mobile-only"
                 type="button"
-                onClick={() => importInputRef.current?.click()}
+                role="menuitem"
+                onClick={() => {
+                  setMobileDrawer((value) =>
+                    value === 'rail' ? null : 'rail',
+                  );
+                  setTopMenuOpen(false);
+                }}
               >
-                <Upload size={14} /> Import
+                <Layers3 size={14} />
+                {mobileDrawer === 'rail' ? 'Close project drawer' : 'Open project drawer'}
               </button>
               <button
-                className="top-secondary-button"
+                className="mobile-only"
                 type="button"
-                onClick={exportProject}
+                role="menuitem"
+                onClick={() => {
+                  setMobileDrawer((value) =>
+                    value === 'inspector' ? null : 'inspector',
+                  );
+                  setTopMenuOpen(false);
+                }}
               >
-                <Save size={14} /> Export
+                <Settings2 size={14} />
+                {mobileDrawer === 'inspector' ? 'Close Inspector' : 'Open Inspector'}
               </button>
-            </>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setTopMenuOpen(false);
+                  setDialog('help');
+                }}
+              >
+                <CircleHelp size={14} /> Help & shortcuts
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setShowSafeArea((value) => !value);
+                  setTopMenuOpen(false);
+                }}
+              >
+                <Maximize2 size={14} />
+                Guides: {showSafeArea ? 'On' : 'Off'}
+              </button>
+            </div>
           )}
           <input
             ref={importInputRef}
@@ -6272,7 +6480,7 @@ export default function Home() {
         </div>
       </header>
       <div
-        className={`workspace ${viewMode === 'preview' ? 'preview-workspace' : ''}`}
+        className={`workspace ${viewMode === 'preview' ? 'preview-workspace' : ''} ${mobileDrawer === 'rail' ? 'mobile-rail-open' : ''} ${mobileDrawer === 'inspector' ? 'mobile-inspector-open' : ''}`}
       >
         <aside className="left-rail">
           <div
@@ -6410,11 +6618,8 @@ export default function Home() {
                         </div>
                         <div className="scene-meta">
                           <strong>{scene.title}</strong>
-                          <span>
-                            {timecode(scene.duration)} <i>{project.fps} fps</i>
-                          </span>
+                          <span>{timecode(scene.duration)}</span>
                         </div>
-                        <span className="scene-status">ready</span>
                       </button>
                       {viewMode !== 'preview' && (
                         <>
@@ -6475,58 +6680,10 @@ export default function Home() {
                 </div>
               ))}
               {viewMode !== 'preview' && (
-                <>
-                  <button
-                    className="add-scene"
-                    type="button"
-                    onClick={addScene}
-                  >
-                    <span>＋</span> Add scene
-                  </button>
-                  <div className="section-label assets-label">
-                    <span>STARTER KIT</span>
-                  </div>
-                  <button
-                    className="starter-link"
-                    type="button"
-                    onClick={() => {
-                      const starter = copy(starterProject);
-                      projectRef.current = starter;
-                      commandResultsRef.current.clear();
-                      historyRef.current = [];
-                      futureRef.current = [];
-                      setHistory([]);
-                      setFuture([]);
-                      setProject(starter);
-                      setLastCommand('reset_to_starter()');
-                      setNotice('Starter restored');
-                    }}
-                  >
-                    <RotateCcw size={14} /> Reset to starter
-                  </button>
-                </>
+                <button className="add-scene" type="button" onClick={addScene}>
+                  <span>＋</span> Add scene
+                </button>
               )}
-              <div
-                className={`validation-card ${renderReady ? 'ready' : 'attention'}`}
-              >
-                <div className="validation-heading">
-                  <span className="validation-dot" />
-                  <strong>
-                    {renderReady ? 'READY TO RENDER' : 'NEEDS ATTENTION'}
-                  </strong>
-                  <span>
-                    {validationIssues.length ? validationIssues.length : '✓'}
-                  </span>
-                </div>
-                <small>
-                  {renderReady
-                    ? 'Scene structure, timing, captions, and rigs pass.'
-                    : validationIssues[0]?.message}
-                </small>
-                {!renderReady && validationIssues.length > 1 && (
-                  <small>+ {validationIssues.length - 1} more issue(s)</small>
-                )}
-              </div>
             </div>
           )}
           {panel === 'storyboard' && (
@@ -6956,39 +7113,8 @@ export default function Home() {
                 onChange={importAsset}
                 aria-label="Import image asset"
               />
-              <div className="asset-add-label template-label">
-                STARTER TEMPLATES
-              </div>
-              <div className="template-list">
-                {starterTemplates.map((template) => (
-                  <button
-                    type="button"
-                    key={template.id}
-                    onClick={() => applyTemplate(template)}
-                    title={`Create ${template.title} scene`}
-                  >
-                    <span>
-                      <strong>{template.title}</strong>
-                      <small>{template.description}</small>
-                    </span>
-                    <em>{template.tag}</em>
-                  </button>
-                ))}
-              </div>
             </div>
           )}
-          <div className="rail-footer">
-            <div className="agent-badge">
-              <span className="sparkle-orbit">
-                <Sparkles size={13} />
-              </span>
-              <div>
-                <strong>WebMCP surface</strong>
-                <small>{WEBMCP_TOOL_COUNT} tools declared</small>
-              </div>
-              <span className="online-dot" />
-            </div>
-          </div>
         </aside>
         <section className="main-column">
           <div className="modebar">
@@ -7018,32 +7144,7 @@ export default function Home() {
               >
                 <Grid2X2 size={14} /> Storyboard
               </button>
-              <button
-                className={viewMode === 'preview' ? 'active' : ''}
-                type="button"
-                role="tab"
-                aria-selected={viewMode === 'preview'}
-                tabIndex={viewMode === 'preview' ? 0 : -1}
-                onKeyDown={handleTabListKeyDown}
-                onClick={() => {
-                  setEditingProjectName(false);
-                  setViewMode('preview');
-                  setPanel('scenes');
-                  setPlaying(true);
-                }}
-              >
-                <Play size={14} /> Preview
-              </button>
             </div>
-            {viewMode === 'preview' && (
-              <button
-                className="preview-exit"
-                type="button"
-                onClick={() => setViewMode('animate')}
-              >
-                Exit preview
-              </button>
-            )}
             <div className="scene-tools">
               <IconButton
                 label="Select tool"
@@ -7111,11 +7212,9 @@ export default function Home() {
                     : 'Paused at ' + timecode(project.currentTime)}
                 </strong>
                 <small>
-                  Preview uses the same deterministic clock as render
                   {project.scenes.length > 1
-                    ? ` · sequence loops through ${project.scenes.length} scenes`
-                    : ''}
-                  .
+                    ? `Reviewing ${project.scenes.length} scenes before export.`
+                    : 'Review this scene before export.'}
                 </small>
               </div>
             )}
@@ -7175,21 +7274,7 @@ export default function Home() {
               </section>
             )}
             <div className="stage-header">
-              <span>
-                <span className="live-dot" /> SCENE{' '}
-                {String(activeSceneIndex + 1).padStart(2, '0')} <em>·</em>{' '}
-                {project.fps} FPS
-              </span>
-              <span className="stage-header-right">
-                SAFE AREA{' '}
-                <button
-                  className={`safe-toggle ${showSafeArea ? 'on' : ''}`}
-                  type="button"
-                  aria-label="Show safe area"
-                  aria-pressed={showSafeArea}
-                  onClick={() => setShowSafeArea((value) => !value)}
-                />
-              </span>
+              <span className="stage-scene-name">{activeScene.title}</span>
             </div>
             <div
               className={`canvas-frame ${showSafeArea ? 'safe-area-visible' : ''} ${stageTool === 'pan' ? 'pan-mode' : ''}`}
@@ -7246,12 +7331,6 @@ export default function Home() {
                   </div>
                 )}
               </div>
-            </div>
-            <div className="stage-footer">
-              <span>Paper cutout / limited motion</span>
-              <span>
-                {project.renderWidth} × {project.renderHeight} <i>16:9</i>
-              </span>
             </div>
           </div>
           <div className="timeline">
@@ -7379,6 +7458,15 @@ export default function Home() {
               </div>
               <div className="timeline-actions">
                 <button
+                  className="timeline-details-toggle"
+                  type="button"
+                  aria-pressed={showTimelineDetails}
+                  onClick={() => setShowTimelineDetails((value) => !value)}
+                  title="Show or hide raw keyframe controls"
+                >
+                  {showTimelineDetails ? 'Hide details' : 'Show details'}
+                </button>
+                <button
                   type="button"
                   onClick={addKeyframe}
                   title={`Add ${selected.name} keyframe at ${timecode(project.currentTime)}`}
@@ -7420,9 +7508,9 @@ export default function Home() {
                     <span className={`track-icon ${track.color}`}>
                       {track.name === 'Camera'
                         ? '◉'
-                        : track.name === 'Captions'
+                        : track.name === 'Dialogue'
                           ? 'T'
-                          : track.name === 'Music · low'
+                          : track.name === 'Music'
                             ? '♫'
                             : track.name === 'SFX'
                               ? '⌁'
@@ -7454,42 +7542,59 @@ export default function Home() {
                         width: `${((track.range.end - track.range.start) / project.duration) * 100}%`,
                       }}
                     >
-                      {track.name === 'Captions' && (
-                        <span>dialogue captions</span>
-                      )}
-                      {track.name === 'Music · low' && (
-                        <span>quiet diner bed</span>
-                      )}
-                      {track.name === 'SFX' && <span>footsteps + sting</span>}
+                      {track.events.map((event, index) => {
+                        const trackSpan = Math.max(
+                          1,
+                          track.range.end - track.range.start,
+                        );
+                        const left =
+                          ((event.start - track.range.start) / trackSpan) * 100;
+                        const width =
+                          ((event.end - event.start) / trackSpan) * 100;
+                        return (
+                          <span
+                            className="timeline-event"
+                            key={`${track.name}-event-${event.start}-${index}`}
+                            style={{
+                              left: `${Math.max(0, left)}%`,
+                              width: `${Math.max(4, Math.min(100, width))}%`,
+                            }}
+                            title={`${event.label} · ${timecode(event.start)}–${timecode(event.end)}`}
+                          >
+                            {event.label}
+                          </span>
+                        );
+                      })}
                     </div>
-                    {track.marks.map((mark, index) => (
-                      <button
-                        type="button"
-                        className={`key key-${track.color} ${mark.kind !== 'cue' ? 'draggable-key' : ''}`}
-                        style={{
-                          left: `${(mark.time / project.duration) * 100}%`,
-                        }}
-                        key={`${track.name}-${mark.id}-${index}`}
-                        aria-label={`${mark.label} at ${timecode(mark.time)}. ${mark.kind === 'cue' ? 'Click to move the playhead.' : 'Drag to retime.'}`}
-                        title={`${mark.label} · ${timecode(mark.time)} · ${mark.kind === 'cue' ? 'click to jump' : 'drag to retime'}`}
-                        onPointerDown={(event) =>
-                          startTimelineDrag(event, mark)
-                        }
-                        onPointerMove={moveTimelineDrag}
-                        onPointerUp={finishTimelineDrag}
-                        onPointerCancel={finishTimelineDrag}
-                        onClick={() => {
-                          if (suppressTimelineClickRef.current) {
-                            suppressTimelineClickRef.current = false;
-                            return;
+                    {showTimelineDetails &&
+                      track.marks.map((mark, index) => (
+                        <button
+                          type="button"
+                          className={`key key-${track.color} ${mark.kind !== 'cue' ? 'draggable-key' : ''}`}
+                          style={{
+                            left: `${(mark.time / project.duration) * 100}%`,
+                          }}
+                          key={`${track.name}-${mark.id}-${index}`}
+                          aria-label={`${mark.label} at ${timecode(mark.time)}. ${mark.kind === 'cue' ? 'Click to move the playhead.' : 'Drag to retime.'}`}
+                          title={`${mark.label} · ${timecode(mark.time)} · ${mark.kind === 'cue' ? 'click to jump' : 'drag to retime'}`}
+                          onPointerDown={(event) =>
+                            startTimelineDrag(event, mark)
                           }
-                          updateProjectView((current) => ({
-                            ...current,
-                            currentTime: mark.time,
-                          }));
-                        }}
-                      />
-                    ))}
+                          onPointerMove={moveTimelineDrag}
+                          onPointerUp={finishTimelineDrag}
+                          onPointerCancel={finishTimelineDrag}
+                          onClick={() => {
+                            if (suppressTimelineClickRef.current) {
+                              suppressTimelineClickRef.current = false;
+                              return;
+                            }
+                            updateProjectView((current) => ({
+                              ...current,
+                              currentTime: mark.time,
+                            }));
+                          }}
+                        />
+                      ))}
                   </div>
                 ))}
                 <div className="playhead" style={{ left: `${ratio * 100}%` }}>
@@ -8180,11 +8285,12 @@ export default function Home() {
           </details>
           <div className="inspector-section command-preview">
             <div className="inspector-label">
-              <span>LAST COMMAND</span>
-              <span className="command-actor">{notice.split(' · ')[0]}</span>
+              <span>LAST CHANGE</span>
+              <span className="command-actor">
+                {notice ? notice.split(' · ')[0] : '—'}
+              </span>
             </div>
             <code>{lastCommand}</code>
-            <small>revision {project.revision} · undoable</small>
           </div>
           <div className="inspector-bottom">
             <button type="button" className="secondary-button" onClick={undo}>
@@ -8227,7 +8333,11 @@ export default function Home() {
               <div>
                 <span className="eyebrow">STAGEHAND</span>
                 <h2 id="studio-dialog-title">
-                  {dialog === 'help' ? 'Help & shortcuts' : 'Studio settings'}
+                  {dialog === 'help'
+                    ? 'Help & shortcuts'
+                    : dialog === 'settings'
+                      ? 'Studio settings'
+                      : 'Starter templates'}
                 </h2>
               </div>
               <button
@@ -8263,7 +8373,7 @@ export default function Home() {
                   </div>
                 </dl>
               </div>
-            ) : (
+            ) : dialog === 'settings' ? (
               <div className="dialog-copy">
                 <p>Project data stays in this browser until you export it.</p>
                 <div className="setting-line">
@@ -8298,22 +8408,38 @@ export default function Home() {
                   <span>Storage</span>
                   <strong>Local browser project</strong>
                 </div>
-                <div className="setting-line">
-                  <span>Agent surface</span>
-                  <strong>{WEBMCP_TOOL_COUNT} WebMCP tools</strong>
+              </div>
+            ) : (
+              <div className="dialog-copy">
+                <p>Start a new scene from a focused story beat.</p>
+                <div className="template-dialog-grid">
+                  {starterTemplates.map((template) => (
+                    <button
+                      type="button"
+                      key={template.id}
+                      onClick={() => applyTemplate(template)}
+                    >
+                      <span>
+                        <strong>{template.title}</strong>
+                        <small>{template.description}</small>
+                      </span>
+                      <em>{template.tag}</em>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
           </dialog>
         </div>
       )}
-      <output className="toast" aria-live="polite">
-        <span className="toast-icon">
-          <Sparkles size={13} />
-        </span>
-        <span>{notice}</span>
-        <span className="toast-revision">rev {project.revision}</span>
-      </output>
+      {notice && (
+        <output className="toast" aria-live="polite">
+          <span className="toast-icon">
+            <Sparkles size={13} />
+          </span>
+          <span>{notice}</span>
+        </output>
+      )}
     </main>
   );
 }
