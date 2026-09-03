@@ -3598,6 +3598,11 @@ export default function Home() {
                       <strong>{asset.label}</strong>
                       <small>
                         {assetKindLabel(asset.kind)} · {asset.source}
+                        {project.characters.find(
+                          (character) => character.assetId === asset.id,
+                        )
+                          ? ` · bound to ${project.characters.find((character) => character.assetId === asset.id)?.name}`
+                          : ''}
                       </small>
                     </span>
                     <button
@@ -3660,8 +3665,9 @@ export default function Home() {
                 </button>
               </div>
               <small className="panel-hint asset-hint">
-                Placeholders keep the scene editable until an imported or
-                generated file replaces them.
+                Import character art to bind it to the selected rig; poses and
+                keyframes stay editable. Placeholders keep the rest of the scene
+                ready for replacement.
               </small>
               <input
                 ref={assetImportInputRef}
