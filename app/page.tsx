@@ -298,9 +298,11 @@ function drawRenderFrame(
 function StageCanvas({
   project,
   onSelect,
+  sceneLabel,
 }: {
   project: Project;
   onSelect: (id: string) => void;
+  sceneLabel: string;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const draw = useCallback(() => {
@@ -361,11 +363,11 @@ function StageCanvas({
     ctx.font = '11px ui-monospace, monospace';
     ctx.textAlign = 'left';
     ctx.fillText(
-      `SCENE 01  /  DINER  /  ${timecode(project.currentTime)}`,
+      `${sceneLabel.toUpperCase()}  /  ${timecode(project.currentTime)}`,
       16,
       height - 14,
     );
-  }, [project]);
+  }, [project, sceneLabel]);
   useEffect(() => {
     draw();
     window.addEventListener('resize', draw);
@@ -605,6 +607,109 @@ export default function Home() {
       true,
     );
     register(
+      'get_timeline',
+      'Get timeline',
+      'Inspect the active scene clock, tracks, and caption timing.',
+      { type: 'object', properties: {}, additionalProperties: false },
+      () => {
+        const current = projectRef.current;
+        return {
+          ok: true,
+          revision: current.revision,
+          fps: 12,
+          currentTimeMs: current.currentTime,
+          durationMs: current.duration,
+          tracks: ['camera', 'alice', 'bob', 'captions', 'music'],
+          captions: current.captions,
+        };
+      },
+      true,
+    );
+    register(
+      'set_playhead',
+      'Set playhead',
+      'Move the active scene playhead with a bounded, undoable command.',
+      {
+        type: 'object',
+        required: ['timeMs'],
+        additionalProperties: false,
+        properties: { timeMs: { type: 'number', minimum: 0 } },
+      },
+      (input) => {
+        const current = projectRef.current;
+        if (typeof input.timeMs !== 'number' || !Number.isFinite(input.timeMs))
+          return { ok: false, code: 'INVALID_INPUT' };
+        const timeMs = Math.max(0, Math.min(current.duration, input.timeMs));
+        commitRef.current(
+          (next) => {
+            next.currentTime = timeMs;
+          },
+          'Move playhead',
+          true,
+        );
+        return { ok: true, revision: current.revision + 1, timeMs };
+      },
+    );
+    register(
+      'set_caption',
+      'Edit caption',
+      'Update one caption while preserving other scene timing and content.',
+      {
+        type: 'object',
+        required: ['captionId', 'text'],
+        additionalProperties: false,
+        properties: {
+          captionId: { type: 'string' },
+          text: { type: 'string', minLength: 1 },
+          startMs: { type: 'number', minimum: 0 },
+          endMs: { type: 'number', minimum: 0 },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const textInput =
+          typeof input.text === 'string' ? input.text.trim() : '';
+        if (typeof input.captionId !== 'string' || !textInput)
+          return { ok: false, code: 'INVALID_INPUT' };
+        const caption = current.captions.find(
+          (item) => item.id === input.captionId,
+        );
+        if (!caption) return { ok: false, code: 'NOT_FOUND' };
+        const startMs =
+          typeof input.startMs === 'number' ? input.startMs : caption.start;
+        const endMs =
+          typeof input.endMs === 'number' ? input.endMs : caption.end;
+        if (
+          !Number.isFinite(startMs) ||
+          !Number.isFinite(endMs) ||
+          startMs < 0 ||
+          endMs <= startMs ||
+          endMs > current.duration
+        )
+          return { ok: false, code: 'INVALID_TIMING' };
+        commitRef.current(
+          (next) => {
+            const item = next.captions.find(
+              (candidate) => candidate.id === input.captionId,
+            );
+            if (item) {
+              item.text = textInput;
+              item.start = startMs;
+              item.end = endMs;
+            }
+          },
+          `Edit ${input.captionId}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          changedEntityIds: [input.captionId],
+          changedPaths: [`captions.${input.captionId}`],
+        };
+      },
+    );
+    register(
       'get_selection',
       'Get selection',
       'Inspect current selection and transform.',
@@ -725,12 +830,45 @@ export default function Home() {
       'Validate project',
       'Run deterministic readiness checks.',
       { type: 'object', properties: {}, additionalProperties: false },
-      () => ({
-        ok: true,
-        revision: projectRef.current.revision,
-        issues: [],
-        renderReady: true,
-      }),
+      () => {
+        const current = projectRef.current;
+        const issues: Array<{
+          code: string;
+          severity: 'error' | 'warning';
+          path: string;
+          message: string;
+        }> = [];
+        if (current.scenes.length === 0)
+          issues.push({
+            code: 'NO_SCENES',
+            severity: 'error',
+            path: 'scenes',
+            message: 'Project needs at least one scene.',
+          });
+        if (current.characters.length === 0)
+          issues.push({
+            code: 'NO_CHARACTERS',
+            severity: 'error',
+            path: 'characters',
+            message: 'Active scene needs at least one character.',
+          });
+        current.captions.forEach((caption) => {
+          if (caption.end <= caption.start || caption.end > current.duration) {
+            issues.push({
+              code: 'CAPTION_OUT_OF_BOUNDS',
+              severity: 'error',
+              path: `captions.${caption.id}`,
+              message: `${caption.id} has invalid timing.`,
+            });
+          }
+        });
+        return {
+          ok: issues.every((issue) => issue.severity !== 'error'),
+          revision: current.revision,
+          issues,
+          renderReady: issues.every((issue) => issue.severity !== 'error'),
+        };
+      },
       true,
     );
     return () => lifecycle.abort();
@@ -825,6 +963,11 @@ export default function Home() {
     ],
     [],
   );
+  const activeSceneIndex = Math.max(
+    0,
+    project.scenes.findIndex((scene) => scene.id === project.activeSceneId),
+  );
+  const activeScene = project.scenes[activeSceneIndex] ?? starterScenes[0];
   return (
     <main className="studio-shell">
       <header className="topbar">
@@ -1010,7 +1153,7 @@ export default function Home() {
               </span>
               <div>
                 <strong>WebMCP surface</strong>
-                <small>9 tools declared</small>
+                <small>11 tools declared</small>
               </div>
               <span className="online-dot" />
             </div>
@@ -1091,7 +1234,9 @@ export default function Home() {
             )}
             <div className="stage-header">
               <span>
-                <span className="live-dot" /> SCENE 01 <em>·</em> 12 FPS
+                <span className="live-dot" /> SCENE{' '}
+                {String(activeSceneIndex + 1).padStart(2, '0')} <em>·</em> 12
+                FPS
               </span>
               <span className="stage-header-right">
                 SAFE AREA <span className="safe-toggle" />
@@ -1100,6 +1245,7 @@ export default function Home() {
             <div className="canvas-frame">
               <StageCanvas
                 project={project}
+                sceneLabel={activeScene.title}
                 onSelect={(id) =>
                   setProject((current) => ({ ...current, selectedId: id }))
                 }
