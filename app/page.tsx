@@ -1,61 +1,1141 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CircleHelp, Clapperboard, ChevronDown, Film, FolderOpen, Grid2X2, Hand, Layers3, Lock, Maximize2, MousePointer2, Pause, Play, Redo2, RotateCcw, Save, Scissors, Settings2, Sparkles, SquareDashedMousePointer, Undo2, Upload, WandSparkles, ZoomIn } from 'lucide-react';
+import {
+  CircleHelp,
+  Clapperboard,
+  ChevronDown,
+  Film,
+  FolderOpen,
+  Grid2X2,
+  Hand,
+  Layers3,
+  Lock,
+  Maximize2,
+  MousePointer2,
+  Pause,
+  Play,
+  Redo2,
+  RotateCcw,
+  Save,
+  Scissors,
+  Settings2,
+  Sparkles,
+  SquareDashedMousePointer,
+  Undo2,
+  Upload,
+  WandSparkles,
+  ZoomIn,
+} from 'lucide-react';
 
 type Pose = 'idle' | 'nervous' | 'wave' | 'lean-in';
-type Character = { id: string; name: string; color: string; x: number; y: number; rotation: number; pose: Pose };
-type Project = { revision: number; duration: number; currentTime: number; selectedId: string; characters: Character[]; captions: { id: string; text: string; start: number; end: number; speaker: string }[]; dirty: boolean };
-type ModelTool = { name: string; title: string; description: string; inputSchema: object; annotations?: { readOnlyHint?: boolean; untrustedContentHint?: boolean }; execute: (input: Record<string, unknown>) => unknown };
-type ModelContext = { registerTool: (tool: ModelTool, options?: { signal?: AbortSignal }) => void | Promise<void> };
+type Character = {
+  id: string;
+  name: string;
+  color: string;
+  x: number;
+  y: number;
+  rotation: number;
+  pose: Pose;
+};
+type Project = {
+  revision: number;
+  duration: number;
+  currentTime: number;
+  selectedId: string;
+  characters: Character[];
+  captions: {
+    id: string;
+    text: string;
+    start: number;
+    end: number;
+    speaker: string;
+  }[];
+  dirty: boolean;
+};
+type ModelTool = {
+  name: string;
+  title: string;
+  description: string;
+  inputSchema: object;
+  annotations?: { readOnlyHint?: boolean; untrustedContentHint?: boolean };
+  execute: (input: Record<string, unknown>) => unknown;
+};
+type ModelContext = {
+  registerTool: (
+    tool: ModelTool,
+    options?: { signal?: AbortSignal },
+  ) => void | Promise<void>;
+};
 const STORAGE_KEY = 'stagehand-paper-cutout-comedy-v1';
-const starterProject: Project = { revision: 7, duration: 5000, currentTime: 1800, selectedId: 'alice', dirty: false, characters: [{ id: 'alice', name: 'Alice', color: '#e56b52', x: 37, y: 62, rotation: -2, pose: 'nervous' }, { id: 'bob', name: 'Bob', color: '#32748f', x: 68, y: 57, rotation: 3, pose: 'idle' }], captions: [{ id: 'caption-1', text: 'You actually came', start: 1550, end: 2450, speaker: 'Alice' }, { id: 'caption-2', text: 'I almost didn’t', start: 3100, end: 4000, speaker: 'Bob' }] };
+const starterProject: Project = {
+  revision: 7,
+  duration: 5000,
+  currentTime: 1800,
+  selectedId: 'alice',
+  dirty: false,
+  characters: [
+    {
+      id: 'alice',
+      name: 'Alice',
+      color: '#e56b52',
+      x: 37,
+      y: 62,
+      rotation: -2,
+      pose: 'nervous',
+    },
+    {
+      id: 'bob',
+      name: 'Bob',
+      color: '#32748f',
+      x: 68,
+      y: 57,
+      rotation: 3,
+      pose: 'idle',
+    },
+  ],
+  captions: [
+    {
+      id: 'caption-1',
+      text: 'You actually came',
+      start: 1550,
+      end: 2450,
+      speaker: 'Alice',
+    },
+    {
+      id: 'caption-2',
+      text: 'I almost didn’t',
+      start: 3100,
+      end: 4000,
+      speaker: 'Bob',
+    },
+  ],
+};
 const copy = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const timecode = (ms: number) => `${(ms / 1000).toFixed(2).padStart(4, '0')}s`;
 
-function drawCharacter(ctx: CanvasRenderingContext2D, c: Character, width: number, height: number, selected: boolean) {
-  const x = (c.x / 100) * width, ground = (c.y / 100) * height, scale = Math.min(width / 900, height / 520);
-  ctx.save(); ctx.translate(x, ground); ctx.rotate((c.rotation * Math.PI) / 180); ctx.scale(scale, scale);
-  if (selected) { ctx.strokeStyle = '#f2b84b'; ctx.lineWidth = 2; ctx.setLineDash([7, 5]); ctx.strokeRect(-66, -270, 132, 280); ctx.setLineDash([]); ctx.fillStyle = '#f2b84b'; ctx.beginPath(); ctx.arc(0, -282, 5, 0, Math.PI * 2); ctx.fill(); }
-  ctx.fillStyle = 'rgba(31,32,35,.16)'; ctx.beginPath(); ctx.ellipse(0, 5, 67, 12, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = '#29272a'; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.fillStyle = c.color; ctx.beginPath(); ctx.roundRect(-39, -150, 78, 137, 17); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#f3c7a9'; ctx.beginPath(); ctx.arc(0, -207, 43, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = c.id === 'alice' ? '#3e3036' : '#3c5360'; ctx.beginPath(); ctx.arc(0, -231, 44, Math.PI, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#29272a'; ctx.beginPath(); ctx.arc(-15, -207, 4, 0, Math.PI * 2); ctx.arc(15, -207, 4, 0, Math.PI * 2); ctx.fill(); ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, -198, 12, 0.15, Math.PI - 0.15); ctx.stroke();
-  ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(-24, -10); ctx.lineTo(-34, 7); ctx.moveTo(24, -10); ctx.lineTo(34, 7); ctx.moveTo(-38, -128); ctx.lineTo(c.pose === 'wave' ? -79 : -65, c.pose === 'wave' ? -204 : -67); ctx.moveTo(38, -128); ctx.lineTo(c.pose === 'lean-in' ? 75 : 66, -65); ctx.stroke();
-  if (c.pose === 'wave') { ctx.beginPath(); ctx.moveTo(-79, -204); ctx.lineTo(-93, -222); ctx.moveTo(-79, -204); ctx.lineTo(-77, -229); ctx.stroke(); } ctx.restore();
+function drawCharacter(
+  ctx: CanvasRenderingContext2D,
+  c: Character,
+  width: number,
+  height: number,
+  selected: boolean,
+) {
+  const x = (c.x / 100) * width,
+    ground = (c.y / 100) * height,
+    scale = Math.min(width / 900, height / 520);
+  ctx.save();
+  ctx.translate(x, ground);
+  ctx.rotate((c.rotation * Math.PI) / 180);
+  ctx.scale(scale, scale);
+  if (selected) {
+    ctx.strokeStyle = '#f2b84b';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([7, 5]);
+    ctx.strokeRect(-66, -270, 132, 280);
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#f2b84b';
+    ctx.beginPath();
+    ctx.arc(0, -282, 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(31,32,35,.16)';
+  ctx.beginPath();
+  ctx.ellipse(0, 5, 67, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#29272a';
+  ctx.lineWidth = 5;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.fillStyle = c.color;
+  ctx.beginPath();
+  ctx.roundRect(-39, -150, 78, 137, 17);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#f3c7a9';
+  ctx.beginPath();
+  ctx.arc(0, -207, 43, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = c.id === 'alice' ? '#3e3036' : '#3c5360';
+  ctx.beginPath();
+  ctx.arc(0, -231, 44, Math.PI, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#29272a';
+  ctx.beginPath();
+  ctx.arc(-15, -207, 4, 0, Math.PI * 2);
+  ctx.arc(15, -207, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(0, -198, 12, 0.15, Math.PI - 0.15);
+  ctx.stroke();
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  ctx.moveTo(-24, -10);
+  ctx.lineTo(-34, 7);
+  ctx.moveTo(24, -10);
+  ctx.lineTo(34, 7);
+  ctx.moveTo(-38, -128);
+  ctx.lineTo(c.pose === 'wave' ? -79 : -65, c.pose === 'wave' ? -204 : -67);
+  ctx.moveTo(38, -128);
+  ctx.lineTo(c.pose === 'lean-in' ? 75 : 66, -65);
+  ctx.stroke();
+  if (c.pose === 'wave') {
+    ctx.beginPath();
+    ctx.moveTo(-79, -204);
+    ctx.lineTo(-93, -222);
+    ctx.moveTo(-79, -204);
+    ctx.lineTo(-77, -229);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
-function StageCanvas({ project, onSelect }: { project: Project; onSelect: (id: string) => void }) {
+function StageCanvas({
+  project,
+  onSelect,
+}: {
+  project: Project;
+  onSelect: (id: string) => void;
+}) {
   const ref = useRef<HTMLCanvasElement>(null);
-  const draw = useCallback(() => { const canvas = ref.current; if (!canvas) return; const rect = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1; canvas.width = rect.width * dpr; canvas.height = rect.height * dpr; const ctx = canvas.getContext('2d'); if (!ctx) return; ctx.scale(dpr, dpr); const { width, height } = rect;
-    ctx.fillStyle = '#e9d6b8'; ctx.fillRect(0, 0, width, height); ctx.fillStyle = '#c38b62'; ctx.fillRect(0, height * .69, width, height * .31); ctx.fillStyle = '#f4ead9'; ctx.fillRect(width * .05, height * .08, width * .9, height * .52); ctx.strokeStyle = '#d8c4a5'; ctx.lineWidth = 3; for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.moveTo(width * (.11 + i * .19), height * .08); ctx.lineTo(width * (.11 + i * .19), height * .6); ctx.stroke(); } ctx.fillStyle = '#506d72'; ctx.fillRect(width * .1, height * .2, width * .8, 7); ctx.fillStyle = '#2d4448'; ctx.font = '700 13px ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.fillText('THE LATE PLATE  ·  OPEN UNTIL AWKWARD', width / 2, height * .17); ctx.fillStyle = '#714b3c'; ctx.fillRect(width * .17, height * .55, width * .66, 20); ctx.fillStyle = '#d6a26d'; ctx.fillRect(width * .2, height * .59, width * .6, 11); ctx.fillStyle = '#b86e4e'; ctx.beginPath(); ctx.arc(width * .3, height * .52, 25, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#f5d69b'; ctx.beginPath(); ctx.arc(width * .3, height * .52, 16, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#597579'; ctx.fillRect(width * .71, height * .27, 32, 72); ctx.fillStyle = '#f0c27f'; ctx.fillRect(width * .73, height * .3, 28, 40); project.characters.forEach((c) => drawCharacter(ctx, c, width, height, c.id === project.selectedId)); ctx.fillStyle = 'rgba(41,39,42,.55)'; ctx.font = '11px ui-monospace, monospace'; ctx.textAlign = 'left'; ctx.fillText(`SCENE 01  /  DINER  /  ${timecode(project.currentTime)}`, 16, height - 14);
+  const draw = useCallback(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect(),
+      dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.scale(dpr, dpr);
+    const { width, height } = rect;
+    ctx.fillStyle = '#e9d6b8';
+    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = '#c38b62';
+    ctx.fillRect(0, height * 0.69, width, height * 0.31);
+    ctx.fillStyle = '#f4ead9';
+    ctx.fillRect(width * 0.05, height * 0.08, width * 0.9, height * 0.52);
+    ctx.strokeStyle = '#d8c4a5';
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 5; i++) {
+      ctx.beginPath();
+      ctx.moveTo(width * (0.11 + i * 0.19), height * 0.08);
+      ctx.lineTo(width * (0.11 + i * 0.19), height * 0.6);
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#506d72';
+    ctx.fillRect(width * 0.1, height * 0.2, width * 0.8, 7);
+    ctx.fillStyle = '#2d4448';
+    ctx.font = '700 13px ui-monospace, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(
+      'THE LATE PLATE  ·  OPEN UNTIL AWKWARD',
+      width / 2,
+      height * 0.17,
+    );
+    ctx.fillStyle = '#714b3c';
+    ctx.fillRect(width * 0.17, height * 0.55, width * 0.66, 20);
+    ctx.fillStyle = '#d6a26d';
+    ctx.fillRect(width * 0.2, height * 0.59, width * 0.6, 11);
+    ctx.fillStyle = '#b86e4e';
+    ctx.beginPath();
+    ctx.arc(width * 0.3, height * 0.52, 25, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f5d69b';
+    ctx.beginPath();
+    ctx.arc(width * 0.3, height * 0.52, 16, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#597579';
+    ctx.fillRect(width * 0.71, height * 0.27, 32, 72);
+    ctx.fillStyle = '#f0c27f';
+    ctx.fillRect(width * 0.73, height * 0.3, 28, 40);
+    project.characters.forEach((c) =>
+      drawCharacter(ctx, c, width, height, c.id === project.selectedId),
+    );
+    ctx.fillStyle = 'rgba(41,39,42,.55)';
+    ctx.font = '11px ui-monospace, monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(
+      `SCENE 01  /  DINER  /  ${timecode(project.currentTime)}`,
+      16,
+      height - 14,
+    );
   }, [project]);
-  useEffect(() => { draw(); window.addEventListener('resize', draw); return () => window.removeEventListener('resize', draw); }, [draw]);
-  return <canvas ref={ref} className="stage-canvas" aria-label="Diner scene canvas" onClick={(e) => { const rect = e.currentTarget.getBoundingClientRect(), x = ((e.clientX - rect.left) / rect.width) * 100; const nearest = project.characters.reduce((a, b) => Math.abs(a.x - x) < Math.abs(b.x - x) ? a : b); onSelect(nearest.id); }} />;
+  useEffect(() => {
+    draw();
+    window.addEventListener('resize', draw);
+    return () => window.removeEventListener('resize', draw);
+  }, [draw]);
+  return (
+    <canvas
+      ref={ref}
+      className="stage-canvas"
+      aria-label="Diner scene canvas"
+      onClick={(e) => {
+        const rect = e.currentTarget.getBoundingClientRect(),
+          x = ((e.clientX - rect.left) / rect.width) * 100;
+        const nearest = project.characters.reduce((a, b) =>
+          Math.abs(a.x - x) < Math.abs(b.x - x) ? a : b,
+        );
+        onSelect(nearest.id);
+      }}
+    />
+  );
 }
 
-function IconButton({ label, children, onClick, active = false }: { label: string; children: React.ReactNode; onClick?: () => void; active?: boolean }) { return <button type="button" className={`icon-button ${active ? 'active' : ''}`} aria-label={label} title={label} onClick={onClick}>{children}</button>; }
+function IconButton({
+  label,
+  children,
+  onClick,
+  active = false,
+}: {
+  label: string;
+  children: React.ReactNode;
+  onClick?: () => void;
+  active?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className={`icon-button ${active ? 'active' : ''}`}
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
 
 export default function Home() {
-  const [project, setProject] = useState<Project>(starterProject), [, setHistory] = useState<Project[]>([]), [, setFuture] = useState<Project[]>([]), [playing, setPlaying] = useState(false), [panel, setPanel] = useState<'scenes' | 'storyboard' | 'assets'>('scenes'), [notice, setNotice] = useState('Ready for direction'), [saved, setSaved] = useState(true);
-  const selected = project.characters.find((c) => c.id === project.selectedId) ?? project.characters[0], activeCaption = project.captions.find((c) => project.currentTime >= c.start && project.currentTime <= c.end), ratio = project.currentTime / project.duration;
-  const commit = useCallback((mutate: (next: Project) => void, label: string, agent = false) => { setProject((current) => { const next = copy(current); mutate(next); next.revision += 1; next.dirty = true; setHistory((items) => [...items.slice(-29), copy(current)]); setFuture([]); setSaved(false); setNotice(`${agent ? 'Agent' : 'Human'} · ${label}`); return next; }); }, []);
-  const undo = useCallback(() => { setHistory((items) => { const previous = items.at(-1); if (!previous) { setNotice('Nothing to undo'); return items; } setFuture((redo) => [copy(project), ...redo]); setProject({ ...previous, revision: project.revision + 1, dirty: true }); setNotice('Undo · restored previous command'); return items.slice(0, -1); }); }, [project]);
-  const redo = useCallback(() => { setFuture((items) => { const next = items[0]; if (!next) { setNotice('Nothing to redo'); return items; } setHistory((old) => [...old, copy(project)]); setProject({ ...next, revision: project.revision + 1, dirty: true }); setNotice('Redo · reapplied command'); return items.slice(1); }); }, [project]);
-  const projectRef = useRef(project), selectedRef = useRef(selected), commitRef = useRef(commit), undoRef = useRef(undo);
-  useEffect(() => { projectRef.current = project; selectedRef.current = selected; commitRef.current = commit; undoRef.current = undo; }, [project, selected, commit, undo]);
-  useEffect(() => { const timer = window.setTimeout(() => { const stored = window.localStorage.getItem(STORAGE_KEY); if (stored) { try { setProject(JSON.parse(stored) as Project); setNotice('Recovered local project'); } catch { /* starter remains */ } } }, 0); return () => window.clearTimeout(timer); }, []);
-  useEffect(() => { const timer = window.setTimeout(() => { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(project)); setSaved(true); }, 450); return () => window.clearTimeout(timer); }, [project]);
-  useEffect(() => { if (!playing) return; const timer = window.setInterval(() => setProject((current) => ({ ...current, currentTime: current.currentTime >= current.duration ? 0 : current.currentTime + 1000 / 12 })), 1000 / 12); return () => window.clearInterval(timer); }, [playing]);
-  useEffect(() => { const modelContext = (document as Document & { modelContext?: ModelContext }).modelContext; if (!modelContext?.registerTool) return; const lifecycle = new AbortController(); const register = (name: string, title: string, description: string, inputSchema: object, execute: ModelTool['execute'], readOnlyHint = false) => { void Promise.resolve(modelContext.registerTool({ name, title, description, inputSchema, annotations: { readOnlyHint, untrustedContentHint: false }, execute }, { signal: lifecycle.signal })).catch(() => setNotice('WebMCP registration unavailable')); }; register('get_project_summary', 'Get project summary', 'Inspect the active Stagehand project summary.', { type: 'object', properties: {}, additionalProperties: false }, () => { const current = projectRef.current; return { ok: true, revision: current.revision, name: 'Paper Cutout Comedy', durationMs: current.duration, sceneCount: 1, selectedId: current.selectedId }; }, true); register('get_selection', 'Get selection', 'Inspect current selection and transform.', { type: 'object', properties: {}, additionalProperties: false }, () => ({ ok: true, revision: projectRef.current.revision, selection: selectedRef.current }), true); register('set_pose', 'Set character pose', 'Move a character while preserving unrelated edits.', { type: 'object', required: ['characterId'], additionalProperties: false, properties: { characterId: { type: 'string' }, x: { type: 'number' }, y: { type: 'number' }, rotation: { type: 'number' }, pose: { type: 'string', enum: ['idle', 'nervous', 'wave', 'lean-in'] } } }, (input) => { const current = projectRef.current; if (typeof input.characterId !== 'string') return { ok: false, code: 'INVALID_INPUT' }; if (!current.characters.some((c) => c.id === input.characterId)) return { ok: false, code: 'NOT_FOUND' }; commitRef.current((next) => { const c = next.characters.find((item) => item.id === input.characterId); if (c) { if (typeof input.x === 'number') c.x = input.x; if (typeof input.y === 'number') c.y = input.y; if (typeof input.rotation === 'number') c.rotation = input.rotation; if (typeof input.pose === 'string') c.pose = input.pose as Pose; } }, `Set ${input.characterId} pose`, true); return { ok: true, revision: current.revision + 1, changedEntityIds: [input.characterId], changedPaths: [`characters.${input.characterId}`], warnings: [] }; }); register('undo_command', 'Undo command', 'Undo the latest conflict-free command.', { type: 'object', properties: {}, additionalProperties: false }, () => { undoRef.current(); return { ok: true, revision: projectRef.current.revision + 1 }; }); register('validate_project', 'Validate project', 'Run deterministic readiness checks.', { type: 'object', properties: {}, additionalProperties: false }, () => ({ ok: true, revision: projectRef.current.revision, issues: [], renderReady: true }), true); return () => lifecycle.abort(); }, []);
-  const updateSelected = (key: 'x' | 'y' | 'rotation', value: number) => commit((next) => { const c = next.characters.find((item) => item.id === next.selectedId); if (c) c[key] = value; }, `Adjust ${key}`);
-  const tracks = useMemo(() => [{ name: 'Camera', color: 'blue', marks: [0, 28, 55, 74] }, { name: 'Alice · rig', color: 'coral', marks: [18, 36, 52, 77] }, { name: 'Bob · rig', color: 'teal', marks: [51, 67, 82] }, { name: 'Captions', color: 'yellow', marks: [31, 62] }, { name: 'Music · low', color: 'violet', marks: [0, 100] }], []);
-  return <main className="studio-shell">
-    <header className="topbar"><div className="brand-lockup"><div className="brand-mark"><Clapperboard size={17} /></div><div><div className="brand-name">stagehand</div><div className="brand-subtitle">animation studio <span>·</span> local project</div></div></div><div className="project-title"><span className="eyebrow">PROJECT</span><span className="title-name">Paper Cutout Comedy</span><ChevronDown size={14} /></div><div className="top-actions"><div className={`save-state ${saved ? '' : 'unsaved'}`}><span className="status-dot" />{saved ? 'Saved locally' : 'Saving…'}</div><IconButton label="Help"><CircleHelp size={17} /></IconButton><IconButton label="Settings"><Settings2 size={17} /></IconButton><button className="render-button" type="button" onClick={() => setNotice('Render queued · WebM export lands in Phase 5')}><Film size={16} /> Render</button></div></header>
-    <div className="workspace">
-      <aside className="left-rail"><div className="rail-tabs"><button className={panel === 'scenes' ? 'selected' : ''} onClick={() => setPanel('scenes')} type="button"><Layers3 size={15} />Scenes</button><button className={panel === 'storyboard' ? 'selected' : ''} onClick={() => setPanel('storyboard')} type="button"><Grid2X2 size={15} />Board</button><button className={panel === 'assets' ? 'selected' : ''} onClick={() => setPanel('assets')} type="button"><FolderOpen size={15} />Assets</button></div>{panel === 'scenes' && <div className="rail-content"><div className="section-label"><span>SCENES <b>1</b></span><Sparkles size={13} /></div><div className="scene-card active"><div className="scene-thumbnail"><span>01</span><div className="thumb-diner" /></div><div className="scene-meta"><strong>Diner · first meeting</strong><span>00:05.00 <i>12 fps</i></span></div><span className="scene-more">···</span></div><button className="add-scene" type="button" onClick={() => setNotice('New scene creation is next in Phase 2')}><span>＋</span> Add scene</button><div className="section-label assets-label"><span>STARTER KIT</span></div><button className="starter-link" type="button" onClick={() => { setHistory([]); setFuture([]); setProject(copy(starterProject)); setNotice('Starter restored'); }}><RotateCcw size={14} /> Reset to starter</button></div>}{panel === 'storyboard' && <div className="rail-content"><div className="section-label"><span>BEATS <b>3</b></span></div>{[['01', 'The wait', 'Alice practices what to say.'], ['02', 'The entrance', 'Bob arrives behind her.'], ['03', 'The pause', 'Neither knows what to do.']].map(([id, title, desc], index) => <div className={`board-card ${index === 0 ? 'active' : ''}`} key={id}><span className="beat-index">{id}</span><strong>{title}</strong><small>{desc}</small></div>)}</div>}{panel === 'assets' && <div className="rail-content"><div className="section-label"><span>ASSETS <b>5</b></span><Upload size={13} /></div><div className="asset-list"><div><span className="asset-swatch alice-swatch" />Alice · rigged</div><div><span className="asset-swatch bob-swatch" />Bob · rigged</div><div><span className="asset-swatch bg-swatch" />Diner background</div><div><span className="asset-swatch prop-swatch" />Coffee mug</div></div></div>}<div className="rail-footer"><div className="agent-badge"><span className="sparkle-orbit"><Sparkles size={13} /></span><div><strong>WebMCP ready</strong><small>5 tools connected</small></div><span className="online-dot" /></div></div></aside>
-      <section className="main-column"><div className="modebar"><div className="mode-tabs"><button className="active" type="button"><SquareDashedMousePointer size={14} /> Animate</button><button type="button"><Grid2X2 size={14} /> Storyboard</button><button type="button"><Play size={14} /> Preview</button></div><div className="scene-tools"><IconButton label="Select tool" active><MousePointer2 size={15} /></IconButton><IconButton label="Pan tool"><Hand size={15} /></IconButton><span className="divider" /><IconButton label="Zoom out">−</IconButton><span className="zoom-readout">100%</span><IconButton label="Zoom in"><ZoomIn size={15} /></IconButton><IconButton label="Fit stage"><Maximize2 size={15} /></IconButton></div></div><div className="stage-wrap"><div className="stage-header"><span><span className="live-dot" /> SCENE 01 <em>·</em> 12 FPS</span><span className="stage-header-right">SAFE AREA <span className="safe-toggle" /></span></div><div className="canvas-frame"><StageCanvas project={project} onSelect={(id) => setProject((current) => ({ ...current, selectedId: id }))} />{activeCaption && <div className="canvas-caption"><span>{activeCaption.speaker}</span>{activeCaption.text}</div>}</div><div className="stage-footer"><span>Paper cutout / limited motion</span><span>720 × 405 <i>16:9</i></span></div></div><div className="timeline"><div className="timeline-toolbar"><div className="play-controls"><IconButton label={playing ? 'Pause' : 'Play'} onClick={() => setPlaying((value) => !value)} active>{playing ? <Pause size={15} /> : <Play size={15} fill="currentColor" />}</IconButton><IconButton label="Step back" onClick={() => setProject((current) => ({ ...current, currentTime: Math.max(0, current.currentTime - 83.33) }))}>−</IconButton><span className="timecode">{timecode(project.currentTime)} <small>/ {timecode(project.duration)}</small></span></div><div className="timeline-actions"><button type="button" onClick={() => setNotice('Add keyframe is available for the selected rig')}><Sparkles size={14} /> Keyframe</button><button type="button" onClick={() => setNotice('Split command is scoped to the active scene')}><Scissors size={14} /> Split</button><button type="button"><Lock size={14} /> Lock track</button></div></div><div className="timeline-grid"><div className="track-labels">{tracks.map((track) => <div className="track-label" key={track.name}><span className={`track-icon ${track.color}`}>{track.name === 'Camera' ? '◉' : track.name === 'Captions' ? 'T' : track.name === 'Music · low' ? '♫' : '✦'}</span><span>{track.name}</span></div>)}</div><div className="track-area"><div className="ruler">{[0, 1, 2, 3, 4, 5].map((second) => <span key={second} style={{ left: `${(second / 5) * 100}%` }}>0{second}</span>)}</div>{tracks.map((track) => <div className="track-row" key={track.name}><div className={`clip clip-${track.color}`} style={{ left: track.name === 'Bob · rig' ? '50%' : track.name === 'Captions' ? '30%' : '0%', width: track.name === 'Captions' ? '40%' : track.name === 'Bob · rig' ? '44%' : '100%' }}>{track.name === 'Captions' && <span>You actually came</span>}</div>{track.marks.map((mark) => <span className={`key key-${track.color}`} style={{ left: `${mark}%` }} key={mark} />)}</div>)}<div className="playhead" style={{ left: `${ratio * 100}%` }}><span /></div><input className="scrubber" type="range" min="0" max={project.duration} step="83.33" value={project.currentTime} aria-label="Timeline playhead" onChange={(e) => setProject((current) => ({ ...current, currentTime: Number(e.target.value) }))} /></div></div></div></section>
-      <aside className="inspector"><div className="inspector-header"><span>INSPECTOR</span><Settings2 size={14} /></div><div className="selection-card"><div className={`selection-avatar ${selected.id === 'alice' ? 'alice-avatar' : 'bob-avatar'}`}>{selected.name[0]}</div><div><strong>{selected.name}</strong><span>Character · rigged</span></div><ChevronDown size={14} /></div><div className="inspector-section"><div className="inspector-label">TRANSFORM <span>local</span></div><div className="field-row"><label>X <input type="number" value={selected.x} onChange={(e) => updateSelected('x', Number(e.target.value))} /><b>%</b></label><label>Y <input type="number" value={selected.y} onChange={(e) => updateSelected('y', Number(e.target.value))} /><b>%</b></label></div><div className="field-row"><label>Rotation <input type="number" value={selected.rotation} onChange={(e) => updateSelected('rotation', Number(e.target.value))} /><b>°</b></label><label>Opacity <input type="number" value="100" readOnly /><b>%</b></label></div></div><div className="inspector-section"><div className="inspector-label">POSE <button type="button" onClick={() => setNotice('Preset applied to the selected rig')}><WandSparkles size={13} /> Apply preset</button></div><div className="pose-grid">{(['idle', 'nervous', 'wave', 'lean-in'] as Pose[]).map((pose) => <button className={selected.pose === pose ? 'active' : ''} type="button" key={pose} onClick={() => commit((next) => { const c = next.characters.find((item) => item.id === next.selectedId); if (c) c.pose = pose; }, `Apply ${pose} pose`)}><span className={`pose-dot pose-${pose}`} />{pose.replace('-', ' ')}</button>)}</div></div><div className="inspector-section"><div className="inspector-label">STYLE BIBLE</div><div className="style-row"><span>Construction</span><strong>paper-cutout</strong></div><div className="style-row"><span>Motion</span><strong>limited · snappy</strong></div><div className="style-row"><span>Camera</span><strong>reaction cut</strong></div></div><div className="inspector-section command-preview"><div className="inspector-label"><span>LAST COMMAND</span><span className="command-actor">{notice.split(' · ')[0]}</span></div><code>set_pose({selected.id})</code><small>revision {project.revision} · undoable</small></div><div className="inspector-bottom"><button type="button" className="secondary-button" onClick={undo}><Undo2 size={14} /> Undo</button><button type="button" className="secondary-button" onClick={redo}><Redo2 size={14} /> Redo</button><button type="button" className="save-button" onClick={() => { window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...project, dirty: false })); setProject((current) => ({ ...current, dirty: false })); setSaved(true); setNotice('Project saved locally'); }}><Save size={14} /> Save</button></div></aside>
-    </div><output className="toast" aria-live="polite"><span className="toast-icon"><Sparkles size={13} /></span><span>{notice}</span><span className="toast-revision">rev {project.revision}</span></output>
-  </main>;
+  const [project, setProject] = useState<Project>(starterProject),
+    [, setHistory] = useState<Project[]>([]),
+    [, setFuture] = useState<Project[]>([]),
+    [playing, setPlaying] = useState(false),
+    [panel, setPanel] = useState<'scenes' | 'storyboard' | 'assets'>('scenes'),
+    [viewMode, setViewMode] = useState<'animate' | 'storyboard' | 'preview'>(
+      'animate',
+    ),
+    [notice, setNotice] = useState('Ready for direction'),
+    [saved, setSaved] = useState(true);
+  const selected =
+      project.characters.find((c) => c.id === project.selectedId) ??
+      project.characters[0],
+    activeCaption = project.captions.find(
+      (c) => project.currentTime >= c.start && project.currentTime <= c.end,
+    ),
+    ratio = project.currentTime / project.duration;
+  const commit = useCallback(
+    (mutate: (next: Project) => void, label: string, agent = false) => {
+      setProject((current) => {
+        const next = copy(current);
+        mutate(next);
+        next.revision += 1;
+        next.dirty = true;
+        setHistory((items) => [...items.slice(-29), copy(current)]);
+        setFuture([]);
+        setSaved(false);
+        setNotice(`${agent ? 'Agent' : 'Human'} · ${label}`);
+        return next;
+      });
+    },
+    [],
+  );
+  const undo = useCallback(() => {
+    setHistory((items) => {
+      const previous = items.at(-1);
+      if (!previous) {
+        setNotice('Nothing to undo');
+        return items;
+      }
+      setFuture((redo) => [copy(project), ...redo]);
+      setProject({ ...previous, revision: project.revision + 1, dirty: true });
+      setNotice('Undo · restored previous command');
+      return items.slice(0, -1);
+    });
+  }, [project]);
+  const redo = useCallback(() => {
+    setFuture((items) => {
+      const next = items[0];
+      if (!next) {
+        setNotice('Nothing to redo');
+        return items;
+      }
+      setHistory((old) => [...old, copy(project)]);
+      setProject({ ...next, revision: project.revision + 1, dirty: true });
+      setNotice('Redo · reapplied command');
+      return items.slice(1);
+    });
+  }, [project]);
+  const projectRef = useRef(project),
+    selectedRef = useRef(selected),
+    commitRef = useRef(commit),
+    undoRef = useRef(undo);
+  useEffect(() => {
+    projectRef.current = project;
+    selectedRef.current = selected;
+    commitRef.current = commit;
+    undoRef.current = undo;
+  }, [project, selected, commit, undo]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const stored = window.localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        try {
+          setProject(JSON.parse(stored) as Project);
+          setNotice('Recovered local project');
+        } catch {
+          /* starter remains */
+        }
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
+      setSaved(true);
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [project]);
+  useEffect(() => {
+    if (!playing) return;
+    const timer = window.setInterval(
+      () =>
+        setProject((current) => ({
+          ...current,
+          currentTime:
+            current.currentTime >= current.duration
+              ? 0
+              : current.currentTime + 1000 / 12,
+        })),
+      1000 / 12,
+    );
+    return () => window.clearInterval(timer);
+  }, [playing]);
+  useEffect(() => {
+    const modelContext = (
+      document as Document & { modelContext?: ModelContext }
+    ).modelContext;
+    if (!modelContext?.registerTool) return;
+    const lifecycle = new AbortController();
+    const register = (
+      name: string,
+      title: string,
+      description: string,
+      inputSchema: object,
+      execute: ModelTool['execute'],
+      readOnlyHint = false,
+    ) => {
+      void Promise.resolve(
+        modelContext.registerTool(
+          {
+            name,
+            title,
+            description,
+            inputSchema,
+            annotations: { readOnlyHint, untrustedContentHint: false },
+            execute,
+          },
+          { signal: lifecycle.signal },
+        ),
+      ).catch(() => setNotice('WebMCP registration unavailable'));
+    };
+    register(
+      'get_project_summary',
+      'Get project summary',
+      'Inspect the active Stagehand project summary.',
+      { type: 'object', properties: {}, additionalProperties: false },
+      () => {
+        const current = projectRef.current;
+        return {
+          ok: true,
+          revision: current.revision,
+          name: 'Paper Cutout Comedy',
+          durationMs: current.duration,
+          sceneCount: 1,
+          selectedId: current.selectedId,
+        };
+      },
+      true,
+    );
+    register(
+      'get_selection',
+      'Get selection',
+      'Inspect current selection and transform.',
+      { type: 'object', properties: {}, additionalProperties: false },
+      () => ({
+        ok: true,
+        revision: projectRef.current.revision,
+        selection: selectedRef.current,
+      }),
+      true,
+    );
+    register(
+      'set_pose',
+      'Set character pose',
+      'Move a character while preserving unrelated edits.',
+      {
+        type: 'object',
+        required: ['characterId'],
+        additionalProperties: false,
+        properties: {
+          characterId: { type: 'string' },
+          x: { type: 'number' },
+          y: { type: 'number' },
+          rotation: { type: 'number' },
+          pose: {
+            type: 'string',
+            enum: ['idle', 'nervous', 'wave', 'lean-in'],
+          },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        if (typeof input.characterId !== 'string')
+          return { ok: false, code: 'INVALID_INPUT' };
+        if (!current.characters.some((c) => c.id === input.characterId))
+          return { ok: false, code: 'NOT_FOUND' };
+        commitRef.current(
+          (next) => {
+            const c = next.characters.find(
+              (item) => item.id === input.characterId,
+            );
+            if (c) {
+              if (typeof input.x === 'number') c.x = input.x;
+              if (typeof input.y === 'number') c.y = input.y;
+              if (typeof input.rotation === 'number')
+                c.rotation = input.rotation;
+              if (typeof input.pose === 'string') c.pose = input.pose as Pose;
+            }
+          },
+          `Set ${input.characterId} pose`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          changedEntityIds: [input.characterId],
+          changedPaths: [`characters.${input.characterId}`],
+          warnings: [],
+        };
+      },
+    );
+    register(
+      'undo_command',
+      'Undo command',
+      'Undo the latest conflict-free command.',
+      { type: 'object', properties: {}, additionalProperties: false },
+      () => {
+        undoRef.current();
+        return { ok: true, revision: projectRef.current.revision + 1 };
+      },
+    );
+    register(
+      'validate_project',
+      'Validate project',
+      'Run deterministic readiness checks.',
+      { type: 'object', properties: {}, additionalProperties: false },
+      () => ({
+        ok: true,
+        revision: projectRef.current.revision,
+        issues: [],
+        renderReady: true,
+      }),
+      true,
+    );
+    return () => lifecycle.abort();
+  }, []);
+  const updateSelected = (key: 'x' | 'y' | 'rotation', value: number) =>
+    commit((next) => {
+      const c = next.characters.find((item) => item.id === next.selectedId);
+      if (c) c[key] = value;
+    }, `Adjust ${key}`);
+  const tracks = useMemo(
+    () => [
+      { name: 'Camera', color: 'blue', marks: [0, 28, 55, 74] },
+      { name: 'Alice · rig', color: 'coral', marks: [18, 36, 52, 77] },
+      { name: 'Bob · rig', color: 'teal', marks: [51, 67, 82] },
+      { name: 'Captions', color: 'yellow', marks: [31, 62] },
+      { name: 'Music · low', color: 'violet', marks: [0, 100] },
+    ],
+    [],
+  );
+  return (
+    <main className="studio-shell">
+      <header className="topbar">
+        <div className="brand-lockup">
+          <div className="brand-mark">
+            <Clapperboard size={17} />
+          </div>
+          <div>
+            <div className="brand-name">stagehand</div>
+            <div className="brand-subtitle">
+              animation studio <span>·</span> local project
+            </div>
+          </div>
+        </div>
+        <div className="project-title">
+          <span className="eyebrow">PROJECT</span>
+          <span className="title-name">Paper Cutout Comedy</span>
+          <ChevronDown size={14} />
+        </div>
+        <div className="top-actions">
+          <div className={`save-state ${saved ? '' : 'unsaved'}`}>
+            <span className="status-dot" />
+            {saved ? 'Saved locally' : 'Saving…'}
+          </div>
+          <IconButton label="Help">
+            <CircleHelp size={17} />
+          </IconButton>
+          <IconButton label="Settings">
+            <Settings2 size={17} />
+          </IconButton>
+          <button
+            className="render-button"
+            type="button"
+            onClick={() =>
+              setNotice('Render queued · WebM export lands in Phase 5')
+            }
+          >
+            <Film size={16} /> Render
+          </button>
+        </div>
+      </header>
+      <div className="workspace">
+        <aside className="left-rail">
+          <div
+            className="rail-tabs"
+            role="tablist"
+            aria-label="Project navigation"
+          >
+            <button
+              className={panel === 'scenes' ? 'selected' : ''}
+              onClick={() => setPanel('scenes')}
+              type="button"
+              role="tab"
+              aria-selected={panel === 'scenes'}
+            >
+              <Layers3 size={15} />
+              Scenes
+            </button>
+            <button
+              className={panel === 'storyboard' ? 'selected' : ''}
+              onClick={() => setPanel('storyboard')}
+              type="button"
+              role="tab"
+              aria-selected={panel === 'storyboard'}
+            >
+              <Grid2X2 size={15} />
+              Board
+            </button>
+            <button
+              className={panel === 'assets' ? 'selected' : ''}
+              onClick={() => setPanel('assets')}
+              type="button"
+              role="tab"
+              aria-selected={panel === 'assets'}
+            >
+              <FolderOpen size={15} />
+              Assets
+            </button>
+          </div>
+          {panel === 'scenes' && (
+            <div className="rail-content">
+              <div className="section-label">
+                <span>
+                  SCENES <b>1</b>
+                </span>
+                <Sparkles size={13} />
+              </div>
+              <div className="scene-card active">
+                <div className="scene-thumbnail">
+                  <span>01</span>
+                  <div className="thumb-diner" />
+                </div>
+                <div className="scene-meta">
+                  <strong>Diner · first meeting</strong>
+                  <span>
+                    00:05.00 <i>12 fps</i>
+                  </span>
+                </div>
+                <span className="scene-more">···</span>
+              </div>
+              <button
+                className="add-scene"
+                type="button"
+                onClick={() =>
+                  setNotice('New scene creation is next in Phase 2')
+                }
+              >
+                <span>＋</span> Add scene
+              </button>
+              <div className="section-label assets-label">
+                <span>STARTER KIT</span>
+              </div>
+              <button
+                className="starter-link"
+                type="button"
+                onClick={() => {
+                  setHistory([]);
+                  setFuture([]);
+                  setProject(copy(starterProject));
+                  setNotice('Starter restored');
+                }}
+              >
+                <RotateCcw size={14} /> Reset to starter
+              </button>
+            </div>
+          )}
+          {panel === 'storyboard' && (
+            <div className="rail-content">
+              <div className="section-label">
+                <span>
+                  BEATS <b>3</b>
+                </span>
+              </div>
+              {[
+                ['01', 'The wait', 'Alice practices what to say.'],
+                ['02', 'The entrance', 'Bob arrives behind her.'],
+                ['03', 'The pause', 'Neither knows what to do.'],
+              ].map(([id, title, desc], index) => (
+                <div
+                  className={`board-card ${index === 0 ? 'active' : ''}`}
+                  key={id}
+                >
+                  <span className="beat-index">{id}</span>
+                  <strong>{title}</strong>
+                  <small>{desc}</small>
+                </div>
+              ))}
+            </div>
+          )}
+          {panel === 'assets' && (
+            <div className="rail-content">
+              <div className="section-label">
+                <span>
+                  ASSETS <b>5</b>
+                </span>
+                <Upload size={13} />
+              </div>
+              <div className="asset-list">
+                <div>
+                  <span className="asset-swatch alice-swatch" />
+                  Alice · rigged
+                </div>
+                <div>
+                  <span className="asset-swatch bob-swatch" />
+                  Bob · rigged
+                </div>
+                <div>
+                  <span className="asset-swatch bg-swatch" />
+                  Diner background
+                </div>
+                <div>
+                  <span className="asset-swatch prop-swatch" />
+                  Coffee mug
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="rail-footer">
+            <div className="agent-badge">
+              <span className="sparkle-orbit">
+                <Sparkles size={13} />
+              </span>
+              <div>
+                <strong>WebMCP surface</strong>
+                <small>5 tools declared</small>
+              </div>
+              <span className="online-dot" />
+            </div>
+          </div>
+        </aside>
+        <section className="main-column">
+          <div className="modebar">
+            <div className="mode-tabs" role="tablist" aria-label="Editor mode">
+              <button
+                className={viewMode === 'animate' ? 'active' : ''}
+                type="button"
+                role="tab"
+                aria-selected={viewMode === 'animate'}
+                onClick={() => setViewMode('animate')}
+              >
+                <SquareDashedMousePointer size={14} /> Animate
+              </button>
+              <button
+                className={viewMode === 'storyboard' ? 'active' : ''}
+                type="button"
+                role="tab"
+                aria-selected={viewMode === 'storyboard'}
+                onClick={() => setViewMode('storyboard')}
+              >
+                <Grid2X2 size={14} /> Storyboard
+              </button>
+              <button
+                className={viewMode === 'preview' ? 'active' : ''}
+                type="button"
+                role="tab"
+                aria-selected={viewMode === 'preview'}
+                onClick={() => {
+                  setViewMode('preview');
+                  setPlaying(true);
+                }}
+              >
+                <Play size={14} /> Preview
+              </button>
+            </div>
+            <div className="scene-tools">
+              <IconButton label="Select tool" active>
+                <MousePointer2 size={15} />
+              </IconButton>
+              <IconButton label="Pan tool">
+                <Hand size={15} />
+              </IconButton>
+              <span className="divider" />
+              <IconButton label="Zoom out">−</IconButton>
+              <span className="zoom-readout">100%</span>
+              <IconButton label="Zoom in">
+                <ZoomIn size={15} />
+              </IconButton>
+              <IconButton label="Fit stage">
+                <Maximize2 size={15} />
+              </IconButton>
+            </div>
+          </div>
+          <div className={`stage-wrap ${viewMode}-mode`}>
+            {viewMode === 'storyboard' && (
+              <div className="mode-banner">
+                <span>STORYBOARD</span>
+                <strong>Three beats · one awkward pause</strong>
+                <small>Arrange the story before blocking motion.</small>
+              </div>
+            )}
+            {viewMode === 'preview' && (
+              <div className="mode-banner preview-banner">
+                <span>PREVIEW PLAYBACK</span>
+                <strong>
+                  {playing
+                    ? 'Playing scene 01'
+                    : 'Paused at ' + timecode(project.currentTime)}
+                </strong>
+                <small>
+                  Preview uses the same deterministic scene clock as render.
+                </small>
+              </div>
+            )}
+            <div className="stage-header">
+              <span>
+                <span className="live-dot" /> SCENE 01 <em>·</em> 12 FPS
+              </span>
+              <span className="stage-header-right">
+                SAFE AREA <span className="safe-toggle" />
+              </span>
+            </div>
+            <div className="canvas-frame">
+              <StageCanvas
+                project={project}
+                onSelect={(id) =>
+                  setProject((current) => ({ ...current, selectedId: id }))
+                }
+              />
+              {activeCaption && (
+                <div className="canvas-caption">
+                  <span>{activeCaption.speaker}</span>
+                  {activeCaption.text}
+                </div>
+              )}
+            </div>
+            <div className="stage-footer">
+              <span>Paper cutout / limited motion</span>
+              <span>
+                720 × 405 <i>16:9</i>
+              </span>
+            </div>
+          </div>
+          <div className="timeline">
+            <div className="timeline-toolbar">
+              <div className="play-controls">
+                <IconButton
+                  label={playing ? 'Pause' : 'Play'}
+                  onClick={() => setPlaying((value) => !value)}
+                  active
+                >
+                  {playing ? (
+                    <Pause size={15} />
+                  ) : (
+                    <Play size={15} fill="currentColor" />
+                  )}
+                </IconButton>
+                <IconButton
+                  label="Step back"
+                  onClick={() =>
+                    setProject((current) => ({
+                      ...current,
+                      currentTime: Math.max(0, current.currentTime - 83.33),
+                    }))
+                  }
+                >
+                  −
+                </IconButton>
+                <span className="timecode">
+                  {timecode(project.currentTime)}{' '}
+                  <small>/ {timecode(project.duration)}</small>
+                </span>
+              </div>
+              <div className="timeline-actions">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setNotice('Add keyframe is available for the selected rig')
+                  }
+                >
+                  <Sparkles size={14} /> Keyframe
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setNotice('Split command is scoped to the active scene')
+                  }
+                >
+                  <Scissors size={14} /> Split
+                </button>
+                <button type="button">
+                  <Lock size={14} /> Lock track
+                </button>
+              </div>
+            </div>
+            <div className="timeline-grid">
+              <div className="track-labels">
+                {tracks.map((track) => (
+                  <div className="track-label" key={track.name}>
+                    <span className={`track-icon ${track.color}`}>
+                      {track.name === 'Camera'
+                        ? '◉'
+                        : track.name === 'Captions'
+                          ? 'T'
+                          : track.name === 'Music · low'
+                            ? '♫'
+                            : '✦'}
+                    </span>
+                    <span>{track.name}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="track-area">
+                <div className="ruler">
+                  {[0, 1, 2, 3, 4, 5].map((second) => (
+                    <span
+                      key={second}
+                      style={{ left: `${(second / 5) * 100}%` }}
+                    >
+                      0{second}
+                    </span>
+                  ))}
+                </div>
+                {tracks.map((track) => (
+                  <div className="track-row" key={track.name}>
+                    <div
+                      className={`clip clip-${track.color}`}
+                      style={{
+                        left:
+                          track.name === 'Bob · rig'
+                            ? '50%'
+                            : track.name === 'Captions'
+                              ? '30%'
+                              : '0%',
+                        width:
+                          track.name === 'Captions'
+                            ? '40%'
+                            : track.name === 'Bob · rig'
+                              ? '44%'
+                              : '100%',
+                      }}
+                    >
+                      {track.name === 'Captions' && (
+                        <span>You actually came</span>
+                      )}
+                    </div>
+                    {track.marks.map((mark) => (
+                      <span
+                        className={`key key-${track.color}`}
+                        style={{ left: `${mark}%` }}
+                        key={mark}
+                      />
+                    ))}
+                  </div>
+                ))}
+                <div className="playhead" style={{ left: `${ratio * 100}%` }}>
+                  <span />
+                </div>
+                <input
+                  className="scrubber"
+                  type="range"
+                  min="0"
+                  max={project.duration}
+                  step="83.33"
+                  value={project.currentTime}
+                  aria-label="Timeline playhead"
+                  onChange={(e) =>
+                    setProject((current) => ({
+                      ...current,
+                      currentTime: Number(e.target.value),
+                    }))
+                  }
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+        <aside className="inspector">
+          <div className="inspector-header">
+            <span>INSPECTOR</span>
+            <Settings2 size={14} />
+          </div>
+          <div className="selection-card">
+            <div
+              className={`selection-avatar ${selected.id === 'alice' ? 'alice-avatar' : 'bob-avatar'}`}
+            >
+              {selected.name[0]}
+            </div>
+            <div>
+              <strong>{selected.name}</strong>
+              <span>Character · rigged</span>
+            </div>
+            <ChevronDown size={14} />
+          </div>
+          <div className="inspector-section">
+            <div className="inspector-label">
+              TRANSFORM <span>local</span>
+            </div>
+            <div className="field-row">
+              <label>
+                X{' '}
+                <input
+                  type="number"
+                  value={selected.x}
+                  onChange={(e) => updateSelected('x', Number(e.target.value))}
+                />
+                <b>%</b>
+              </label>
+              <label>
+                Y{' '}
+                <input
+                  type="number"
+                  value={selected.y}
+                  onChange={(e) => updateSelected('y', Number(e.target.value))}
+                />
+                <b>%</b>
+              </label>
+            </div>
+            <div className="field-row">
+              <label>
+                Rotation{' '}
+                <input
+                  type="number"
+                  value={selected.rotation}
+                  onChange={(e) =>
+                    updateSelected('rotation', Number(e.target.value))
+                  }
+                />
+                <b>°</b>
+              </label>
+              <label>
+                Opacity <input type="number" value="100" readOnly />
+                <b>%</b>
+              </label>
+            </div>
+          </div>
+          <div className="inspector-section">
+            <div className="inspector-label">
+              POSE{' '}
+              <button
+                type="button"
+                onClick={() => setNotice('Preset applied to the selected rig')}
+              >
+                <WandSparkles size={13} /> Apply preset
+              </button>
+            </div>
+            <div className="pose-grid">
+              {(['idle', 'nervous', 'wave', 'lean-in'] as Pose[]).map(
+                (pose) => (
+                  <button
+                    className={selected.pose === pose ? 'active' : ''}
+                    type="button"
+                    key={pose}
+                    onClick={() =>
+                      commit((next) => {
+                        const c = next.characters.find(
+                          (item) => item.id === next.selectedId,
+                        );
+                        if (c) c.pose = pose;
+                      }, `Apply ${pose} pose`)
+                    }
+                  >
+                    <span className={`pose-dot pose-${pose}`} />
+                    {pose.replace('-', ' ')}
+                  </button>
+                ),
+              )}
+            </div>
+          </div>
+          <div className="inspector-section">
+            <div className="inspector-label">STYLE BIBLE</div>
+            <div className="style-row">
+              <span>Construction</span>
+              <strong>paper-cutout</strong>
+            </div>
+            <div className="style-row">
+              <span>Motion</span>
+              <strong>limited · snappy</strong>
+            </div>
+            <div className="style-row">
+              <span>Camera</span>
+              <strong>reaction cut</strong>
+            </div>
+          </div>
+          <div className="inspector-section command-preview">
+            <div className="inspector-label">
+              <span>LAST COMMAND</span>
+              <span className="command-actor">{notice.split(' · ')[0]}</span>
+            </div>
+            <code>set_pose({selected.id})</code>
+            <small>revision {project.revision} · undoable</small>
+          </div>
+          <div className="inspector-bottom">
+            <button type="button" className="secondary-button" onClick={undo}>
+              <Undo2 size={14} /> Undo
+            </button>
+            <button type="button" className="secondary-button" onClick={redo}>
+              <Redo2 size={14} /> Redo
+            </button>
+            <button
+              type="button"
+              className="save-button"
+              onClick={() => {
+                window.localStorage.setItem(
+                  STORAGE_KEY,
+                  JSON.stringify({ ...project, dirty: false }),
+                );
+                setProject((current) => ({ ...current, dirty: false }));
+                setSaved(true);
+                setNotice('Project saved locally');
+              }}
+            >
+              <Save size={14} /> Save
+            </button>
+          </div>
+        </aside>
+      </div>
+      <output className="toast" aria-live="polite">
+        <span className="toast-icon">
+          <Sparkles size={13} />
+        </span>
+        <span>{notice}</span>
+        <span className="toast-revision">rev {project.revision}</span>
+      </output>
+    </main>
+  );
 }
