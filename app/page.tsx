@@ -42,7 +42,7 @@ import {
   ZoomIn,
 } from 'lucide-react';
 
-type Pose = 'idle' | 'nervous' | 'wave' | 'lean-in';
+type Pose = 'idle' | 'nervous' | 'wave' | 'lean-in' | 'point' | 'shrug';
 type AssetKind = 'rigged-character' | 'background' | 'prop' | 'audio';
 type AssetFrameLayout = 'single' | 'four-column';
 type TemplateId =
@@ -700,7 +700,9 @@ const isPose = (value: unknown): value is Pose =>
   value === 'idle' ||
   value === 'nervous' ||
   value === 'wave' ||
-  value === 'lean-in';
+  value === 'lean-in' ||
+  value === 'point' ||
+  value === 'shrug';
 const isAssetKind = (value: unknown): value is AssetKind =>
   value === 'rigged-character' ||
   value === 'background' ||
@@ -763,9 +765,9 @@ function poseFrameIndex(pose: Pose, frameCount: number) {
   if (frameCount < 4) return 0;
   return pose === 'nervous'
     ? 1
-    : pose === 'wave'
+    : pose === 'wave' || pose === 'point'
       ? 2
-      : pose === 'lean-in'
+      : pose === 'lean-in' || pose === 'shrug'
         ? 3
         : 0;
 }
@@ -1479,10 +1481,26 @@ function drawCharacter(
   ctx.lineTo(-34, 7);
   ctx.moveTo(24, -10);
   ctx.lineTo(34, 7);
+  const leftArm =
+    c.pose === 'wave'
+      ? { x: -79, y: -204 }
+      : c.pose === 'point'
+        ? { x: -92, y: -116 }
+        : c.pose === 'shrug'
+          ? { x: -58, y: -103 }
+          : { x: -65, y: -67 };
+  const rightArm =
+    c.pose === 'point'
+      ? { x: 92, y: -116 }
+      : c.pose === 'shrug'
+        ? { x: 58, y: -103 }
+        : c.pose === 'lean-in'
+          ? { x: 75, y: -65 }
+          : { x: 66, y: -65 };
   ctx.moveTo(-38, -128);
-  ctx.lineTo(c.pose === 'wave' ? -79 : -65, c.pose === 'wave' ? -204 : -67);
+  ctx.lineTo(leftArm.x, leftArm.y);
   ctx.moveTo(38, -128);
-  ctx.lineTo(c.pose === 'lean-in' ? 75 : 66, -65);
+  ctx.lineTo(rightArm.x, rightArm.y);
   ctx.stroke();
   if (c.pose === 'wave') {
     ctx.beginPath();
@@ -1881,20 +1899,19 @@ export default function Home() {
     camera = evaluateCamera(project, project.currentTime);
   const commit = useCallback(
     (mutate: (next: Project) => void, label: string, agent = false) => {
-      setProject((current) => {
-        const next = copy(current);
-        mutate(next);
-        syncActiveScene(next);
-        next.revision += 1;
-        next.dirty = true;
-        setHistory((items) => [...items.slice(-29), copy(current)]);
-        setFuture([]);
-        setSaved(false);
-        setLastCommand(label);
-        setNotice(`${agent ? 'Agent' : 'Human'} · ${label}`);
-        projectRef.current = next;
-        return next;
-      });
+      const current = projectRef.current;
+      const next = copy(current);
+      mutate(next);
+      syncActiveScene(next);
+      next.revision += 1;
+      next.dirty = true;
+      projectRef.current = next;
+      setProject(next);
+      setHistory((items) => [...items.slice(-29), copy(current)]);
+      setFuture([]);
+      setSaved(false);
+      setLastCommand(label);
+      setNotice(`${agent ? 'Agent' : 'Human'} · ${label}`);
     },
     [],
   );
@@ -1989,16 +2006,14 @@ export default function Home() {
       height: output.height,
     };
   }, [project]);
-  const selectedRef = useRef(selected),
-    commitRef = useRef(commit),
+  const commitRef = useRef(commit),
     undoRef = useRef(undo);
   useEffect(() => {
     projectRef.current = project;
-    selectedRef.current = selected;
     commitRef.current = commit;
     undoRef.current = undo;
     exportStillRef.current = exportStill;
-  }, [project, selected, commit, undo, exportStill]);
+  }, [project, commit, undo, exportStill]);
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const stored = window.localStorage.getItem(STORAGE_KEY);
@@ -2579,11 +2594,17 @@ export default function Home() {
       'Get selection',
       'Inspect current selection and transform.',
       { type: 'object', properties: {}, additionalProperties: false },
-      () => ({
-        ok: true,
-        revision: projectRef.current.revision,
-        selection: selectedRef.current,
-      }),
+      () => {
+        const current = projectRef.current;
+        return {
+          ok: true,
+          revision: current.revision,
+          selection:
+            evaluateCharacters(current, current.currentTime).find(
+              (character) => character.id === current.selectedId,
+            ) ?? null,
+        };
+      },
       true,
     );
     register(
@@ -3453,7 +3474,7 @@ export default function Home() {
           rotation: { type: 'number' },
           pose: {
             type: 'string',
-            enum: ['idle', 'nervous', 'wave', 'lean-in'],
+            enum: ['idle', 'nervous', 'wave', 'lean-in', 'point', 'shrug'],
           },
         },
       },
@@ -3523,7 +3544,7 @@ export default function Home() {
           rotation: { type: 'number', minimum: -180, maximum: 180 },
           pose: {
             type: 'string',
-            enum: ['idle', 'nervous', 'wave', 'lean-in'],
+            enum: ['idle', 'nervous', 'wave', 'lean-in', 'point', 'shrug'],
           },
         },
       },
@@ -3724,7 +3745,10 @@ export default function Home() {
         additionalProperties: false,
         properties: {
           characterId: { type: 'string' },
-          preset: { type: 'string', enum: ['nervous', 'entrance', 'reaction'] },
+          preset: {
+            type: 'string',
+            enum: ['nervous', 'entrance', 'reaction', 'walk-in'],
+          },
         },
       },
       (input) => {
@@ -3734,7 +3758,8 @@ export default function Home() {
           !current.characters.some((item) => item.id === input.characterId) ||
           (input.preset !== 'nervous' &&
             input.preset !== 'entrance' &&
-            input.preset !== 'reaction')
+            input.preset !== 'reaction' &&
+            input.preset !== 'walk-in')
         )
           return { ok: false, code: 'INVALID_INPUT' };
         if (isTrackLocked(current, input.characterId))
@@ -3764,18 +3789,38 @@ export default function Home() {
                   pose: 'nervous' as Pose,
                 },
               ]
-            : preset === 'entrance'
+            : preset === 'entrance' || preset === 'walk-in'
               ? [
                   {
                     time: start,
-                    x: clamp(character.x + 12, 0, 100),
+                    x: clamp(
+                      character.x + (preset === 'walk-in' ? 16 : 12),
+                      0,
+                      100,
+                    ),
                     pose: 'idle' as Pose,
                   },
                   {
-                    time: start + 700,
-                    x: character.x,
-                    pose: 'lean-in' as Pose,
+                    time: start + (preset === 'walk-in' ? 450 : 700),
+                    x: clamp(
+                      character.x + (preset === 'walk-in' ? 7 : 0),
+                      0,
+                      100,
+                    ),
+                    pose:
+                      preset === 'walk-in'
+                        ? ('idle' as Pose)
+                        : ('lean-in' as Pose),
                   },
+                  ...(preset === 'walk-in'
+                    ? [
+                        {
+                          time: start + 900,
+                          x: character.x,
+                          pose: 'lean-in' as Pose,
+                        },
+                      ]
+                    : []),
                 ]
               : [
                   {
@@ -3896,6 +3941,23 @@ export default function Home() {
         }),
       );
     }, 'Apply nervous motion');
+  };
+  const applyWalkPreset = () => {
+    if (isTrackLocked(project, project.selectedId)) {
+      setNotice(`${selected.name} track is locked`);
+      return;
+    }
+    const start = project.currentTime;
+    const x = selected.x;
+    commit((next) => {
+      [
+        { time: start, x: clamp(x + 16, 0, 100), pose: 'idle' as Pose },
+        { time: start + 450, x: clamp(x + 7, 0, 100), pose: 'idle' as Pose },
+        { time: start + 900, x, pose: 'lean-in' as Pose },
+      ].forEach((frame) =>
+        upsertCharacterKeyframe(next, next.selectedId, frame.time, frame),
+      );
+    }, 'Apply walk-in motion');
   };
   const setSelectedPose = (pose: Pose) => {
     if (isTrackLocked(project, project.selectedId)) {
@@ -5828,35 +5890,51 @@ export default function Home() {
           </div>
           <div className="inspector-section">
             <div className="inspector-label">
-              POSE{' '}
-              <button
-                type="button"
-                onClick={applyNervousPreset}
-                title="Add a three-keyframe nervous motion preset"
-              >
-                <WandSparkles size={13} /> Apply preset
-              </button>
+              <span>POSE</span>
+              <span className="motion-preset-actions">
+                <button
+                  type="button"
+                  onClick={applyNervousPreset}
+                  title="Add a three-keyframe nervous motion preset"
+                >
+                  <WandSparkles size={12} /> Nervous
+                </button>
+                <button
+                  type="button"
+                  onClick={applyWalkPreset}
+                  title="Add a three-keyframe walk-in motion preset"
+                >
+                  <WandSparkles size={12} /> Walk in
+                </button>
+              </span>
             </div>
             <div className="pose-grid">
-              {(['idle', 'nervous', 'wave', 'lean-in'] as Pose[]).map(
-                (pose) => (
-                  <button
-                    className={selected.pose === pose ? 'active' : ''}
-                    type="button"
-                    key={pose}
-                    disabled={isTrackLocked(project, selected.id)}
-                    title={
-                      isTrackLocked(project, selected.id)
-                        ? 'Unlock the character track to edit poses'
-                        : `Apply ${pose.replace('-', ' ')} pose`
-                    }
-                    onClick={() => setSelectedPose(pose)}
-                  >
-                    <span className={`pose-dot pose-${pose}`} />
-                    {pose.replace('-', ' ')}
-                  </button>
-                ),
-              )}
+              {(
+                [
+                  'idle',
+                  'nervous',
+                  'wave',
+                  'lean-in',
+                  'point',
+                  'shrug',
+                ] as Pose[]
+              ).map((pose) => (
+                <button
+                  className={selected.pose === pose ? 'active' : ''}
+                  type="button"
+                  key={pose}
+                  disabled={isTrackLocked(project, selected.id)}
+                  title={
+                    isTrackLocked(project, selected.id)
+                      ? 'Unlock the character track to edit poses'
+                      : `Apply ${pose.replace('-', ' ')} pose`
+                  }
+                  onClick={() => setSelectedPose(pose)}
+                >
+                  <span className={`pose-dot pose-${pose}`} />
+                  {pose.replace('-', ' ')}
+                </button>
+              ))}
             </div>
           </div>
           <div className="inspector-section caption-editor">

@@ -1405,6 +1405,11 @@ button {
   font-size: 9px;
   font-weight: 750;
 }
+.motion-preset-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
 .field-row {
   gap: 7px;
   margin-bottom: 7px;
@@ -1621,6 +1626,12 @@ button {
 }
 .pose-lean-in {
   background: var(--blue);
+}
+.pose-point {
+  background: #53958b;
+}
+.pose-shrug {
+  background: var(--violet);
 }
 .style-row {
   justify-content: space-between;
