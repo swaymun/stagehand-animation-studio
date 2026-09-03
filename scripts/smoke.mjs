@@ -103,7 +103,23 @@ const bridge = await page.evaluate(async () => {
   const renamed = await call('set_project_name', {
     name: 'Smoke Project',
     expectedRevision: initial.revision,
+    idempotencyKey: 'smoke-rename-1',
   });
+  const renamedReplay = await call('set_project_name', {
+    name: 'Smoke Project',
+    expectedRevision: initial.revision,
+    idempotencyKey: 'smoke-rename-1',
+  });
+  if (
+    !renamed.ok ||
+    !renamedReplay.ok ||
+    !renamedReplay.idempotentReplay ||
+    renamedReplay.revision !== renamed.revision
+  ) {
+    throw new Error(
+      `expected idempotent replay, got ${JSON.stringify({ renamed, renamedReplay })}`,
+    );
+  }
   const posed = await call('set_pose', {
     characterId: 'alice',
     pose: 'point',
@@ -152,6 +168,11 @@ const bridge = await page.evaluate(async () => {
       actualRevision: stale.actualRevision,
     },
     renamed: { ok: renamed.ok, revision: renamed.revision },
+    idempotency: {
+      ok: renamedReplay.ok,
+      replay: renamedReplay.idempotentReplay,
+      revision: renamedReplay.revision,
+    },
     posed: { ok: posed.ok, revision: posed.revision },
     audio: { ok: audio.ok, volume: audio.cue?.volume },
     prop: {

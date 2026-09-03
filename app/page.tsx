@@ -2067,6 +2067,7 @@ export default function Home() {
   const importInputRef = useRef<HTMLInputElement>(null);
   const assetImportInputRef = useRef<HTMLInputElement>(null);
   const projectNameInputRef = useRef<HTMLInputElement>(null);
+  const commandResultsRef = useRef(new Map<string, Record<string, unknown>>());
   const projectRef = useRef(project);
   const historyRef = useRef<Project[]>([]);
   const futureRef = useRef<Project[]>([]);
@@ -2371,6 +2372,13 @@ export default function Home() {
                 description:
                   'Optional optimistic-concurrency check. Use the revision from a fresh read; the command is rejected if it is stale.',
               },
+              idempotencyKey: {
+                type: 'string',
+                minLength: 1,
+                maxLength: 120,
+                description:
+                  'Optional retry key. Repeating the same key for this tool replays the successful result without applying the mutation twice.',
+              },
             },
           };
       const guardedExecute: ModelTool['execute'] = readOnlyHint
@@ -2398,9 +2406,42 @@ export default function Home() {
                 retryFrom: 'get_project_summary',
               };
             }
-            const { expectedRevision: _expectedRevision, ...commandInput } =
-              input;
+            const commandInput = { ...input };
+            delete commandInput.expectedRevision;
+            delete commandInput.idempotencyKey;
             return execute(commandInput);
+          };
+      const replayableExecute: ModelTool['execute'] = readOnlyHint
+        ? execute
+        : (input) => {
+            const idempotencyKey = input.idempotencyKey;
+            const cacheKey =
+              typeof idempotencyKey === 'string' && idempotencyKey.trim()
+                ? `${name}:${idempotencyKey.trim()}`
+                : null;
+            if (cacheKey) {
+              const previous = commandResultsRef.current.get(cacheKey);
+              if (previous) return { ...previous, idempotentReplay: true };
+            }
+            const output = guardedExecute(input);
+            const cacheSuccessful = (result: unknown) => {
+              if (
+                cacheKey &&
+                result &&
+                typeof result === 'object' &&
+                !Array.isArray(result) &&
+                (result as { ok?: unknown }).ok === true
+              ) {
+                commandResultsRef.current.set(
+                  cacheKey,
+                  result as Record<string, unknown>,
+                );
+              }
+              return result;
+            };
+            return output instanceof Promise
+              ? output.then(cacheSuccessful)
+              : cacheSuccessful(output);
           };
       void Promise.resolve(
         modelContext.registerTool(
@@ -2410,7 +2451,7 @@ export default function Home() {
             description,
             inputSchema: schema,
             annotations: { readOnlyHint, untrustedContentHint: false },
-            execute: guardedExecute,
+            execute: replayableExecute,
           },
           { signal: lifecycle.signal },
         ),
@@ -5199,6 +5240,7 @@ export default function Home() {
           JSON.parse(contents) as Partial<Project>,
         );
         projectRef.current = imported;
+        commandResultsRef.current.clear();
         historyRef.current = [];
         futureRef.current = [];
         setProject(imported);
@@ -5837,6 +5879,7 @@ export default function Home() {
                     onClick={() => {
                       const starter = copy(starterProject);
                       projectRef.current = starter;
+                      commandResultsRef.current.clear();
                       historyRef.current = [];
                       futureRef.current = [];
                       setHistory([]);
