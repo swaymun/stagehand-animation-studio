@@ -63,8 +63,8 @@ npm run smoke:native PASS
 
 The local smoke result verified:
 
-- 52 registered tools and no page errors.
-- 39 mutating tools expose the concurrency/retry contract; a stale pose command returns `REVISION_CONFLICT`, and a repeated rename replays at the same revision.
+- 69 registered tools and no page errors.
+- 50 mutating tools expose the concurrency/retry contract; a stale pose command returns `REVISION_CONFLICT`, and a repeated rename replays at the same revision.
 - Human asset-style editor and agent `set_asset_style` update: PASS.
 - Agent partial render-settings update preserves 1080p before an explicit reset to 720p: PASS.
 - Agent `inspect_frame` at 125 ms returns deterministic scene state and 720×405 render metadata: PASS.
@@ -109,7 +109,7 @@ STAGEHAND_URL=https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site np
 STAGEHAND_URL=https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site npm run smoke:native
 ```
 
-Result: PASS. The hosted run verified 69 unique tools, 52 guarded mutations, the generated-asset approval gate, segmented skeleton proposal/correction/approval, guarded bone keyframes, shared frame inspection/export/render evaluation, bundled audio routing, the 15-second six-beat starter, stale-write conflict, idempotent replay, scene retiming, focused-stage keyboard stepping, PNG output with a valid `89504e47` signature, WebM output with a valid `1a45dfa3` EBML/WebM signature, and zero page errors. A separate hosted native Chromium run registered all 69 unique tools with zero registration errors and passed valid/invalid callback checks. `ffprobe` on a hosted WebM confirmed VP9 video plus Opus audio streams. Luna 5.6 completed a visual hosted smoke pass but could not invoke `webmcp_list_tools` in its task environment; the full WebMCP path is therefore covered by the native Chromium gate and Playwright fallback, while the Luna limitation remains explicitly recorded. No Codex TOML entry or restart was needed.
+Result: PASS. The hosted run verified 69 unique tools, 50 guarded mutations, the generated-asset approval gate, segmented skeleton proposal/correction/approval, guarded bone keyframes, shared frame inspection/export/render evaluation, bundled audio routing, the 15-second six-beat starter, stale-write conflict, idempotent replay, scene retiming, focused-stage keyboard stepping, PNG output with a valid `89504e47` signature, WebM output with a valid `1a45dfa3` EBML/WebM signature, and zero page errors. A separate hosted native Chromium run registered all 69 unique tools with zero registration errors and passed valid/invalid callback checks. `ffprobe` on a hosted WebM confirmed VP9 video plus Opus audio streams. Luna 5.6 completed a visual hosted smoke pass but could not invoke `webmcp_list_tools` in its task environment; the full WebMCP path is therefore covered by the native Chromium gate and Playwright fallback, while the Luna limitation remains explicitly recorded. No Codex TOML entry or restart was needed.
 
 ## UI roast and fixes
 
