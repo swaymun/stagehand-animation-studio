@@ -545,11 +545,91 @@ button {
 .asset-list div:hover {
   background: #fffaf2;
 }
+.asset-row {
+  min-width: 0;
+}
+.asset-copy {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+.asset-copy strong {
+  overflow: hidden;
+  color: #5f5956;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 650;
+}
+.asset-copy small {
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 8px;
+}
+.asset-row > button {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  color: #a69d93;
+  background: transparent;
+  font-size: 16px;
+  line-height: 1;
+}
+.asset-row > button:hover {
+  color: #b65f51;
+  background: #f7e7df;
+}
+.asset-add-label {
+  margin: 16px 0 7px;
+  color: #9b9288;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+.asset-add-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+.asset-add-grid button {
+  padding: 7px 4px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--blue);
+  background: #fffaf2;
+  font-size: 8px;
+  font-weight: 700;
+  text-align: left;
+}
+.asset-add-grid button:hover {
+  border-color: var(--blue);
+  background: #fff6eb;
+}
+.asset-hint {
+  margin-top: 9px;
+}
 .asset-swatch {
   width: 22px;
   height: 22px;
   display: inline-block;
   border-radius: 4px;
+}
+.asset-rig {
+  background: linear-gradient(135deg, var(--coral) 0 50%, var(--blue) 50%);
+}
+.asset-background {
+  background: linear-gradient(#f3eadc 0 65%, #b87856 65%);
+}
+.asset-prop {
+  background: #e3bf75;
+}
+.asset-audio {
+  background: linear-gradient(135deg, var(--violet) 0 50%, #cfc2e0 50%);
 }
 .alice-swatch {
   background: var(--coral);

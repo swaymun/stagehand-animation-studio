@@ -40,6 +40,13 @@ import {
 } from 'lucide-react';
 
 type Pose = 'idle' | 'nervous' | 'wave' | 'lean-in';
+type AssetKind = 'rigged-character' | 'background' | 'prop' | 'audio';
+type Asset = {
+  id: string;
+  kind: AssetKind;
+  label: string;
+  source: 'starter' | 'placeholder' | 'imported';
+};
 type Character = {
   id: string;
   name: string;
@@ -100,6 +107,7 @@ type Project = {
   keyframes: Keyframe[];
   cameraKeyframes: CameraKeyframe[];
   captions: Caption[];
+  assets: Asset[];
   scenes: SceneMeta[];
   activeSceneId: string;
   dirty: boolean;
@@ -110,7 +118,7 @@ type ValidationIssue = {
   path: string;
   message: string;
 };
-const WEBMCP_TOOL_COUNT = 23;
+const WEBMCP_TOOL_COUNT = 25;
 type ModelTool = {
   name: string;
   title: string;
@@ -132,6 +140,32 @@ const starterScenes: SceneMeta[] = [
     title: 'Diner · first meeting',
     description: 'Alice waits. Bob arrives behind her.',
     duration: 5000,
+  },
+];
+const starterAssets: Asset[] = [
+  {
+    id: 'alice',
+    kind: 'rigged-character',
+    label: 'Alice · rigged',
+    source: 'starter',
+  },
+  {
+    id: 'bob',
+    kind: 'rigged-character',
+    label: 'Bob · rigged',
+    source: 'starter',
+  },
+  {
+    id: 'diner-background',
+    kind: 'background',
+    label: 'Diner background',
+    source: 'starter',
+  },
+  {
+    id: 'coffee-mug',
+    kind: 'prop',
+    label: 'Coffee mug',
+    source: 'starter',
   },
 ];
 const starterCameraKeyframes: CameraKeyframe[] = [
@@ -319,6 +353,7 @@ const starterProject: Project = {
       speaker: 'Bob',
     },
   ],
+  assets: starterAssets,
   scenes: starterScenes,
   activeSceneId: 'scene-01',
 };
@@ -331,6 +366,11 @@ const isPose = (value: unknown): value is Pose =>
   value === 'nervous' ||
   value === 'wave' ||
   value === 'lean-in';
+const isAssetKind = (value: unknown): value is AssetKind =>
+  value === 'rigged-character' ||
+  value === 'background' ||
+  value === 'prop' ||
+  value === 'audio';
 
 function nextSceneId(scenes: SceneMeta[]) {
   let index = scenes.length + 1;
@@ -340,6 +380,26 @@ function nextSceneId(scenes: SceneMeta[]) {
     id = `scene-${String(index).padStart(2, '0')}`;
   }
   return id;
+}
+
+function nextAssetId(assets: Asset[], kind: AssetKind) {
+  let index = assets.length + 1;
+  let id = `asset-${kind}-${String(index).padStart(2, '0')}`;
+  while (assets.some((asset) => asset.id === id)) {
+    index += 1;
+    id = `asset-${kind}-${String(index).padStart(2, '0')}`;
+  }
+  return id;
+}
+
+function assetKindLabel(kind: AssetKind) {
+  return kind === 'rigged-character'
+    ? 'Rigged character'
+    : kind === 'background'
+      ? 'Background'
+      : kind === 'prop'
+        ? 'Prop'
+        : 'Audio';
 }
 
 function loadSceneContent(project: Project, sceneId: string) {
@@ -475,6 +535,10 @@ const hydrateProject = (value: Partial<Project>): Project => {
   const fallbackCaptions = Array.isArray(value.captions)
     ? value.captions
     : base.captions;
+  const fallbackAssets =
+    Array.isArray(value.assets) && value.assets.length > 0
+      ? value.assets
+      : base.assets;
   const rawScenes =
     Array.isArray(value.scenes) && value.scenes.length > 0
       ? value.scenes
@@ -510,6 +574,7 @@ const hydrateProject = (value: Partial<Project>): Project => {
       activeScene.cameraKeyframes ?? fallbackCameraKeyframes,
     ),
     captions: copy(activeScene.captions ?? fallbackCaptions),
+    assets: copy(fallbackAssets),
   };
 };
 
@@ -1127,6 +1192,7 @@ export default function Home() {
           keyframeCount: current.keyframes.length,
           cameraKeyframeCount: current.cameraKeyframes.length,
           captionCount: current.captions.length,
+          assetCount: current.assets.length,
         };
       },
       true,
@@ -1342,21 +1408,86 @@ export default function Home() {
       'Get asset manifest',
       'Inspect the structured assets available to the active project.',
       { type: 'object', properties: {}, additionalProperties: false },
-      () => ({
-        ok: true,
-        revision: projectRef.current.revision,
-        assets: [
-          { id: 'alice', kind: 'rigged-character', label: 'Alice' },
-          { id: 'bob', kind: 'rigged-character', label: 'Bob' },
-          {
-            id: 'diner-background',
-            kind: 'background',
-            label: 'Diner background',
-          },
-          { id: 'coffee-mug', kind: 'prop', label: 'Coffee mug' },
-        ],
-      }),
+      () => {
+        const current = projectRef.current;
+        return {
+          ok: true,
+          revision: current.revision,
+          assets: current.assets,
+        };
+      },
       true,
+    );
+    register(
+      'add_asset',
+      'Add asset',
+      'Add a structured placeholder asset to the project asset library for later media replacement.',
+      {
+        type: 'object',
+        required: ['kind', 'label'],
+        additionalProperties: false,
+        properties: {
+          kind: {
+            type: 'string',
+            enum: ['rigged-character', 'background', 'prop', 'audio'],
+          },
+          label: { type: 'string', minLength: 1 },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const label = typeof input.label === 'string' ? input.label.trim() : '';
+        if (!isAssetKind(input.kind) || !label)
+          return { ok: false, code: 'INVALID_INPUT' };
+        const asset: Asset = {
+          id: nextAssetId(current.assets, input.kind),
+          kind: input.kind,
+          label,
+          source: 'placeholder',
+        };
+        commitRef.current(
+          (next) => {
+            next.assets.push(asset);
+          },
+          `Add asset ${label}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          asset,
+          changedEntityIds: [asset.id],
+        };
+      },
+    );
+    register(
+      'remove_asset',
+      'Remove asset',
+      'Remove one asset from the project asset library without changing scene timing or animation.',
+      {
+        type: 'object',
+        required: ['assetId'],
+        additionalProperties: false,
+        properties: { assetId: { type: 'string' } },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const assetId = typeof input.assetId === 'string' ? input.assetId : '';
+        const asset = current.assets.find((item) => item.id === assetId);
+        if (!asset) return { ok: false, code: 'NOT_FOUND' };
+        commitRef.current(
+          (next) => {
+            next.assets = next.assets.filter((item) => item.id !== assetId);
+          },
+          `Remove asset ${asset.label}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          removedAssetId: assetId,
+        };
+      },
     );
     register(
       'set_selection',
@@ -2041,6 +2172,22 @@ export default function Home() {
       ].forEach((frame) => upsertCameraKeyframe(next, frame.time, frame));
     }, 'Apply reaction cut');
   };
+  const addAsset = (kind: AssetKind) => {
+    const label = `${assetKindLabel(kind)} ${project.assets.length + 1}`;
+    commit((next) => {
+      next.assets.push({
+        id: nextAssetId(next.assets, kind),
+        kind,
+        label,
+        source: 'placeholder',
+      });
+    }, `Add asset ${label}`);
+  };
+  const removeAsset = (asset: Asset) => {
+    commit((next) => {
+      next.assets = next.assets.filter((item) => item.id !== asset.id);
+    }, `Remove asset ${asset.label}`);
+  };
   const addScene = () => {
     const sceneNumber = project.scenes.length + 1;
     const scene = {
@@ -2543,28 +2690,56 @@ export default function Home() {
             <div className="rail-content">
               <div className="section-label">
                 <span>
-                  ASSETS <b>4</b>
+                  ASSETS <b>{project.assets.length}</b>
                 </span>
                 <Upload size={13} />
               </div>
               <div className="asset-list">
-                <div>
-                  <span className="asset-swatch alice-swatch" />
-                  Alice · rigged
-                </div>
-                <div>
-                  <span className="asset-swatch bob-swatch" />
-                  Bob · rigged
-                </div>
-                <div>
-                  <span className="asset-swatch bg-swatch" />
-                  Diner background
-                </div>
-                <div>
-                  <span className="asset-swatch prop-swatch" />
-                  Coffee mug
-                </div>
+                {project.assets.map((asset) => (
+                  <div className="asset-row" key={asset.id}>
+                    <span
+                      className={`asset-swatch asset-${asset.kind.replace('rigged-character', 'rig')}`}
+                    />
+                    <span className="asset-copy">
+                      <strong>{asset.label}</strong>
+                      <small>
+                        {assetKindLabel(asset.kind)} · {asset.source}
+                      </small>
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={`Remove ${asset.label}`}
+                      title={`Remove ${asset.label}`}
+                      onClick={() => removeAsset(asset)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
               </div>
+              <div className="asset-add-label">ADD PLACEHOLDER</div>
+              <div className="asset-add-grid">
+                {(
+                  [
+                    'rigged-character',
+                    'background',
+                    'prop',
+                    'audio',
+                  ] as AssetKind[]
+                ).map((kind) => (
+                  <button
+                    type="button"
+                    key={kind}
+                    onClick={() => addAsset(kind)}
+                  >
+                    + {assetKindLabel(kind)}
+                  </button>
+                ))}
+              </div>
+              <small className="panel-hint asset-hint">
+                Placeholders keep the scene editable until an imported or
+                generated file replaces them.
+              </small>
             </div>
           )}
           <div className="rail-footer">
