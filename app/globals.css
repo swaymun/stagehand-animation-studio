@@ -241,12 +241,19 @@ button {
 .scene-card {
   position: relative;
   display: flex;
+  width: 100%;
   gap: 9px;
   padding: 7px;
-  border: 1px solid var(--coral);
+  border: 1px solid var(--line);
   border-radius: 7px;
+  color: var(--ink);
+  text-align: left;
+  appearance: none;
   background: #fffaf2;
   box-shadow: 0 2px 0 rgba(41, 39, 42, 0.05);
+}
+.scene-card.active {
+  border-color: var(--coral);
 }
 .scene-thumbnail {
   width: 51px;

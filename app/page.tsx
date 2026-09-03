@@ -38,6 +38,12 @@ type Character = {
   rotation: number;
   pose: Pose;
 };
+type SceneMeta = {
+  id: string;
+  title: string;
+  description: string;
+  duration: number;
+};
 type Project = {
   revision: number;
   duration: number;
@@ -51,6 +57,8 @@ type Project = {
     end: number;
     speaker: string;
   }[];
+  scenes: SceneMeta[];
+  activeSceneId: string;
   dirty: boolean;
 };
 type ModelTool = {
@@ -68,6 +76,14 @@ type ModelContext = {
   ) => void | Promise<void>;
 };
 const STORAGE_KEY = 'stagehand-paper-cutout-comedy-v1';
+const starterScenes: SceneMeta[] = [
+  {
+    id: 'scene-01',
+    title: 'Diner · first meeting',
+    description: 'Alice waits. Bob arrives behind her.',
+    duration: 5000,
+  },
+];
 const starterProject: Project = {
   revision: 7,
   duration: 5000,
@@ -110,7 +126,18 @@ const starterProject: Project = {
       speaker: 'Bob',
     },
   ],
+  scenes: starterScenes,
+  activeSceneId: 'scene-01',
 };
+const hydrateProject = (value: Partial<Project>): Project => ({
+  ...copy(starterProject),
+  ...value,
+  scenes:
+    Array.isArray(value.scenes) && value.scenes.length > 0
+      ? value.scenes
+      : copy(starterScenes),
+  activeSceneId: value.activeSceneId ?? 'scene-01',
+});
 const copy = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const timecode = (ms: number) => `${(ms / 1000).toFixed(2).padStart(4, '0')}s`;
 
@@ -461,7 +488,7 @@ export default function Home() {
       const stored = window.localStorage.getItem(STORAGE_KEY);
       if (stored) {
         try {
-          setProject(JSON.parse(stored) as Project);
+          setProject(hydrateProject(JSON.parse(stored) as Partial<Project>));
           setNotice('Recovered local project');
         } catch {
           /* starter remains */
@@ -532,10 +559,49 @@ export default function Home() {
           revision: current.revision,
           name: 'Paper Cutout Comedy',
           durationMs: current.duration,
-          sceneCount: 1,
+          sceneCount: current.scenes.length,
+          activeSceneId: current.activeSceneId,
           selectedId: current.selectedId,
         };
       },
+      true,
+    );
+    register(
+      'get_scene',
+      'Get active scene',
+      'Inspect the active scene metadata and timing.',
+      { type: 'object', properties: {}, additionalProperties: false },
+      () => {
+        const current = projectRef.current;
+        return {
+          ok: true,
+          revision: current.revision,
+          scene: current.scenes.find(
+            (scene) => scene.id === current.activeSceneId,
+          ),
+        };
+      },
+      true,
+    );
+    register(
+      'get_storyboard',
+      'Get storyboard beats',
+      'Inspect the ordered story beats for the active project.',
+      { type: 'object', properties: {}, additionalProperties: false },
+      () => ({
+        ok: true,
+        revision: projectRef.current.revision,
+        beats: [
+          { id: 'beat-01', title: 'The wait', startMs: 0, endMs: 1550 },
+          {
+            id: 'beat-02',
+            title: 'The entrance',
+            startMs: 1550,
+            endMs: 3100,
+          },
+          { id: 'beat-03', title: 'The pause', startMs: 3100, endMs: 5000 },
+        ],
+      }),
       true,
     );
     register(
@@ -549,6 +615,50 @@ export default function Home() {
         selection: selectedRef.current,
       }),
       true,
+    );
+    register(
+      'add_scene',
+      'Add scene',
+      'Append a new editable scene without changing existing scene content.',
+      {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          title: { type: 'string' },
+          description: { type: 'string' },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const sceneNumber = current.scenes.length + 1;
+        const scene = {
+          id: `scene-${String(sceneNumber).padStart(2, '0')}`,
+          title:
+            typeof input.title === 'string' && input.title.trim()
+              ? input.title.trim()
+              : `Scene ${String(sceneNumber).padStart(2, '0')}`,
+          description:
+            typeof input.description === 'string' && input.description.trim()
+              ? input.description.trim()
+              : 'New scene ready for blocking.',
+          duration: current.duration,
+        } satisfies SceneMeta;
+        commitRef.current(
+          (next) => {
+            next.scenes.push(scene);
+            next.activeSceneId = scene.id;
+          },
+          `Add ${scene.title}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          scene,
+          changedEntityIds: [scene.id],
+          warnings: [],
+        };
+      },
     );
     register(
       'set_pose',
@@ -630,6 +740,19 @@ export default function Home() {
       const c = next.characters.find((item) => item.id === next.selectedId);
       if (c) c[key] = value;
     }, `Adjust ${key}`);
+  const addScene = () => {
+    const sceneNumber = project.scenes.length + 1;
+    const scene = {
+      id: `scene-${String(sceneNumber).padStart(2, '0')}`,
+      title: `Scene ${String(sceneNumber).padStart(2, '0')}`,
+      description: 'New scene ready for blocking.',
+      duration: project.duration,
+    } satisfies SceneMeta;
+    commit((next) => {
+      next.scenes.push(scene);
+      next.activeSceneId = scene.id;
+    }, `Add ${scene.title}`);
+  };
   const renderWebM = useCallback(() => {
     if (rendering) return;
     const canvas = document.querySelector(
@@ -779,30 +902,37 @@ export default function Home() {
             <div className="rail-content">
               <div className="section-label">
                 <span>
-                  SCENES <b>1</b>
+                  SCENES <b>{project.scenes.length}</b>
                 </span>
                 <Sparkles size={13} />
               </div>
-              <div className="scene-card active">
-                <div className="scene-thumbnail">
-                  <span>01</span>
-                  <div className="thumb-diner" />
-                </div>
-                <div className="scene-meta">
-                  <strong>Diner · first meeting</strong>
-                  <span>
-                    00:05.00 <i>12 fps</i>
-                  </span>
-                </div>
-                <span className="scene-more">···</span>
-              </div>
-              <button
-                className="add-scene"
-                type="button"
-                onClick={() =>
-                  setNotice('New scene creation is next in Phase 2')
-                }
-              >
+              {project.scenes.map((scene, index) => (
+                <button
+                  className={`scene-card ${scene.id === project.activeSceneId ? 'active' : ''}`}
+                  key={scene.id}
+                  type="button"
+                  onClick={() =>
+                    commit((next) => {
+                      next.activeSceneId = scene.id;
+                      next.duration = scene.duration;
+                      next.currentTime = 0;
+                    }, `Open ${scene.title}`)
+                  }
+                >
+                  <div className="scene-thumbnail">
+                    <span>{String(index + 1).padStart(2, '0')}</span>
+                    <div className="thumb-diner" />
+                  </div>
+                  <div className="scene-meta">
+                    <strong>{scene.title}</strong>
+                    <span>
+                      {timecode(scene.duration)} <i>12 fps</i>
+                    </span>
+                  </div>
+                  <span className="scene-more">···</span>
+                </button>
+              ))}
+              <button className="add-scene" type="button" onClick={addScene}>
                 <span>＋</span> Add scene
               </button>
               <div className="section-label assets-label">
@@ -880,7 +1010,7 @@ export default function Home() {
               </span>
               <div>
                 <strong>WebMCP surface</strong>
-                <small>5 tools declared</small>
+                <small>9 tools declared</small>
               </div>
               <span className="online-dot" />
             </div>
