@@ -60,7 +60,7 @@ The local smoke result verified:
 - Undo/redo revisions: PASS.
 - Second scene: PASS.
 - Agent-triggered WebM: `sceneCount: 2`, `durationMs: 1000`, downloaded bytes > 0.
-- Storyboard cards: `3`.
+- Storyboard cards: `6`.
 - Preview banner and canvas: present; inspector hidden; Board/Assets tabs and scene mutation actions hidden; Exit preview present.
 - Help dialog: labelled heading and `aria-modal="true"` landmark present; close action works.
 - Reload recovery: renamed two-scene project and imported asset restored from local storage: PASS.
@@ -68,7 +68,7 @@ The local smoke result verified:
 - Wide pose-sheet import: 400×100 PNG auto-detected as a four-column sheet and bound to the selected rig: PASS.
 - Inspector groups: five editing sections expose native collapse/reopen behavior while preserving accessible controls: PASS.
 - Human scrub parity: a scrub to approximately 1.25 s is immediately returned by `get_timeline`: PASS.
-- Scene retiming: human 1.25× / 0.8× controls and agent `retime_scene` preserve synchronized track timing while changing 5.00 s → 4.00 s → 5.00 s: PASS.
+- Scene retiming: human 1.25× / 0.8× controls and agent `retime_scene` preserve synchronized track timing while changing 15.00 s → 12.00 s → 15.00 s: PASS.
 - Canonical duration/beat arc: starter restores at 15.00 s, retimes to 12.00 s at 1.25×, and exposes six storyboard cards: PASS.
 - Keyboard stepping: focused stage `ArrowRight` advances the same playhead returned by `get_timeline`: PASS.
 - Asset manifest placement: imported prop reports `placement: stage` and a nonzero prop keyframe count: PASS.
