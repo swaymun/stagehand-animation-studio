@@ -387,6 +387,10 @@ button {
 .scene-actions button:disabled:hover {
   background: transparent;
 }
+.timeline-actions button[aria-pressed='true'] {
+  color: var(--coral);
+  background: #fff0e6;
+}
 .scene-actions .delete-scene-action {
   color: #b65f51;
 }

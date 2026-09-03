@@ -111,6 +111,7 @@ type SceneMeta = {
   cameraKeyframes?: CameraKeyframe[];
   captions?: Caption[];
   audioCues?: AudioCue[];
+  lockedTrackIds?: string[];
 };
 type StoryBeat = {
   id: string;
@@ -128,6 +129,7 @@ type Project = {
   renderWidth: number;
   renderHeight: number;
   selectedId: string;
+  lockedTrackIds: string[];
   characters: Character[];
   keyframes: Keyframe[];
   cameraKeyframes: CameraKeyframe[];
@@ -145,7 +147,7 @@ type ValidationIssue = {
   path: string;
   message: string;
 };
-const WEBMCP_TOOL_COUNT = 34;
+const WEBMCP_TOOL_COUNT = 35;
 type ModelTool = {
   name: string;
   title: string;
@@ -337,6 +339,7 @@ const starterProject: Project = {
   renderWidth: 720,
   renderHeight: 405,
   selectedId: 'alice',
+  lockedTrackIds: [],
   dirty: false,
   characters: [
     {
@@ -664,6 +667,10 @@ function poseFrameIndex(pose: Pose, frameCount: number) {
         : 0;
 }
 
+function isTrackLocked(project: Project, characterId: string) {
+  return project.lockedTrackIds.includes(characterId);
+}
+
 function nextAudioCueId(cues: AudioCue[], kind: AudioCueKind) {
   let index = cues.length + 1;
   let id = `${kind}-${String(index).padStart(2, '0')}`;
@@ -687,6 +694,9 @@ function loadSceneContent(project: Project, sceneId: string) {
   );
   project.captions = copy(target.captions ?? project.captions);
   project.audioCues = copy(target.audioCues ?? project.audioCues);
+  project.lockedTrackIds = copy(
+    target.lockedTrackIds ?? project.lockedTrackIds,
+  );
   project.currentTime = 0;
   if (
     !project.characters.some((character) => character.id === project.selectedId)
@@ -839,6 +849,7 @@ function syncActiveScene(project: Project) {
   activeScene.cameraKeyframes = copy(project.cameraKeyframes);
   activeScene.captions = copy(project.captions);
   activeScene.audioCues = copy(project.audioCues);
+  activeScene.lockedTrackIds = copy(project.lockedTrackIds);
 }
 
 const hydrateProject = (value: Partial<Project>): Project => {
@@ -890,6 +901,9 @@ const hydrateProject = (value: Partial<Project>): Project => {
       Array.isArray(scene.audioCues) && scene.audioCues.length > 0
         ? scene.audioCues
         : fallbackAudioCues,
+    lockedTrackIds: Array.isArray(scene.lockedTrackIds)
+      ? scene.lockedTrackIds
+      : [],
   }));
   const activeScene =
     scenes.find((scene) => scene.id === requestedActiveId) ?? scenes[0];
@@ -907,6 +921,7 @@ const hydrateProject = (value: Partial<Project>): Project => {
     ),
     captions: copy(activeScene.captions ?? fallbackCaptions),
     audioCues: copy(activeScene.audioCues ?? fallbackAudioCues),
+    lockedTrackIds: copy(activeScene.lockedTrackIds ?? []),
     assets: copy(fallbackAssets),
   };
 };
@@ -1733,6 +1748,7 @@ export default function Home() {
           activeSceneId: current.activeSceneId,
           templateId: current.templateId ?? null,
           selectedId: current.selectedId,
+          lockedTrackIds: current.lockedTrackIds,
           characterCount: current.characters.length,
           keyframeCount: current.keyframes.length,
           cameraKeyframeCount: current.cameraKeyframes.length,
@@ -1803,6 +1819,7 @@ export default function Home() {
           cameraKeyframeCount: current.cameraKeyframes.length,
           captionCount: current.captions.length,
           audioCueCount: current.audioCues.length,
+          lockedTrackIds: current.lockedTrackIds,
         };
       },
       true,
@@ -1837,6 +1854,7 @@ export default function Home() {
           keyframes: current.keyframes,
           cameraKeyframes: current.cameraKeyframes,
           audioCues: current.audioCues,
+          lockedTrackIds: current.lockedTrackIds,
         };
       },
       true,
@@ -2217,6 +2235,53 @@ export default function Home() {
       },
     );
     register(
+      'set_track_lock',
+      'Set track lock',
+      'Lock or unlock one character track without affecting camera, captions, or audio tracks.',
+      {
+        type: 'object',
+        required: ['characterId', 'locked'],
+        additionalProperties: false,
+        properties: {
+          characterId: { type: 'string' },
+          locked: { type: 'boolean' },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const characterId =
+          typeof input.characterId === 'string' ? input.characterId : '';
+        if (
+          !current.characters.some((character) => character.id === characterId)
+        )
+          return { ok: false, code: 'NOT_FOUND' };
+        if (typeof input.locked !== 'boolean')
+          return { ok: false, code: 'INVALID_INPUT' };
+        commitRef.current(
+          (next) => {
+            next.lockedTrackIds = next.lockedTrackIds.filter(
+              (id) => id !== characterId,
+            );
+            if (input.locked) next.lockedTrackIds.push(characterId);
+          },
+          `${input.locked ? 'Lock' : 'Unlock'} ${characterId} track`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          characterId,
+          locked: input.locked,
+          lockedTrackIds: input.locked
+            ? [
+                ...current.lockedTrackIds.filter((id) => id !== characterId),
+                characterId,
+              ]
+            : current.lockedTrackIds.filter((id) => id !== characterId),
+        };
+      },
+    );
+    register(
       'add_scene',
       'Add scene',
       'Append an editable scene with an independent copy of the current structured content.',
@@ -2248,6 +2313,7 @@ export default function Home() {
           cameraKeyframes: copy(current.cameraKeyframes),
           captions: copy(current.captions),
           audioCues: copy(current.audioCues),
+          lockedTrackIds: copy(current.lockedTrackIds),
         } satisfies SceneMeta;
         commitRef.current(
           (next) => {
@@ -2647,6 +2713,8 @@ export default function Home() {
           return { ok: false, code: 'INVALID_INPUT' };
         if (!current.characters.some((c) => c.id === input.characterId))
           return { ok: false, code: 'NOT_FOUND' };
+        if (isTrackLocked(current, input.characterId))
+          return { ok: false, code: 'TRACK_LOCKED' };
         if (
           (input.x !== undefined &&
             (typeof input.x !== 'number' || !Number.isFinite(input.x))) ||
@@ -2720,6 +2788,8 @@ export default function Home() {
           input.timeMs > current.duration
         )
           return { ok: false, code: 'INVALID_INPUT' };
+        if (isTrackLocked(current, input.characterId))
+          return { ok: false, code: 'TRACK_LOCKED' };
         if (
           (input.x !== undefined &&
             (typeof input.x !== 'number' || input.x < 0 || input.x > 100)) ||
@@ -2917,6 +2987,8 @@ export default function Home() {
             input.preset !== 'reaction')
         )
           return { ok: false, code: 'INVALID_INPUT' };
+        if (isTrackLocked(current, input.characterId))
+          return { ok: false, code: 'TRACK_LOCKED' };
         const character = evaluateCharacters(current, current.currentTime).find(
           (item) => item.id === input.characterId,
         );
@@ -3021,16 +3093,26 @@ export default function Home() {
     );
     return () => lifecycle.abort();
   }, []);
-  const updateSelected = (key: 'x' | 'y' | 'rotation', value: number) =>
+  const updateSelected = (key: 'x' | 'y' | 'rotation', value: number) => {
+    if (isTrackLocked(project, project.selectedId)) {
+      setNotice(`${selected.name} track is locked`);
+      return;
+    }
     commit((next) => {
       upsertCharacterKeyframe(next, next.selectedId, next.currentTime, {
         [key]: value,
       });
     }, `Adjust ${key}`);
-  const addKeyframe = () =>
+  };
+  const addKeyframe = () => {
+    if (isTrackLocked(project, project.selectedId)) {
+      setNotice(`${selected.name} track is locked`);
+      return;
+    }
     commit((next) => {
       upsertCharacterKeyframe(next, next.selectedId, next.currentTime, {});
     }, `Keyframe ${selected.name}`);
+  };
   const updateCaption = (patch: Partial<Caption>) => {
     if (!selectedCaption) return;
     commit((next) => {
@@ -3046,6 +3128,10 @@ export default function Home() {
     }, `Edit ${selectedCaption.id}`);
   };
   const applyNervousPreset = () => {
+    if (isTrackLocked(project, project.selectedId)) {
+      setNotice(`${selected.name} track is locked`);
+      return;
+    }
     const start = project.currentTime;
     const rotation = selected.rotation;
     commit((next) => {
@@ -3061,6 +3147,17 @@ export default function Home() {
       );
     }, 'Apply nervous motion');
   };
+  const setSelectedPose = (pose: Pose) => {
+    if (isTrackLocked(project, project.selectedId)) {
+      setNotice(`${selected.name} track is locked`);
+      return;
+    }
+    commit((next) => {
+      upsertCharacterKeyframe(next, next.selectedId, next.currentTime, {
+        pose,
+      });
+    }, `Apply ${pose} pose`);
+  };
   const updateCamera = (
     key: 'zoom' | 'panX' | 'panY' | 'rotation',
     value: number,
@@ -3072,6 +3169,18 @@ export default function Home() {
     commit((next) => {
       upsertCameraKeyframe(next, next.currentTime, {});
     }, 'Keyframe camera');
+  const toggleTrackLock = () => {
+    const locked = isTrackLocked(project, project.selectedId);
+    commit(
+      (next) => {
+        next.lockedTrackIds = next.lockedTrackIds.filter(
+          (id) => id !== next.selectedId,
+        );
+        if (!locked) next.lockedTrackIds.push(next.selectedId);
+      },
+      `${locked ? 'Unlock' : 'Lock'} ${selected.name} track`,
+    );
+  };
   const applyReactionCut = () => {
     const start = project.currentTime;
     const base = camera;
@@ -3236,6 +3345,7 @@ export default function Home() {
       cameraKeyframes: copy(project.cameraKeyframes),
       captions: copy(project.captions),
       audioCues: copy(project.audioCues),
+      lockedTrackIds: copy(project.lockedTrackIds),
     } satisfies SceneMeta;
     commit((next) => {
       next.scenes.push(scene);
@@ -4205,10 +4315,18 @@ export default function Home() {
                 </button>
                 <button
                   type="button"
-                  disabled
-                  title="Coming soon · track locking"
+                  onClick={toggleTrackLock}
+                  aria-pressed={isTrackLocked(project, selected.id)}
+                  title={
+                    isTrackLocked(project, selected.id)
+                      ? 'Unlock selected character track'
+                      : 'Lock selected character track'
+                  }
                 >
-                  <Lock size={14} /> Lock track
+                  <Lock size={14} />{' '}
+                  {isTrackLocked(project, selected.id)
+                    ? 'Unlock track'
+                    : 'Lock track'}
                 </button>
               </div>
             </div>
@@ -4322,7 +4440,10 @@ export default function Home() {
             </div>
             <div>
               <strong>{selected.name}</strong>
-              <span>Character · rigged</span>
+              <span>
+                Character · rigged
+                {isTrackLocked(project, selected.id) ? ' · track locked' : ''}
+              </span>
             </div>
             <select
               className="character-select"
@@ -4487,16 +4608,7 @@ export default function Home() {
                     className={selected.pose === pose ? 'active' : ''}
                     type="button"
                     key={pose}
-                    onClick={() =>
-                      commit((next) => {
-                        upsertCharacterKeyframe(
-                          next,
-                          next.selectedId,
-                          next.currentTime,
-                          { pose },
-                        );
-                      }, `Apply ${pose} pose`)
-                    }
+                    onClick={() => setSelectedPose(pose)}
                   >
                     <span className={`pose-dot pose-${pose}`} />
                     {pose.replace('-', ' ')}
