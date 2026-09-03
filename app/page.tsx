@@ -1051,7 +1051,7 @@ export default function Home() {
     setRendering(true);
     setPlaying(false);
     setNotice('Rendering 5-second silent WebM preview');
-    recorder.start(250);
+    recorder.start();
     const drawNextFrame = () => {
       drawRenderFrame(
         outputContext,
