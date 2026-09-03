@@ -1297,6 +1297,28 @@ button {
 .scene-tools {
   gap: 2px;
 }
+.inspector-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.inspector-close-button {
+  display: none;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--muted);
+  background: #fffaf2;
+}
+.inspector-close-button:hover,
+.inspector-close-button:focus-visible {
+  border-color: var(--blue);
+  color: var(--ink);
+  outline: none;
+}
 .compact-inspector-trigger {
   display: none;
   align-items: center;
@@ -2845,6 +2867,9 @@ button {
   }
   .compact-inspector-trigger {
     display: flex;
+  }
+  .inspector-close-button {
+    display: grid;
   }
   .rail-drawer-action {
     display: none !important;

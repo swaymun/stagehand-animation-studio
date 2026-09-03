@@ -797,6 +797,10 @@ const splitMenu = {
   rail: await splitRailMenu.isVisible(),
 };
 await splitInspectorMenu.click();
+const splitInspectorClose = splitPage.getByRole('button', {
+  name: 'Close Inspector drawer',
+  exact: true,
+});
 const splitPane = {
   bodyWidth: await splitPage.evaluate(() => document.body.scrollWidth),
   documentWidth: await splitPage.evaluate(
@@ -818,10 +822,13 @@ const splitPane = {
   inspectorMenu: splitMenu.inspector,
   railMenuHidden: !splitMenu.rail,
   inspectorDrawer: await splitInspector.isVisible(),
+  inspectorClose: (await splitInspectorClose.count()) === 1,
   stageWidth: await splitPage
     .locator('.stage-wrap')
     .evaluate((node) => Math.round(node.getBoundingClientRect().width)),
 };
+await splitInspectorClose.click();
+const splitInspectorClosed = !(await splitInspector.isVisible());
 await splitContext.close();
 if (
   splitPane.bodyWidth !== 960 ||
@@ -833,6 +840,8 @@ if (
   !splitPane.inspectorMenu ||
   !splitPane.railMenuHidden ||
   !splitPane.inspectorDrawer ||
+  !splitPane.inspectorClose ||
+  !splitInspectorClosed ||
   splitPane.stageWidth < 500
 ) {
   throw new Error(`split-pane editor regression: ${JSON.stringify(splitPane)}`);

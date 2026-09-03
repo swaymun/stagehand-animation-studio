@@ -41,6 +41,7 @@ import {
   Undo2,
   Upload,
   WandSparkles,
+  X,
   ZoomIn,
 } from 'lucide-react';
 
@@ -7636,7 +7637,17 @@ export default function Home() {
             <div className="asset-context-panel">
               <div className="inspector-header">
                 <span>ASSET INSPECTOR</span>
-                <FolderOpen size={14} />
+                <div className="inspector-header-actions">
+                  <FolderOpen size={14} />
+                  <button
+                    className="inspector-close-button"
+                    type="button"
+                    aria-label="Close Inspector drawer"
+                    onClick={() => setMobileDrawer(null)}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
               </div>
               <div className="asset-context-heading">
                 <span
@@ -7861,7 +7872,17 @@ export default function Home() {
           )}
           <div className="inspector-header">
             <span>INSPECTOR</span>
-            <Settings2 size={14} />
+            <div className="inspector-header-actions">
+              <Settings2 size={14} />
+              <button
+                className="inspector-close-button"
+                type="button"
+                aria-label="Close Inspector drawer"
+                onClick={() => setMobileDrawer(null)}
+              >
+                <X size={14} />
+              </button>
+            </div>
           </div>
           <div className="selection-card">
             <div
