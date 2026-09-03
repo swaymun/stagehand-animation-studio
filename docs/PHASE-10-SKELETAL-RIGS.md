@@ -1,6 +1,6 @@
 # Phase 10: Skeletal character rigs
 
-This is a future extension of Stagehand's current pose-based character rig. It is not part of the MVP checkpoint.
+The working foundation is now part of Stagehand's polished finish-line cut. Segmented 2D binding is the reliable path; mesh vertices and weights are stored and validated through an experimental prototype path.
 
 ## Product goal
 
@@ -8,7 +8,7 @@ Let a person provide a character reference image or pose sheet and receive a rev
 
 ## Proposed flow
 
-1. Import a character reference image or pose sheet and preserve the original asset as the source of truth.
+1. Ask WebMCP for a generation checklist, create an asset request, then attach a character reference, pose sheet, or transparent parts sheet while preserving the original asset as the source of truth.
 2. Generate a proposal containing a root, joints, bones, attachment regions, and confidence per landmark.
 3. Show the proposal over the reference with clear handles for moving, adding, removing, and mirroring joints.
 4. Let the person approve or revise the joint graph and art binding before animation commands can use it.
@@ -25,15 +25,15 @@ Let a person provide a character reference image or pose sheet and receive a rev
 
 ## Agent surface
 
-Candidate tools are `propose_skeleton`, `get_skeleton`, `update_skeleton_joint`, `set_bone_keyframe`, `bind_skeleton_asset`, and `validate_skeleton`. Proposal and binding tools must return a pending review state rather than silently making a character animation-ready.
+Candidate tools are now live as `propose_skeleton`, `get_skeleton`, `update_skeleton_joint`, `set_bone_keyframe`, `bind_skeleton_asset`, `approve_skeleton`, and `validate_skeleton`, alongside the asset handoff tools `get_asset_generation_checklist`, `create_asset_request`, `attach_generated_asset`, `inspect_asset_candidate`, and `approve_asset`. Proposal and binding tools return a pending review state rather than silently making a character animation-ready.
 
 ## Acceptance gates
 
-- A reference can produce a deterministic, inspectable proposal or an explicit `UNABLE_TO_PROPOSE` result.
+- A reference can produce a deterministic, inspectable proposal or an explicit invalid-asset result.
 - The person can correct every joint and binding region before approval.
 - Unapproved skeletons cannot affect Preview or export.
 - Human and agent edits share revision guards, idempotency, undo/redo, persistence, and validation.
-- The renderer, thumbnails, Preview, frame inspection, and WebM export agree on the same bone-evaluated frame.
+- The renderer, thumbnails, Preview, frame inspection, and WebM export agree on the same bone-evaluated frame; segmented regions are rendered from the shared evaluator and mesh data is preserved as experimental metadata.
 - Existing six-pose characters and pose-sheet imports continue to work unchanged.
 - A failed or low-confidence proposal never destroys the original reference or the rigid-pose fallback.
 

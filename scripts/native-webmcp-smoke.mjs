@@ -49,7 +49,7 @@ await page.goto(`${baseUrl}?qa=native-webmcp`, {
 });
 await page.waitForTimeout(900);
 await page.waitForFunction(
-  () => window.__nativeWebMcpTools?.length === 52,
+  () => window.__nativeWebMcpTools?.length === 69,
   null,
   { timeout: 10000 },
 );
@@ -86,8 +86,8 @@ await browser.close();
 
 if (
   result.status !== 'available' ||
-  result.toolCount !== 52 ||
-  result.uniqueToolCount !== 52 ||
+  result.toolCount !== 69 ||
+  result.uniqueToolCount !== 69 ||
   result.registrationErrors.length > 0 ||
   result.invalid?.code !== 'INVALID_INPUT' ||
   result.moved?.ok !== true ||

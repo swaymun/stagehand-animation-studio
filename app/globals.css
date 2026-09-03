@@ -846,6 +846,26 @@ button {
   font-size: 10px;
   font-weight: 650;
 }
+.asset-review-status {
+  width: fit-content;
+  padding: 2px 4px;
+  border-radius: 3px;
+  color: #8a5d19;
+  background: #fff2cc;
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.asset-review-status.approved {
+  color: #2f735c;
+  background: #e4f3eb;
+}
+.asset-review-status.rejected {
+  color: #9b493e;
+  background: #fbe7e2;
+}
 .asset-copy small {
   overflow: hidden;
   color: var(--muted);
@@ -935,6 +955,13 @@ button {
 .asset-motion-actions button:hover {
   border-color: var(--violet);
   background: #f8f0fa;
+}
+.audio-library-actions {
+  flex-wrap: wrap;
+}
+.audio-library-actions small {
+  flex-basis: 100%;
+  font-size: 7px;
 }
 .asset-list .asset-transform-editor {
   display: grid;
@@ -2317,6 +2344,107 @@ button {
   border-color: var(--blue);
   color: var(--blue);
   background: #f3f7f4;
+}
+
+.skeleton-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 10px;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.skeleton-status-row span {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 7px;
+}
+
+.skeleton-joint-list {
+  display: grid;
+  gap: 6px;
+}
+
+.skeleton-joint-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 54px 54px;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.skeleton-joint-row > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skeleton-joint-row i {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--teal);
+}
+
+.skeleton-joint-row i.low-confidence {
+  background: var(--coral);
+}
+
+.skeleton-joint-row label {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.skeleton-joint-row input {
+  width: 38px;
+  min-width: 0;
+  padding: 4px 3px;
+}
+
+.skeleton-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.skeleton-actions button,
+.skeleton-propose-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 5px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.skeleton-actions button:last-child,
+.skeleton-propose-button {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.skeleton-actions button:disabled,
+.skeleton-propose-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
 }
 .pose-grid {
   display: grid;

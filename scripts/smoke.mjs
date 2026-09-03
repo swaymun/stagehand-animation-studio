@@ -64,6 +64,8 @@ function widePngFixture() {
   ]);
 }
 
+const fixtureDataUrl = `data:image/png;base64,${widePngFixture().toString('base64')}`;
+
 const baseUrl = process.env.STAGEHAND_URL ?? 'http://localhost:3000';
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({
@@ -102,7 +104,7 @@ await page.waitForTimeout(700);
 await page.evaluate(() => localStorage.clear());
 await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
 await page.waitForTimeout(700);
-await page.waitForFunction(() => window.__stagehandTools?.size === 52);
+await page.waitForFunction(() => window.__stagehandTools?.size === 69);
 const h1 = page.locator('h1');
 if (
   (await h1.count()) !== 1 ||
@@ -121,7 +123,7 @@ const uiChrome = {
     .getByRole('tab', { name: 'Preview', exact: true })
     .count(),
   legacyToolBadge: await page
-    .getByText('52 tools declared', { exact: true })
+    .getByText('69 tools declared', { exact: true })
     .count(),
   legacyValidationCard: await page
     .getByText('READY TO RENDER', { exact: true })
@@ -173,7 +175,7 @@ const transformCollapsed = !(await page
   .getByLabel('Alice X position')
   .isVisible());
 await transformGroup.locator('summary').click();
-if (inspectorGroupCount !== 5 || !transformCollapsed) {
+if (inspectorGroupCount !== 6 || !transformCollapsed) {
   throw new Error(
     `inspector sections should collapse independently: ${JSON.stringify({ inspectorGroupCount, transformCollapsed })}`,
   );
@@ -350,7 +352,7 @@ if (unnamedNumberInputs.length > 0) {
   );
 }
 
-const bridge = await page.evaluate(async () => {
+const bridge = await page.evaluate(async (fixtureDataUrl) => {
   const tools = window.__stagehandTools;
   const call = (name, input = {}) => tools.get(name).execute(input);
   const unguardedMutations = [...tools.values()]
@@ -446,6 +448,77 @@ const bridge = await page.evaluate(async () => {
     cueId: 'music-low',
     volume: 0.03,
   });
+  const audioLibrary = await call('get_audio_library');
+  const audioRoute = await call('set_audio_cue_asset', {
+    cueId: 'footstep-1',
+    assetId: 'audio-pop-2',
+  });
+  const checklist = await call('get_asset_generation_checklist', {
+    kind: 'rigged-character',
+    targetCharacterId: 'alice',
+    bindingMethod: 'segmented',
+  });
+  const assetRequest = await call('create_asset_request', {
+    kind: 'rigged-character',
+    label: 'Smoke segmented Alice',
+    targetCharacterId: 'alice',
+    bindingMethod: 'segmented',
+  });
+  const candidate = await call('attach_generated_asset', {
+    requestId: assetRequest.request.id,
+    dataUrl: fixtureDataUrl,
+    frameLayout: 'parts-sheet',
+  });
+  const candidateInspection = await call('inspect_asset_candidate', {
+    assetId: candidate.asset.id,
+  });
+  const blockedBind = await call('bind_character_asset', {
+    characterId: 'alice',
+    assetId: candidate.asset.id,
+  });
+  const approvedAsset = await call('approve_asset', {
+    assetId: candidate.asset.id,
+    approved: true,
+  });
+  const boundGenerated = await call('bind_character_asset', {
+    characterId: 'alice',
+    assetId: candidate.asset.id,
+  });
+  const skeletonProposal = await call('propose_skeleton', {
+    assetId: candidate.asset.id,
+    bindingMethod: 'segmented',
+  });
+  const skeletonId = skeletonProposal.skeleton.id;
+  const blockedBoneKeyframe = await call('set_bone_keyframe', {
+    skeletonId,
+    timeMs: 0,
+    transforms: [{ boneId: 'bone-chest-left-hand', rotation: -22, x: 0, y: 0, scale: 1 }],
+  });
+  const correctedJoint = await call('update_skeleton_joint', {
+    skeletonId,
+    jointId: 'left-hand',
+    x: 30,
+    y: 50,
+  });
+  const approvedSkeleton = await call('approve_skeleton', {
+    skeletonId,
+    approved: true,
+  });
+  const boneAtStart = await call('set_bone_keyframe', {
+    skeletonId,
+    timeMs: 0,
+    transforms: [{ boneId: 'bone-chest-left-hand', rotation: -22, x: 0, y: 0, scale: 1 }],
+  });
+  const boneAtReveal = await call('set_bone_keyframe', {
+    skeletonId,
+    timeMs: 3300,
+    transforms: [
+      { boneId: 'bone-chest-left-hand', rotation: -52, x: 0, y: 0, scale: 1 },
+      { boneId: 'bone-chest-right-hand', rotation: 28, x: 0, y: 0, scale: 1 },
+    ],
+  });
+  const skeletonValidation = await call('validate_skeleton', { skeletonId });
+  const skeletonFrame = await call('inspect_frame', { timeMs: 3300 });
   const manifest = await call('get_asset_manifest');
   const prop = manifest.assets.find(
     (asset) => asset.kind === 'prop' && asset.source === 'imported',
@@ -535,7 +608,28 @@ const bridge = await page.evaluate(async () => {
       durationMs: retimed.durationMs,
       restoredDurationMs: restoredDuration.durationMs,
     },
-    audio: { ok: audio.ok, volume: audio.cue?.volume },
+    audio: {
+      ok: audio.ok,
+      volume: audio.cue?.volume,
+      libraryCount: audioLibrary.assets?.length,
+      routed: audioRoute.ok,
+    },
+    generatedRig: {
+      checklist: checklist.ok,
+      request: assetRequest.ok,
+      candidate: candidateInspection.readyForApproval,
+      blockedBind: blockedBind.code,
+      approvedAsset: approvedAsset.reviewStatus,
+      bound: boundGenerated.ok,
+      skeletonId,
+      blockedBoneKeyframe: blockedBoneKeyframe.code,
+      correctedJoint: correctedJoint.ok,
+      approvedSkeleton: approvedSkeleton.reviewStatus,
+      boneAtStart: boneAtStart.ok,
+      boneAtReveal: boneAtReveal.ok,
+      valid: skeletonValidation.valid,
+      inspectedTransforms: skeletonFrame.skeletons?.find((item) => item.id === skeletonId)?.boneTransforms?.length,
+    },
     prop: {
       id: prop.id,
       before: propReadBefore.propKeyframes.length,
@@ -557,12 +651,12 @@ const bridge = await page.evaluate(async () => {
       sceneCount: secondScene.scene ? 2 : 0,
     },
   };
-});
+}, fixtureDataUrl);
 
 await page.waitForTimeout(650);
 await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
 await page.waitForTimeout(700);
-await page.waitForFunction(() => window.__stagehandTools?.size === 52);
+await page.waitForFunction(() => window.__stagehandTools?.size === 69);
 const recovery = await page.evaluate(() =>
   window.__stagehandTools.get('get_project_summary').execute({}),
 );
@@ -704,7 +798,7 @@ const emptied = await page.evaluate(async () => {
 await page.waitForTimeout(650);
 await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
 await page.waitForTimeout(700);
-await page.waitForFunction(() => window.__stagehandTools?.size === 52);
+await page.waitForFunction(() => window.__stagehandTools?.size === 69);
 const emptyStatePersistence = await page.evaluate(() =>
   window.__stagehandTools.get('get_project_summary').execute({}),
 );
@@ -935,7 +1029,7 @@ const result = {
 };
 
 if (
-  result.toolCount !== 52 ||
+  result.toolCount !== 69 ||
   !result.timelineDrag.moved ||
   !result.humanTimeline.ok ||
   Math.abs(result.humanTimeline.currentTimeMs - 1250) > 1 ||
@@ -946,7 +1040,7 @@ if (
   result.sceneTitleLines < 2 ||
   result.h1 !== 'stagehand' ||
   result.modal.heading !== 'Help & shortcuts' ||
-  result.inspector.groupCount !== 5 ||
+  result.inspector.groupCount !== 6 ||
   !result.inspector.transformCollapsed ||
   !result.recovery.ok ||
   result.recovery.name !== 'Smoke Project' ||
@@ -954,6 +1048,21 @@ if (
   result.recovery.assetCount < 5 ||
   !bridge.audio.ok ||
   bridge.audio.volume !== 0.03 ||
+  bridge.audio.libraryCount < 4 ||
+  !bridge.audio.routed ||
+  !bridge.generatedRig.checklist ||
+  !bridge.generatedRig.request ||
+  !bridge.generatedRig.candidate ||
+  bridge.generatedRig.blockedBind !== 'ASSET_NOT_APPROVED' ||
+  bridge.generatedRig.approvedAsset !== 'approved' ||
+  !bridge.generatedRig.bound ||
+  bridge.generatedRig.blockedBoneKeyframe !== 'SKELETON_NOT_APPROVED' ||
+  !bridge.generatedRig.correctedJoint ||
+  bridge.generatedRig.approvedSkeleton !== 'approved' ||
+  !bridge.generatedRig.boneAtStart ||
+  !bridge.generatedRig.boneAtReveal ||
+  !bridge.generatedRig.valid ||
+  bridge.generatedRig.inspectedTransforms < 2 ||
   !bridge.inspected.ok ||
   bridge.inspected.timeMs !== 125 ||
   bridge.inspected.width !== 720 ||
