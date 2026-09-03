@@ -33,3 +33,7 @@ Start from Paper Cutout Comedy. Alice waits nervously in a diner; Bob enters beh
 ## Phase evidence contract
 
 Each phase closes only after Implement → local tests → Sites deployment → real hosted WebMCP test where available (Playwright fallback is labeled separately) → UI roast → fixes → second review. Evidence records the deployed URL, test commands, screenshots, tool calls/results, roast findings, fixes, and warnings.
+
+## Repeatable local gate
+
+With the local dev server running on `http://localhost:3000`, run `npm run smoke`. The checked-in Playwright smoke test injects a model-context bridge, verifies all forty-seven tools, exercises immediate undo/redo and audio edits, drags a timeline keyframe, switches storyboard and Preview modes, and waits for an actual agent-triggered WebM download. Set `STAGEHAND_URL` to point the same gate at another deployed build; hosted builds without the browser bridge remain a labeled Playwright fallback.
