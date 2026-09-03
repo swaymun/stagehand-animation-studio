@@ -1669,6 +1669,28 @@ function IconButton({
   );
 }
 
+function handleTabListKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
+  const key = event.key;
+  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(key)) return;
+  const tabs = Array.from(
+    event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>(
+      '[role="tab"]',
+    ) ?? [],
+  );
+  const currentIndex = tabs.indexOf(event.currentTarget);
+  if (currentIndex < 0 || tabs.length === 0) return;
+  const nextIndex =
+    key === 'Home'
+      ? 0
+      : key === 'End'
+        ? tabs.length - 1
+        : (currentIndex + (key === 'ArrowRight' ? 1 : -1) + tabs.length) %
+          tabs.length;
+  event.preventDefault();
+  tabs[nextIndex].focus();
+  tabs[nextIndex].click();
+}
+
 export default function Home() {
   const [project, setProject] = useState<Project>(starterProject),
     [, setHistory] = useState<Project[]>([]),
@@ -4331,6 +4353,8 @@ export default function Home() {
               type="button"
               role="tab"
               aria-selected={panel === 'scenes'}
+              tabIndex={panel === 'scenes' ? 0 : -1}
+              onKeyDown={handleTabListKeyDown}
             >
               <Layers3 size={15} />
               Scenes
@@ -4341,6 +4365,8 @@ export default function Home() {
               type="button"
               role="tab"
               aria-selected={panel === 'storyboard'}
+              tabIndex={panel === 'storyboard' ? 0 : -1}
+              onKeyDown={handleTabListKeyDown}
             >
               <Grid2X2 size={15} />
               Board
@@ -4351,6 +4377,8 @@ export default function Home() {
               type="button"
               role="tab"
               aria-selected={panel === 'assets'}
+              tabIndex={panel === 'assets' ? 0 : -1}
+              onKeyDown={handleTabListKeyDown}
             >
               <FolderOpen size={15} />
               Assets
@@ -4835,6 +4863,8 @@ export default function Home() {
                 type="button"
                 role="tab"
                 aria-selected={viewMode === 'animate'}
+                tabIndex={viewMode === 'animate' ? 0 : -1}
+                onKeyDown={handleTabListKeyDown}
                 onClick={() => setViewMode('animate')}
               >
                 <SquareDashedMousePointer size={14} /> Animate
@@ -4844,6 +4874,8 @@ export default function Home() {
                 type="button"
                 role="tab"
                 aria-selected={viewMode === 'storyboard'}
+                tabIndex={viewMode === 'storyboard' ? 0 : -1}
+                onKeyDown={handleTabListKeyDown}
                 onClick={() => setViewMode('storyboard')}
               >
                 <Grid2X2 size={14} /> Storyboard
@@ -4853,6 +4885,8 @@ export default function Home() {
                 type="button"
                 role="tab"
                 aria-selected={viewMode === 'preview'}
+                tabIndex={viewMode === 'preview' ? 0 : -1}
+                onKeyDown={handleTabListKeyDown}
                 onClick={() => {
                   setViewMode('preview');
                   setPlaying(true);
