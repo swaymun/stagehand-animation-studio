@@ -6,9 +6,9 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement â
 
 - Date: 2026-09-03
 - Private source: [github.com/swaymun/stagehand-animation-studio](https://github.com/swaymun/stagehand-animation-studio)
-- Verified source commit: `caa365248f276aaeaca069c0498c2f03059a44bc`
+- Verified source commit: `5be1da27b568f8a35be3111173a8937cb36aa414`
 - Public Site: [stagehand-animation-studio.saimun-h-shahee.chatgpt.site](https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site)
-- Sites version: `89`
+- Sites version: `90`
 - Scope at this checkpoint: a 15-second six-beat canonical starter arc with expanded captions, poses, camera beats, and non-voice cues, plus renderer-applied per-asset visual treatments, palette chips and stage/library placement, manifest-derived asset usage state, immediate style defaults for new/imported assets, human audio cue timing controls, clarified motion actions, revision-safe and idempotent WebMCP mutations, partial render-settings preservation, synchronized human/agent playhead reads, semantic scene speed retiming across timed tracks, synchronized Storyboard/Board navigation, review-first Preview with editing controls removed, readable two-line scene labels, semantic heading/dialog landmarks, accessible transform controls, wide four-column pose-sheet detection, and imported-prop/sequence coverage.
 
 ## Implement
@@ -38,6 +38,7 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement â
 - New and imported assets receive a complete structured style direction before the first validation pass.
 - Human audio cue Start/End fields now share bounded, undoable timing updates with the agent cue editor.
 - WebMCP registration now supports both `document.modelContext` and the current experimental Chromium `navigator.modelContext` location.
+- The Assets view now has an asset-specific Inspector that identifies the selected asset, placement, style, palette, and edit handoff; character transform and motion controls are hidden until Scenes is active.
 
 ## Local verification
 
@@ -89,11 +90,18 @@ The local smoke result verified:
 STAGEHAND_URL=https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site npm run smoke
 ```
 
-Result: PASS. The hosted run verified the same 52-tool injected bridge, 39 guarded mutations, the 15-second six-beat starter, stale-write conflict, idempotent replay, human and agent scene retiming, focused-stage keyboard stepping, frame inspection, PNG frame download with a valid `89504e47` signature, wide pose-sheet auto-detection, manifest stage placement, renderer-applied `inked` treatment, asset-style update, immediate fresh-asset readiness, human audio cue timing, partial render-settings preservation, prop workflow, two-scene WebM download with a valid `1a45dfa3` EBML/WebM signature, sequence Preview scene transition, synchronized Storyboard/Board context, human-scrubbed playhead visibility through `get_timeline`, clarified motion copy, collapsible Inspector groups, clean Preview state with global editing controls removed, readable scene-label layout, semantic `h1`, labelled Help modal, reload recovery including intentionally empty asset/beat/cue collections, and zero page errors. This remains labeled a Playwright fallback for the full interaction suite. A separate hosted native Chromium run registered all 52 unique tools with zero registration errors and passed valid/invalid callback checks; ChatGPT's in-app browser enumeration remains unverified because the desktop session was locked.
+Result: PASS. The hosted run verified the same 52-tool injected bridge, 39 guarded mutations, the 15-second six-beat starter, stale-write conflict, idempotent replay, human and agent scene retiming, focused-stage keyboard stepping, frame inspection, PNG frame download with a valid `89504e47` signature, wide pose-sheet auto-detection, manifest stage placement, renderer-applied `inked` treatment, asset-style update, immediate fresh-asset readiness, human audio cue timing, partial render-settings preservation, prop workflow, two-scene WebM download with a valid `1a45dfa3` EBML/WebM signature, sequence Preview scene transition, synchronized Storyboard/Board context, synchronized Assets asset-specific Inspector context, human-scrubbed playhead visibility through `get_timeline`, clarified motion copy, collapsible Inspector groups, clean Preview state with global editing controls removed, readable scene-label layout, semantic `h1`, labelled Help modal, reload recovery including intentionally empty asset/beat/cue collections, and zero page errors. This remains labeled a Playwright fallback for the full interaction suite. A separate hosted native Chromium run registered all 52 unique tools with zero registration errors and passed valid/invalid callback checks; ChatGPT's in-app browser enumeration remains unverified because the desktop session was locked.
 
 ## UI roast and fixes
 
-Evidence screenshots are captured from the hosted v88 build at 1440Ã—960; the v89 compatibility change has no visual surface change:
+Evidence screenshots are captured from the hosted v90 build at 1440Ã—960:
+
+- [`v90-animate.png`](evidence/v90-animate.png): current editing workspace with the expanded timeline and semantic scene speed controls.
+- [`v90-assets.png`](evidence/v90-assets.png): Assets workflow with the selected Alice style editor and matching asset-specific Inspector context.
+- [`v90-storyboard.png`](evidence/v90-storyboard.png): six-card Storyboard mode with the Board rail selected.
+- [`v90-preview.png`](evidence/v90-preview.png): review-first Preview player with editing controls hidden.
+
+Earlier v88 screenshots remain useful for the prior compatibility checkpoint:
 
 - [`v88-animate.png`](evidence/v88-animate.png): 15-second editing workspace with the expanded timeline and semantic scene speed controls.
 - [`v88-assets-style.png`](evidence/v88-assets-style.png): expandable per-asset style editor with palette chips and stage/library placement cues.
@@ -127,6 +135,7 @@ Findings from the current screenshot review:
 23. Human audio rows exposed levels but not timing, creating a parity gap with the agent cue editor. Added compact Start/End editors with bounded updates and hosted smoke coverage.
 24. Export checks only proved that downloads were non-empty. Added binary signature assertions for WebM/EBML and PNG outputs in local and hosted smoke runs.
 25. Experimental Chromium exposed `navigator.modelContext` while the app only checked `document.modelContext`. Added a compatibility fallback and a native registration smoke gate covering all 52 tools plus valid/invalid calls.
+26. The Assets rail could edit a selected asset while the right Inspector still showed character controls. Fixed by adding an asset-specific Inspector context and a smoke assertion that character transforms are not visible while Assets is active.
 
 ## Limits and warnings
 
