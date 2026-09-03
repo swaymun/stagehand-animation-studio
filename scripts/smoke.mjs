@@ -567,6 +567,44 @@ const summary = await page.evaluate(() =>
   window.__stagehandTools.get('get_project_summary').execute({}),
 );
 
+await page.getByRole('button', { name: 'Exit preview' }).click();
+await page.waitForTimeout(100);
+const pauseButton = page.getByRole('button', { name: 'Pause', exact: true });
+if ((await pauseButton.count()) > 0) await pauseButton.click();
+const emptied = await page.evaluate(async () => {
+  const tools = window.__stagehandTools;
+  const call = (name, input = {}) => tools.get(name).execute(input);
+  const storyboard = await call('get_storyboard');
+  const timeline = await call('get_timeline');
+  for (const beat of storyboard.beats ?? []) {
+    await call('remove_storyboard_beat', { beatId: beat.id });
+  }
+  for (const cue of timeline.audioCues ?? []) {
+    await call('remove_audio_cue', { cueId: cue.id });
+  }
+  return {
+    beatsRemoved: storyboard.beats?.length ?? 0,
+    cuesRemoved: timeline.audioCues?.length ?? 0,
+  };
+});
+await page.waitForTimeout(650);
+await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
+await page.waitForTimeout(700);
+await page.waitForFunction(() => window.__stagehandTools?.size === 52);
+const emptyStatePersistence = await page.evaluate(() =>
+  window.__stagehandTools.get('get_project_summary').execute({}),
+);
+if (
+  emptied.beatsRemoved !== 6 ||
+  emptied.cuesRemoved < 1 ||
+  emptyStatePersistence.storyboardBeatCount !== 0 ||
+  emptyStatePersistence.audioCueCount !== 0
+) {
+  throw new Error(
+    `empty editable collections should survive recovery: ${JSON.stringify({ emptied, emptyStatePersistence })}`,
+  );
+}
+
 const result = {
   url: baseUrl,
   toolCount: bridge.toolCount,
@@ -627,6 +665,12 @@ const result = {
     after: previewSceneAfter,
   },
   preview,
+  emptyStatePersistence: {
+    removedBeats: emptied.beatsRemoved,
+    removedCues: emptied.cuesRemoved,
+    persistedBeats: emptyStatePersistence.storyboardBeatCount,
+    persistedCues: emptyStatePersistence.audioCueCount,
+  },
   summary: {
     name: summary.name,
     durationMs: summary.durationMs,
@@ -703,6 +747,8 @@ if (
   preview.assetsTab !== 0 ||
   preview.addScene !== 0 ||
   preview.resetStarter !== 0 ||
+  result.emptyStatePersistence.persistedBeats !== 0 ||
+  result.emptyStatePersistence.persistedCues !== 0 ||
   errors.length > 0
 )
   throw new Error(`Smoke test failed: ${JSON.stringify(result)}`);

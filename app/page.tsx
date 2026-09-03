@@ -1373,14 +1373,10 @@ const hydrateProject = (value: Partial<Project>): Project => {
   const fallbackCaptions = Array.isArray(value.captions)
     ? value.captions
     : base.captions;
-  const fallbackAudioCues =
-    Array.isArray(value.audioCues) && value.audioCues.length > 0
-      ? value.audioCues
-      : base.audioCues;
-  const rawAssets =
-    Array.isArray(value.assets) && value.assets.length > 0
-      ? value.assets
-      : base.assets;
+  const fallbackAudioCues = Array.isArray(value.audioCues)
+    ? value.audioCues
+    : base.audioCues;
+  const rawAssets = Array.isArray(value.assets) ? value.assets : base.assets;
   const fallbackAssets = rawAssets.map((asset) => {
     const frameLayout: AssetFrameLayout =
       asset.frameCount === 4 || asset.frameLayout === 'four-column'
@@ -1424,10 +1420,9 @@ const hydrateProject = (value: Partial<Project>): Project => {
     Array.isArray(value.scenes) && value.scenes.length > 0
       ? value.scenes
       : base.scenes;
-  const rawBeats =
-    Array.isArray(value.storyboardBeats) && value.storyboardBeats.length > 0
-      ? value.storyboardBeats
-      : base.storyboardBeats;
+  const rawBeats = Array.isArray(value.storyboardBeats)
+    ? value.storyboardBeats
+    : base.storyboardBeats;
   const rawStyleBible = value.styleBible ?? base.styleBible;
   const requestedActiveId = value.activeSceneId ?? rawScenes[0].id;
   const scenes = rawScenes.map((scene) => ({
@@ -1448,10 +1443,9 @@ const hydrateProject = (value: Partial<Project>): Project => {
         ? scene.cameraKeyframes
         : fallbackCameraKeyframes,
     captions: Array.isArray(scene.captions) ? scene.captions : fallbackCaptions,
-    audioCues:
-      Array.isArray(scene.audioCues) && scene.audioCues.length > 0
-        ? scene.audioCues
-        : fallbackAudioCues,
+    audioCues: Array.isArray(scene.audioCues)
+      ? scene.audioCues
+      : fallbackAudioCues,
     lockedTrackIds: Array.isArray(scene.lockedTrackIds)
       ? scene.lockedTrackIds
       : [],
