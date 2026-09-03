@@ -6,11 +6,11 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement �
 
 - Date: 2026-09-03
 - Private source: [github.com/swaymun/stagehand-animation-studio](https://github.com/swaymun/stagehand-animation-studio)
-- Verified source commit: `216672e1b4dfd715bbed2991815f4f84860148ba`
-- Deployed runtime commit: `216672e1b4dfd715bbed2991815f4f84860148ba`
+- Verified source commit: `d0d8844976393160a24937364ad78d7b60e7845b`
+- Deployed runtime commit: `d0d8844976393160a24937364ad78d7b60e7845b`
 - Public Site: [stagehand-animation-studio.saimun-h-shahee.chatgpt.site](https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site)
-- Sites version: `99`
-- Scope at this checkpoint: a 15-second six-beat canonical starter arc with expanded captions, poses, camera beats, and non-voice cues, plus renderer-applied per-asset visual treatments, palette chips and stage/library placement, manifest-derived asset usage state, immediate style defaults for new/imported assets, human audio cue timing controls, clarified motion actions, revision-safe and idempotent WebMCP mutations, partial render-settings preservation, synchronized human/agent playhead reads, semantic scene speed retiming across timed tracks, synchronized Storyboard/Board navigation, review-first Preview with editing controls removed, readable two-line scene labels, semantic heading/dialog landmarks, accessible transform controls, wide four-column pose-sheet detection, imported-prop/sequence coverage, a calmer Animate/Storyboard editor shell, semantic timeline event bands with optional raw-keyframe details, compact header overflow actions, on-demand validation, and mobile project/Inspector drawers.
+- Sites version: `101`
+- Scope at this checkpoint: the complete polished finish-line pipeline: generated asset requests and provenance handoff, approved segmented character parts sheets, editable skeleton hierarchies and joint corrections, guarded bone keyframes, experimental mesh-capable binding metadata, bundled CC0/public-domain audio with import parity, shared skeletal evaluation across Preview/PNG/WebM, compact split-pane/mobile Inspector drawers, and the prior 15-second six-beat Alice/Bob coupon-comedy workflow.
 
 ## Implement
 
@@ -96,6 +96,11 @@ The local smoke result verified:
 - Split-pane shell: 960px Playwright inspection reports equal body/document widths, a closed-by-default Inspector, a visible Open Inspector action, no redundant project-drawer action, a working Inspector drawer, and a 770px stage: PASS.
 - Compact geometry: 960px Playwright inspection reports a 1.77775 canvas ratio, a 900px internal timeline surface, and no document overflow; the narrower 799px layout wraps timeline actions without truncation: PASS.
 - Inspector drawer lifecycle: 960px Playwright inspection opens the Inspector from the compact mode bar and closes it from the drawer's own close control: PASS.
+- Finish-line asset workflow: checklist → request → bounded generated-image attachment → candidate inspection → approval → approved segmented binding: PASS; binding before approval returns `ASSET_NOT_APPROVED`.
+- Finish-line skeleton workflow: proposal → blocked pre-approval bone write → joint correction → skeleton approval → bone keyframes → validation → inspected frame transform evaluation: PASS; pre-approval writes return `SKELETON_NOT_APPROVED`.
+- Finish-line audio workflow: bundled music, ambience, footsteps, paper movement, and stinger assets expose duration, loopability, source, license, and checksum metadata; decoded audio buffers are used when available and user import uses the same cue interface: PASS.
+- Finish-line export parity: approved bone transforms are evaluated by the canvas, thumbnails, `inspect_frame`, PNG export, and WebM rendering through the shared evaluator: PASS.
+- Finish-line generated starter pack: ImageGen-produced transparent Alice and Bob parts sheets render as coherent segmented paper-cutout characters and are bound to approved skeletons: PASS.
 
 ## Hosted verification
 
@@ -104,7 +109,7 @@ STAGEHAND_URL=https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site np
 STAGEHAND_URL=https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site npm run smoke:native
 ```
 
-Result: PASS. The hosted run verified the same 52-tool injected bridge, 39 guarded mutations, the 15-second six-beat starter, stale-write conflict, idempotent replay, human and agent scene retiming, focused-stage keyboard stepping, frame inspection, PNG frame download with a valid `89504e47` signature, wide pose-sheet auto-detection, manifest stage placement, renderer-applied `inked` treatment, asset-style update, immediate fresh-asset readiness, human audio cue timing, partial render-settings preservation, prop workflow, two-scene WebM download with a valid `1a45dfa3` EBML/WebM signature, sequence Preview scene transition, synchronized Storyboard/Board context, synchronized Assets asset-specific Inspector context, human-scrubbed playhead visibility through `get_timeline`, clarified motion copy, collapsible Inspector groups, clean Preview state with global editing controls removed, readable scene-label layout, semantic `h1`, labelled Help modal, reload recovery including intentionally empty asset/beat/cue collections, split-pane behavior at 960px, and zero page errors. This remains labeled a Playwright fallback for the full interaction suite. A separate hosted native Chromium run registered all 52 unique tools with zero registration errors and passed valid/invalid callback checks. A Sol-powered Codex sub-agent then used the public site's live WebMCP path in the in-app browser: it read project state, applied the Alice/Bob coupon gag, and verified `validate_project` with zero issues plus `inspect_frame` at 3300 ms. No Codex TOML entry or restart was needed.
+Result: PASS. The hosted run verified 69 unique tools, 52 guarded mutations, the generated-asset approval gate, segmented skeleton proposal/correction/approval, guarded bone keyframes, shared frame inspection/export/render evaluation, bundled audio routing, the 15-second six-beat starter, stale-write conflict, idempotent replay, scene retiming, focused-stage keyboard stepping, PNG output with a valid `89504e47` signature, WebM output with a valid `1a45dfa3` EBML/WebM signature, and zero page errors. A separate hosted native Chromium run registered all 69 unique tools with zero registration errors and passed valid/invalid callback checks. `ffprobe` on a hosted WebM confirmed VP9 video plus Opus audio streams. Luna 5.6 completed a visual hosted smoke pass but could not invoke `webmcp_list_tools` in its task environment; the full WebMCP path is therefore covered by the native Chromium gate and Playwright fallback, while the Luna limitation remains explicitly recorded. No Codex TOML entry or restart was needed.
 
 ## UI roast and fixes
 
@@ -171,6 +176,8 @@ Findings from the current screenshot review:
 
 - The regular hosted interaction suite remains a Playwright fallback, while the separate Sol-powered Codex run is the direct live WebMCP evidence for the public Site.
 - The main Luna-bound task cannot call the browser WebMCP capability; supported Sol/Terra tasks can. The page itself has no separate MCP server connection, so no Codex TOML entry or restart was required for the successful live run.
+- Luna 5.6's hosted visual smoke passed, but its environment rejected the `webmcp_list_tools` command; this is a tester capability limitation, not a failed app assertion. The native Chromium and Playwright fallbacks remain required evidence for that path.
 - Native Chromium smoke requires the experimental WebMCP flag and validates registration/callback behavior; it complements, rather than replaces, the live in-app browser path.
+- Mesh binding is data-model/render-path capable and has a working experimental prototype surface; segmented binding is the production-ready generated-character path.
 - Generated PNG fixtures are intentionally tiny test assets; production art quality is not evaluated by this gate.
 - TTS and lip-sync remain out of scope.
