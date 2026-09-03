@@ -179,6 +179,20 @@ if (!humanTimeline.ok || Math.abs(humanTimeline.currentTimeMs - 1250) > 1) {
     `agent timeline read should follow human scrubbing: ${JSON.stringify(humanTimeline)}`,
   );
 }
+await page.locator('.stage-footer').click();
+await page.keyboard.press('ArrowRight');
+await page.waitForTimeout(80);
+const keyboardTimeline = await page.evaluate(() =>
+  window.__stagehandTools.get('get_timeline').execute({}),
+);
+if (
+  !keyboardTimeline.ok ||
+  keyboardTimeline.currentTimeMs <= humanTimeline.currentTimeMs
+) {
+  throw new Error(
+    `arrow shortcut should advance the playhead: ${JSON.stringify({ humanTimeline, keyboardTimeline })}`,
+  );
+}
 
 await page.getByRole('tab', { name: 'Assets' }).click();
 await page.getByRole('button', { name: 'Import prop' }).click();
@@ -537,6 +551,10 @@ const result = {
     ok: humanTimeline.ok,
     currentTimeMs: humanTimeline.currentTimeMs,
   },
+  keyboardStep: {
+    ok: keyboardTimeline.ok,
+    currentTimeMs: keyboardTimeline.currentTimeMs,
+  },
   humanSpeed: {
     fastDuration: humanFastDuration,
     restoredDuration: humanSlowDuration,
@@ -595,6 +613,8 @@ if (
   !result.timelineDrag.moved ||
   !result.humanTimeline.ok ||
   Math.abs(result.humanTimeline.currentTimeMs - 1250) > 1 ||
+  !result.keyboardStep.ok ||
+  result.keyboardStep.currentTimeMs <= result.humanTimeline.currentTimeMs ||
   result.humanSpeed.fastDuration !== '4.00' ||
   result.humanSpeed.restoredDuration !== '5.00' ||
   result.sceneTitleLines < 2 ||

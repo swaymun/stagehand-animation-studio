@@ -2491,19 +2491,39 @@ export default function Home() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      if (
-        event.code !== 'Space' ||
+      const isTextEntry =
         target?.tagName === 'INPUT' ||
         target?.tagName === 'TEXTAREA' ||
-        target?.tagName === 'SELECT'
-      )
+        target?.tagName === 'SELECT';
+      if (isTextEntry) return;
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) redoRef.current();
+        else undoRef.current();
         return;
+      }
+      if (
+        (event.key === 'ArrowLeft' || event.key === 'ArrowRight') &&
+        !target?.closest('button, [role="tab"]')
+      ) {
+        event.preventDefault();
+        const direction = event.key === 'ArrowRight' ? 1 : -1;
+        updateProjectView((current) => ({
+          ...current,
+          currentTime: Math.max(
+            0,
+            Math.min(current.duration, current.currentTime + direction * 83.33),
+          ),
+        }));
+        return;
+      }
+      if (event.code !== 'Space') return;
       event.preventDefault();
       setPlaying((value) => !value);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [updateProjectView]);
   useEffect(() => {
     const modelContext = (
       document as Document & { modelContext?: ModelContext }
@@ -7079,6 +7099,20 @@ export default function Home() {
                 >
                   −
                 </IconButton>
+                <IconButton
+                  label="Step forward"
+                  onClick={() =>
+                    updateProjectView((current) => ({
+                      ...current,
+                      currentTime: Math.min(
+                        current.duration,
+                        current.currentTime + 83.33,
+                      ),
+                    }))
+                  }
+                >
+                  +
+                </IconButton>
                 <span className="timecode">
                   {timecode(project.currentTime)}{' '}
                   <small>/ {timecode(project.duration)}</small>
@@ -7714,6 +7748,10 @@ export default function Home() {
                   <div>
                     <dt>Space</dt>
                     <dd>Play or pause the scene clock</dd>
+                  </div>
+                  <div>
+                    <dt>← / →</dt>
+                    <dd>Step the playhead one frame</dd>
                   </div>
                   <div>
                     <dt>Undo</dt>

@@ -26,7 +26,7 @@ The smoke gate injects a model-context bridge, verifies all 52 tools, inspects a
 ## Studio map
 
 - **Scenes / Board / Assets**: scene management, editable storyboard beats, starter templates, asset import, visual briefs, per-asset style direction, and imported-prop motion.
-- **Animate**: canvas, character and camera inspector, captions, non-voice mix, style bible, and the structured timeline. Inspector groups can collapse independently to keep the working surface focused.
+- **Animate**: canvas, character and camera inspector, captions, non-voice mix, style bible, and the structured timeline. Inspector groups can collapse independently to keep the working surface focused; arrow keys and the symmetric step buttons move one frame at a time.
 - **Storyboard**: renderer-backed beat thumbnails that move the shared playhead; beats can be promoted into trimmed scenes.
 - **Preview**: review-first sequence player using the same deterministic evaluator as export; editing chrome is hidden while transport and scene context remain available.
 - **Render WebM**: deterministic project-sequence export with captions and cue-based audio.
