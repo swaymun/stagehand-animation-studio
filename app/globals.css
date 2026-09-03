@@ -49,9 +49,9 @@ button {
 }
 .topbar {
   height: 64px;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto minmax(320px, 1fr);
   align-items: center;
-  justify-content: space-between;
   padding: 0 22px;
   border-bottom: 1px solid var(--line);
   background: rgba(251, 248, 242, 0.96);
@@ -104,9 +104,7 @@ button {
 }
 .project-title {
   gap: 9px;
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  justify-self: center;
 }
 .eyebrow,
 .section-label,
@@ -126,8 +124,9 @@ button {
 }
 .top-actions {
   gap: 7px;
-  min-width: 320px;
+  min-width: 0;
   justify-content: flex-end;
+  white-space: nowrap;
 }
 .save-state {
   display: flex;
@@ -183,12 +182,14 @@ button {
   border: 1px solid var(--line);
   color: var(--ink);
   background: #fffaf2;
+  white-space: nowrap;
 }
 .render-button {
   padding: 8px 12px;
   color: #fff;
   background: var(--ink);
   box-shadow: 0 2px 0 rgba(0, 0, 0, 0.12);
+  white-space: nowrap;
 }
 .workspace {
   min-height: 0;

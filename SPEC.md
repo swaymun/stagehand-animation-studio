@@ -28,7 +28,7 @@ Start from Paper Cutout Comedy. Alice waits nervously in a diner; Bob enters beh
 4. Agent-native control — in progress: forty-three registered tools, revisions, undo, structured validation, deterministic frame inspection, persistent character-track locking, split-scene parity, editable storyboard parity, editable style-bible parity, editable asset-brief parity, direct duration-edit parity, current-frame export parity, and visible/agent parity are present; hosted live WebMCP enumeration is still a platform/browser capability gap.
 5. Mixed media/templates — in progress: structured asset add/remove, persisted asset briefs, local image import, deterministic character/background/prop compositing, character-art binding, automatic four-column pose-sheet detection and crop selection, four reusable scene templates, and an editable style bible are present; an expanded asset style system remains.
 6. Captions/audio/validation/render — in progress: captions, deterministic validation, cue-based music/SFX, audio-capable WebM export, current-frame PNG export, direct bounded scene-duration editing, and persisted 12/24 fps plus 720p/1080p controls are present; richer export formats remain.
-7. UX/challenge polish — ongoing: accessibility, recovery, performance, readable scene-segment labels, distinct Animate/Storyboard/Preview editor modes, README, architecture, and demo script continue through the implementation loop.
+7. UX/challenge polish — ongoing: accessibility, recovery, performance, readable scene-segment labels, supported desktop-width shell stability, distinct Animate/Storyboard/Preview editor modes, README, architecture, and demo script continue through the implementation loop.
 
 ## Phase evidence contract
 
