@@ -6,10 +6,10 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement �
 
 - Date: 2026-09-03
 - Private source: [github.com/swaymun/stagehand-animation-studio](https://github.com/swaymun/stagehand-animation-studio)
-- Verified source commit: `3720e51d540d7f13ccd85303dc2c6d77963ae723`
+- Verified source commit: `3f27cdbd0c7336557e9af81f6bab4a7de6bfd214`
 - Public Site: [stagehand-animation-studio.saimun-h-shahee.chatgpt.site](https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site)
-- Sites version: `72`
-- Scope at this checkpoint: structured per-asset visual direction, clarified motion actions, revision-safe and idempotent WebMCP mutations, partial render-settings preservation, synchronized Storyboard/Board navigation, review-first Preview, accessible transform controls, and the existing imported-prop/sequence coverage.
+- Sites version: `73`
+- Scope at this checkpoint: structured per-asset visual direction, clarified motion actions, revision-safe and idempotent WebMCP mutations, partial render-settings preservation, synchronized Storyboard/Board navigation, review-first Preview with editing controls removed, accessible transform controls, and the existing imported-prop/sequence coverage.
 
 ## Implement
 
@@ -23,6 +23,7 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement �
 - Human Assets controls expose Pop in, Nudge, and four transform fields at the playhead.
 - Prop keyframes flow through scene duplication, splitting, templates, persistence, validation, thumbnails, Preview, and WebM rendering.
 - Preview hides the inspector, scene tools, duration editing, and mutation actions while retaining transport, scrubber, scene context, and Exit preview.
+- Preview also removes global project-editing controls; WebM/PNG review outputs remain available.
 - Timeline keyframe buttons retain small diamonds but use 22×22 px hit targets.
 
 ## Local verification
@@ -59,16 +60,16 @@ The local smoke result verified:
 STAGEHAND_URL=https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site npm run smoke
 ```
 
-Result: PASS. The hosted run verified the same 51-tool injected bridge, stale-write conflict, idempotent replay, frame inspection, PNG frame download, asset-style update, partial render-settings preservation, prop workflow, two-scene WebM download, synchronized Storyboard/Board context, clarified motion copy, clean Preview state, and zero page errors. This is labeled a Playwright fallback: the public Site did not expose live WebMCP enumeration to the available runner, so it does not prove that ChatGPT’s production host enumerates the tools.
+Result: PASS. The hosted run verified the same 51-tool injected bridge, stale-write conflict, idempotent replay, frame inspection, PNG frame download, asset-style update, partial render-settings preservation, prop workflow, two-scene WebM download, synchronized Storyboard/Board context, clarified motion copy, clean Preview state with global editing controls removed, and zero page errors. This is labeled a Playwright fallback: the public Site did not expose live WebMCP enumeration to the available runner, so it does not prove that ChatGPT’s production host enumerates the tools.
 
 ## UI roast and fixes
 
-Evidence screenshots are captured from the hosted v72 build at 1440×960:
+Evidence screenshots are captured from the hosted v73 build at 1440×960:
 
-- [`v72-animate.png`](evidence/v72-animate.png): editing workspace with clarified motion actions.
-- [`v72-assets-style.png`](evidence/v72-assets-style.png): expandable per-asset style editor.
-- [`v72-storyboard.png`](evidence/v72-storyboard.png): Storyboard mode with the Board rail selected.
-- [`v72-preview.png`](evidence/v72-preview.png): clean review-first Preview player with scene-only context.
+- [`v73-animate.png`](evidence/v73-animate.png): editing workspace with clarified motion actions.
+- [`v73-assets-style.png`](evidence/v73-assets-style.png): expandable per-asset style editor.
+- [`v73-storyboard.png`](evidence/v73-storyboard.png): Storyboard mode with the Board rail selected.
+- [`v73-preview.png`](evidence/v73-preview.png): clean review-first Preview player with only review outputs in the header.
 
 Findings from the current screenshot review:
 
@@ -82,6 +83,7 @@ Findings from the current screenshot review:
 8. Asset briefs carried style intent only as prose. Fixed with structured role, treatment, silhouette, palette, and direction fields, plus human/agent parity.
 9. Motion action buttons were visually mixed with pose presets. Fixed with explicit action durations, affected-character copy, and a Pose presets label.
 10. Agent frame-rate-only render updates reset an existing 1080p choice. Fixed by preserving the current resolution when the preset is omitted, with local and hosted smoke coverage.
+11. Preview still exposed global project-editing controls. Fixed by hiding Settings, Import, Export JSON, and the project rename affordance while keeping WebM and PNG review actions.
 
 ## Limits and warnings
 
