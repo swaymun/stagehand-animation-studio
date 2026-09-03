@@ -7149,10 +7149,11 @@ export default function Home() {
               ))}
             </select>
           </div>
-          <div className="inspector-section">
-            <div className="inspector-label">
-              TRANSFORM <span>local</span>
-            </div>
+          <details className="inspector-section" open>
+            <summary className="inspector-label">
+              <span>TRANSFORM</span>
+              <span>local</span>
+            </summary>
             <div className="field-row">
               <label>
                 X{' '}
@@ -7204,11 +7205,12 @@ export default function Home() {
               keyframe-ready and undoable. {selectedKeyframeCount} keyframes on
               this rig.
             </small>
-          </div>
-          <div className="inspector-section camera-editor">
-            <div className="inspector-label">
-              CAMERA <span>{cameraKeyframeCount} keyframes</span>
-            </div>
+          </details>
+          <details className="inspector-section camera-editor" open>
+            <summary className="inspector-label">
+              <span>CAMERA</span>
+              <span>{cameraKeyframeCount} keyframes</span>
+            </summary>
             <div className="field-row">
               <label>
                 Zoom
@@ -7285,7 +7287,7 @@ export default function Home() {
               Framing is evaluated with the same clock as character motion and
               render.
             </small>
-          </div>
+          </details>
           <div className="inspector-section">
             <div className="inspector-label">
               <span>MOTION</span>
@@ -7340,10 +7342,11 @@ export default function Home() {
               ))}
             </div>
           </div>
-          <div className="inspector-section caption-editor">
-            <div className="inspector-label">
-              CAPTION <span>{selectedCaption?.speaker ?? 'none'}</span>
-            </div>
+          <details className="inspector-section caption-editor" open>
+            <summary className="inspector-label">
+              <span>CAPTION</span>
+              <span>{selectedCaption?.speaker ?? 'none'}</span>
+            </summary>
             {selectedCaption ? (
               <>
                 <textarea
@@ -7389,11 +7392,12 @@ export default function Home() {
                 No captions in this scene.
               </small>
             )}
-          </div>
-          <div className="inspector-section">
-            <div className="inspector-label">
-              AUDIO CUES <span>non-voice mix</span>
-            </div>
+          </details>
+          <details className="inspector-section" open>
+            <summary className="inspector-label">
+              <span>AUDIO CUES</span>
+              <span>non-voice mix</span>
+            </summary>
             <div className="audio-cue-list">
               {project.audioCues.map((cue) => (
                 <div className="audio-cue-row" key={cue.id}>
@@ -7442,11 +7446,12 @@ export default function Home() {
               Adjust levels here; cue mix is rendered into WebM. Voice and
               lip-sync stay out of scope.
             </small>
-          </div>
-          <div className="inspector-section">
-            <div className="inspector-label">
-              STYLE BIBLE <span>editable direction</span>
-            </div>
+          </details>
+          <details className="inspector-section" open>
+            <summary className="inspector-label">
+              <span>STYLE BIBLE</span>
+              <span>editable direction</span>
+            </summary>
             <div className="style-row">
               <span>Construction</span>
               <input
@@ -7496,7 +7501,7 @@ export default function Home() {
                 rows={2}
               />
             </label>
-          </div>
+          </details>
           <div className="inspector-section command-preview">
             <div className="inspector-label">
               <span>LAST COMMAND</span>

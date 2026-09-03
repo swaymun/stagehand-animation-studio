@@ -1596,6 +1596,36 @@ button {
   padding: 15px;
   border-bottom: 1px solid var(--line);
 }
+.inspector-section > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.inspector-section > summary::-webkit-details-marker {
+  display: none;
+}
+.inspector-section > summary::after {
+  content: '+';
+  display: inline-grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  margin-left: 6px;
+  border: 1px solid #d9cfc2;
+  border-radius: 50%;
+  color: #968b80;
+  font-size: 11px;
+  line-height: 1;
+}
+.inspector-section[open] > summary::after {
+  content: '−';
+}
+.inspector-section > summary:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+}
+.inspector-section > summary > span:last-of-type {
+  margin-left: auto;
+}
 .inspector-label {
   justify-content: space-between;
   margin-bottom: 11px;
@@ -1672,7 +1702,13 @@ button {
 .caption-editor textarea:focus {
   border-color: var(--blue);
 }
-.camera-editor .inspector-label span {
+.camera-editor .inspector-label > span:first-child {
+  color: #958c82;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.camera-editor .inspector-label > span:last-of-type {
   color: var(--blue);
   font-size: 8px;
   letter-spacing: normal;

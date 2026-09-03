@@ -120,6 +120,19 @@ if (modalHeading !== 'Help & shortcuts') {
 }
 await modal.getByRole('button', { name: 'Close dialog' }).click();
 await page.waitForTimeout(80);
+const inspectorGroups = page.locator('details.inspector-section');
+const inspectorGroupCount = await inspectorGroups.count();
+const transformGroup = inspectorGroups.first();
+await transformGroup.locator('summary').click();
+const transformCollapsed = !(await page
+  .getByLabel('Alice X position')
+  .isVisible());
+await transformGroup.locator('summary').click();
+if (inspectorGroupCount !== 5 || !transformCollapsed) {
+  throw new Error(
+    `inspector sections should collapse independently: ${JSON.stringify({ inspectorGroupCount, transformCollapsed })}`,
+  );
+}
 
 const marks = page.locator('button[aria-label^="Alice keyframe"]');
 const beforeDrag = await marks.nth(1).getAttribute('aria-label');
@@ -475,6 +488,10 @@ const result = {
   sceneTitleLines,
   h1: (await h1.textContent())?.trim(),
   modal: { heading: modalHeading },
+  inspector: {
+    groupCount: inspectorGroupCount,
+    transformCollapsed,
+  },
   recovery: {
     ok: recovery.ok,
     name: recovery.name,
@@ -523,6 +540,8 @@ if (
   result.sceneTitleLines < 2 ||
   result.h1 !== 'stagehand' ||
   result.modal.heading !== 'Help & shortcuts' ||
+  result.inspector.groupCount !== 5 ||
+  !result.inspector.transformCollapsed ||
   !result.recovery.ok ||
   result.recovery.name !== 'Smoke Project' ||
   result.recovery.sceneCount !== 2 ||
