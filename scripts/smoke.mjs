@@ -124,7 +124,9 @@ if (sceneTitleLines < 2) {
   );
 }
 await page.getByRole('button', { name: 'More actions', exact: true }).click();
-await page.getByRole('menuitem', { name: 'Help & shortcuts', exact: true }).click();
+await page
+  .getByRole('menuitem', { name: 'Help & shortcuts', exact: true })
+  .click();
 const modal = page.locator('dialog[aria-modal="true"]');
 await modal.waitFor({ state: 'visible', timeout: 5000 });
 const modalHeading = (await modal.locator('h2').textContent())?.trim();
@@ -608,9 +610,15 @@ const preview = {
   canvas: await page.locator('.stage-canvas').count(),
   inspector: await page.locator('.preview-workspace .inspector').isVisible(),
   exit: await page.getByRole('button', { name: 'Exit preview' }).count(),
-  settings: await page.getByRole('menuitem', { name: 'Settings', exact: true }).count(),
-  import: await page.getByRole('menuitem', { name: 'Import project', exact: true }).count(),
-  export: await page.getByRole('menuitem', { name: 'Export project', exact: true }).count(),
+  settings: await page
+    .getByRole('menuitem', { name: 'Settings', exact: true })
+    .count(),
+  import: await page
+    .getByRole('menuitem', { name: 'Import project', exact: true })
+    .count(),
+  export: await page
+    .getByRole('menuitem', { name: 'Export project', exact: true })
+    .count(),
   renameProject: await page
     .getByRole('button', { name: /Rename project/ })
     .count(),
@@ -619,7 +627,9 @@ const preview = {
     .getByRole('tab', { name: 'Assets', exact: true })
     .count(),
   addScene: await page.getByRole('button', { name: /Add scene/ }).count(),
-  resetStarter: await page.getByRole('menuitem', { name: /Reset starter/ }).count(),
+  resetStarter: await page
+    .getByRole('menuitem', { name: /Reset starter/ })
+    .count(),
 };
 const summary = await page.evaluate(() =>
   window.__stagehandTools.get('get_project_summary').execute({}),

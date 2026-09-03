@@ -2438,9 +2438,9 @@ export default function Home() {
   >(null);
   const [topMenuOpen, setTopMenuOpen] = useState(false);
   const [showTimelineDetails, setShowTimelineDetails] = useState(false);
-  const [mobileDrawer, setMobileDrawer] = useState<
-    'rail' | 'inspector' | null
-  >(null);
+  const [mobileDrawer, setMobileDrawer] = useState<'rail' | 'inspector' | null>(
+    null,
+  );
   const [assetImportKind, setAssetImportKind] = useState<
     'rigged-character' | 'background' | 'prop'
   >('prop');
@@ -6430,7 +6430,9 @@ export default function Home() {
                 }}
               >
                 <Layers3 size={14} />
-                {mobileDrawer === 'rail' ? 'Close project drawer' : 'Open project drawer'}
+                {mobileDrawer === 'rail'
+                  ? 'Close project drawer'
+                  : 'Open project drawer'}
               </button>
               <button
                 className="mobile-only"
@@ -6444,7 +6446,9 @@ export default function Home() {
                 }}
               >
                 <Settings2 size={14} />
-                {mobileDrawer === 'inspector' ? 'Close Inspector' : 'Open Inspector'}
+                {mobileDrawer === 'inspector'
+                  ? 'Close Inspector'
+                  : 'Open Inspector'}
               </button>
               <button
                 type="button"
