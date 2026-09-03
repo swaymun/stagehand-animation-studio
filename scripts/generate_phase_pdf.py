@@ -43,10 +43,10 @@ def bullets(items):
 
 story = [
     p("Stagehand Phase Evidence", title),
-    p("Current checkpoint: public Site v87, verified 2026-09-03.", subtitle),
+    p("Current checkpoint: public Site v88, verified 2026-09-03.", subtitle),
     p("Project", heading),
     p("Stagehand is a WebMCP-native 2D animation studio for editable paper-cutout scenes. The current cut supports rigged characters, imported image props, per-asset visual direction, camera work, captions, non-voice audio cues, storyboard beats, multi-scene Preview, and deterministic WebM export.", body),
-    p("Private source: github.com/swaymun/stagehand-animation-studio<br/>Commit: b9f1ac260c76048135a4c68e29e64f86b63a2fe1<br/>Public Site: stagehand-animation-studio.saimun-h-shahee.chatgpt.site<br/>Sites version: 87", body),
+    p("Private source: github.com/swaymun/stagehand-animation-studio<br/>Commit: 2a8a56cbf823566003a0a58b244ea93cb416bdd4<br/>Public Site: stagehand-animation-studio.saimun-h-shahee.chatgpt.site<br/>Sites version: 88", body),
     p("Acceptance loop", heading),
     p("Implement - local tests - Sites deployment - hosted test - UI roast - fixes - second review.", body),
     p("Implemented at this checkpoint", heading),
@@ -56,7 +56,7 @@ story = [
         "Structured per-asset role, treatment, silhouette, palette, and direction notes with human and agent parity.",
         "Asset treatment choices reach canvas, thumbnails, Preview, and WebM; new assets also receive valid style defaults immediately.",
         "Motion actions show affected character and bounded duration; pose presets remain a separate group.",
-        "Agent frame-rate-only render updates preserve the existing resolution until a new preset is explicitly chosen.",
+        "Human audio cue Start/End editors share bounded timing updates with the agent cue editor.",
         "Storyboard mode selects the Board rail; Preview hides editing mutation surfaces and selection chrome.",
     ]),
     p("Verification", heading),
@@ -67,10 +67,10 @@ story = [
 ]
 
 screens = [
-    ("Animate editing workspace", "v87-animate.png", "Hosted Playwright capture at 1440 x 960. The 15-second timeline carries the expanded character and camera beats while speed controls, frame steps, and labels remain readable."),
-    ("Assets style editor", "v87-assets-style.png", "Hosted Playwright capture at 1440 x 960. Palette chips and stage/library cues make the structured Style direction legible without taking over the asset rail."),
-    ("Storyboard mode with Board rail", "v87-storyboard.png", "Hosted Playwright capture at 1440 x 960. Six beat cards make the longer arc inspectable while the selected mode and project rail stay synchronized."),
-    ("Review-first Preview player", "v87-preview.png", "Hosted Playwright capture at 1440 x 960. Scene-only context, transport, and Exit preview remain; global editing controls are hidden."),
+    ("Animate editing workspace", "v88-animate.png", "Hosted Playwright capture at 1440 x 960. The 15-second timeline carries the expanded character and camera beats while speed controls, frame steps, and labels remain readable."),
+    ("Assets style editor", "v88-assets-style.png", "Hosted Playwright capture at 1440 x 960. Palette chips and stage/library cues make the structured Style direction legible without taking over the asset rail."),
+    ("Storyboard mode with Board rail", "v88-storyboard.png", "Hosted Playwright capture at 1440 x 960. Six beat cards make the longer arc inspectable while the selected mode and project rail stay synchronized."),
+    ("Review-first Preview player", "v88-preview.png", "Hosted Playwright capture at 1440 x 960. Scene-only context, transport, and Exit preview remain; global editing controls are hidden."),
 ]
 
 for index, (heading_text, filename, caption_text) in enumerate(screens):
