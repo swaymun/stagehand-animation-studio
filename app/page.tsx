@@ -5568,7 +5568,9 @@ export default function Home() {
           />
         </div>
       </header>
-      <div className="workspace">
+      <div
+        className={`workspace ${viewMode === 'preview' ? 'preview-workspace' : ''}`}
+      >
         <aside className="left-rail">
           <div
             className="rail-tabs"
@@ -6280,6 +6282,15 @@ export default function Home() {
                 <Play size={14} /> Preview
               </button>
             </div>
+            {viewMode === 'preview' && (
+              <button
+                className="preview-exit"
+                type="button"
+                onClick={() => setViewMode('animate')}
+              >
+                Exit preview
+              </button>
+            )}
             <div className="scene-tools">
               <IconButton
                 label="Select tool"

@@ -150,6 +150,8 @@ await page.waitForTimeout(120);
 const preview = {
   banner: await page.locator('.preview-banner').count(),
   canvas: await page.locator('.stage-canvas').count(),
+  inspector: await page.locator('.preview-workspace .inspector').isVisible(),
+  exit: await page.getByRole('button', { name: 'Exit preview' }).count(),
 };
 const summary = await page.evaluate(() =>
   window.__stagehandTools.get('get_project_summary').execute({}),
@@ -209,6 +211,8 @@ if (
   storyboardCards !== 3 ||
   preview.banner !== 1 ||
   preview.canvas !== 1 ||
+  preview.inspector ||
+  preview.exit !== 1 ||
   errors.length > 0
 )
   throw new Error(`Smoke test failed: ${JSON.stringify(result)}`);

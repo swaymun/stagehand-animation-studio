@@ -222,6 +222,30 @@ button {
   display: grid;
   grid-template-columns: 218px minmax(560px, 1fr) 254px;
 }
+.workspace.preview-workspace {
+  grid-template-columns: 218px minmax(0, 1fr);
+}
+.preview-workspace .inspector,
+.preview-workspace .scene-tools,
+.preview-workspace .timeline-actions,
+.preview-workspace .duration-control,
+.preview-workspace .timeline-hint {
+  display: none;
+}
+.preview-exit {
+  margin-left: auto;
+  padding: 6px 9px;
+  border: 1px solid #c5d4d8;
+  border-radius: 5px;
+  color: var(--blue);
+  background: #edf4f4;
+  font-size: 10px;
+  font-weight: 750;
+}
+.preview-exit:hover {
+  border-color: var(--blue);
+  background: #e4eeee;
+}
 .left-rail,
 .inspector {
   background: rgba(251, 248, 242, 0.75);
@@ -1906,6 +1930,12 @@ button {
 .storyboard-mode .stage-footer {
   display: none;
 }
+.preview-mode .stage-wrap {
+  padding: 22px 24px 16px;
+}
+.preview-mode .canvas-frame {
+  box-shadow: 0 12px 34px rgba(77, 59, 44, 0.17);
+}
 .storyboard-mode-grid {
   min-height: 0;
   flex: 1;
@@ -2025,6 +2055,10 @@ button {
 .save-button:focus-visible,
 .render-button:focus-visible,
 .top-secondary-button:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+.preview-exit:focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: 2px;
 }
