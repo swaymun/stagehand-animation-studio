@@ -1532,6 +1532,51 @@ button {
 .style-row:first-of-type {
   margin-top: 0;
 }
+.style-row input,
+.style-notes textarea {
+  min-width: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  outline: none;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+  text-align: right;
+}
+.style-row input {
+  width: 128px;
+  padding: 3px 4px;
+}
+.style-row input:focus,
+.style-notes textarea:focus {
+  border-color: var(--blue);
+  background: #fffaf2;
+}
+.style-row-stack {
+  display: grid;
+  align-items: start;
+  gap: 4px;
+}
+.style-row-stack input {
+  width: 100%;
+  text-align: left;
+}
+.style-notes {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  color: #968e85;
+  font-size: 9px;
+}
+.style-notes textarea {
+  width: 100%;
+  padding: 5px;
+  resize: vertical;
+  color: var(--ink);
+  background: #fffaf2;
+  line-height: 1.35;
+  text-align: left;
+}
 .style-row strong {
   color: var(--ink);
   font-size: 9px;

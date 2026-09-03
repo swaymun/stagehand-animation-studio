@@ -121,6 +121,13 @@ type StoryBeat = {
   startMs: number;
   endMs: number;
 };
+type StyleBible = {
+  construction: string;
+  motion: string;
+  camera: string;
+  palette: string[];
+  notes: string;
+};
 type Project = {
   revision: number;
   duration: number;
@@ -137,6 +144,7 @@ type Project = {
   audioCues: AudioCue[];
   assets: Asset[];
   storyboardBeats: StoryBeat[];
+  styleBible: StyleBible;
   scenes: SceneMeta[];
   activeSceneId: string;
   templateId?: TemplateId;
@@ -148,7 +156,7 @@ type ValidationIssue = {
   path: string;
   message: string;
 };
-const WEBMCP_TOOL_COUNT = 39;
+const WEBMCP_TOOL_COUNT = 40;
 type ModelTool = {
   name: string;
   title: string;
@@ -267,6 +275,13 @@ const storyboardBeats: StoryBeat[] = [
     endMs: 5000,
   },
 ];
+const starterStyleBible: StyleBible = {
+  construction: 'paper-cutout',
+  motion: 'limited · snappy',
+  camera: 'reaction cut',
+  palette: ['coral', 'diner teal', 'mustard', 'warm paper'],
+  notes: 'Keep silhouettes readable and leave room for captions.',
+};
 const starterTemplates: Array<{
   id: TemplateId;
   title: string;
@@ -456,6 +471,7 @@ const starterProject: Project = {
   audioCues: starterAudioCues,
   assets: starterAssets,
   storyboardBeats,
+  styleBible: starterStyleBible,
   scenes: starterScenes,
   activeSceneId: 'scene-01',
   templateId: 'first-meeting',
@@ -938,6 +954,7 @@ const hydrateProject = (value: Partial<Project>): Project => {
     Array.isArray(value.storyboardBeats) && value.storyboardBeats.length > 0
       ? value.storyboardBeats
       : base.storyboardBeats;
+  const rawStyleBible = value.styleBible ?? base.styleBible;
   const requestedActiveId = value.activeSceneId ?? rawScenes[0].id;
   const scenes = rawScenes.map((scene) => ({
     ...scene,
@@ -969,6 +986,29 @@ const hydrateProject = (value: Partial<Project>): Project => {
     ...value,
     scenes: copy(scenes),
     storyboardBeats: copy(rawBeats),
+    styleBible: {
+      construction:
+        typeof rawStyleBible.construction === 'string'
+          ? rawStyleBible.construction
+          : base.styleBible.construction,
+      motion:
+        typeof rawStyleBible.motion === 'string'
+          ? rawStyleBible.motion
+          : base.styleBible.motion,
+      camera:
+        typeof rawStyleBible.camera === 'string'
+          ? rawStyleBible.camera
+          : base.styleBible.camera,
+      palette:
+        Array.isArray(rawStyleBible.palette) &&
+        rawStyleBible.palette.every((value) => typeof value === 'string')
+          ? rawStyleBible.palette
+          : base.styleBible.palette,
+      notes:
+        typeof rawStyleBible.notes === 'string'
+          ? rawStyleBible.notes
+          : base.styleBible.notes,
+    },
     activeSceneId: activeScene.id,
     templateId: activeScene.templateId ?? value.templateId,
     duration: activeScene.duration,
@@ -2286,14 +2326,76 @@ export default function Home() {
       () => ({
         ok: true,
         revision: projectRef.current.revision,
-        styleBible: {
-          construction: 'paper-cutout',
-          motion: 'limited · snappy',
-          camera: 'reaction cut',
-          palette: ['coral', 'diner teal', 'mustard', 'warm paper'],
-        },
+        styleBible: projectRef.current.styleBible,
       }),
       true,
+    );
+    register(
+      'set_style_bible',
+      'Set style bible',
+      'Update persisted visual, motion, camera, palette, and direction notes for the project.',
+      {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          construction: { type: 'string', minLength: 1 },
+          motion: { type: 'string', minLength: 1 },
+          camera: { type: 'string', minLength: 1 },
+          palette: {
+            type: 'array',
+            items: { type: 'string', minLength: 1 },
+            minItems: 1,
+          },
+          notes: { type: 'string' },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const nextBible: StyleBible = {
+          construction:
+            typeof input.construction === 'string'
+              ? input.construction.trim()
+              : current.styleBible.construction,
+          motion:
+            typeof input.motion === 'string'
+              ? input.motion.trim()
+              : current.styleBible.motion,
+          camera:
+            typeof input.camera === 'string'
+              ? input.camera.trim()
+              : current.styleBible.camera,
+          palette:
+            Array.isArray(input.palette) &&
+            input.palette.every(
+              (value) => typeof value === 'string' && value.trim(),
+            )
+              ? input.palette.map((value) => value.trim())
+              : current.styleBible.palette,
+          notes:
+            typeof input.notes === 'string'
+              ? input.notes.trim()
+              : current.styleBible.notes,
+        };
+        if (
+          !nextBible.construction ||
+          !nextBible.motion ||
+          !nextBible.camera ||
+          nextBible.palette.length === 0
+        )
+          return { ok: false, code: 'INVALID_INPUT' };
+        commitRef.current(
+          (next) => {
+            next.styleBible = nextBible;
+          },
+          'Update style bible',
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          styleBible: nextBible,
+        };
+      },
     );
     register(
       'get_asset_manifest',
@@ -3698,6 +3800,25 @@ export default function Home() {
         }));
     }, `Remove beat ${beat.title}`);
     setEditingBeatId(null);
+  };
+  const updateStyleBibleField = (
+    key: Exclude<keyof StyleBible, 'palette'>,
+    value: string,
+  ) => {
+    if (key !== 'notes' && !value.trim()) return;
+    commit((next) => {
+      next.styleBible[key] = value;
+    }, `Update style ${key}`);
+  };
+  const updateStylePalette = (value: string) => {
+    const palette = value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+    if (palette.length === 0) return;
+    commit((next) => {
+      next.styleBible.palette = palette;
+    }, 'Update style palette');
   };
   const promoteBeat = (beat: StoryBeat) => {
     if (beat.startMs >= project.duration) {
@@ -5214,19 +5335,58 @@ export default function Home() {
             </small>
           </div>
           <div className="inspector-section">
-            <div className="inspector-label">STYLE BIBLE</div>
+            <div className="inspector-label">
+              STYLE BIBLE <span>editable direction</span>
+            </div>
             <div className="style-row">
               <span>Construction</span>
-              <strong>paper-cutout</strong>
+              <input
+                aria-label="Style construction"
+                value={project.styleBible.construction}
+                onChange={(event) =>
+                  updateStyleBibleField('construction', event.target.value)
+                }
+              />
             </div>
             <div className="style-row">
               <span>Motion</span>
-              <strong>limited · snappy</strong>
+              <input
+                aria-label="Style motion"
+                value={project.styleBible.motion}
+                onChange={(event) =>
+                  updateStyleBibleField('motion', event.target.value)
+                }
+              />
             </div>
             <div className="style-row">
               <span>Camera</span>
-              <strong>reaction cut</strong>
+              <input
+                aria-label="Style camera"
+                value={project.styleBible.camera}
+                onChange={(event) =>
+                  updateStyleBibleField('camera', event.target.value)
+                }
+              />
             </div>
+            <div className="style-row style-row-stack">
+              <span>Palette</span>
+              <input
+                aria-label="Style palette"
+                value={project.styleBible.palette.join(', ')}
+                onChange={(event) => updateStylePalette(event.target.value)}
+              />
+            </div>
+            <label className="style-notes">
+              Direction notes
+              <textarea
+                aria-label="Style direction notes"
+                value={project.styleBible.notes}
+                onChange={(event) =>
+                  updateStyleBibleField('notes', event.target.value)
+                }
+                rows={2}
+              />
+            </label>
           </div>
           <div className="inspector-section command-preview">
             <div className="inspector-label">
