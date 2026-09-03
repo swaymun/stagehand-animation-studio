@@ -6370,7 +6370,10 @@ export default function Home() {
                 aria-selected={viewMode === 'storyboard'}
                 tabIndex={viewMode === 'storyboard' ? 0 : -1}
                 onKeyDown={handleTabListKeyDown}
-                onClick={() => setViewMode('storyboard')}
+                onClick={() => {
+                  setViewMode('storyboard');
+                  setPanel('storyboard');
+                }}
               >
                 <Grid2X2 size={14} /> Storyboard
               </button>

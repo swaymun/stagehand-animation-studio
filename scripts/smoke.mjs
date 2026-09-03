@@ -209,6 +209,14 @@ await page.waitForTimeout(80);
 await page.getByRole('tab', { name: 'Storyboard' }).click();
 await page.waitForTimeout(100);
 const storyboardCards = await page.locator('.storyboard-beat').count();
+const storyboardRail = await page
+  .getByRole('tab', { name: 'Board', exact: true })
+  .getAttribute('aria-selected');
+if (storyboardRail !== 'true') {
+  throw new Error(
+    `storyboard mode did not select Board rail: ${storyboardRail}`,
+  );
+}
 await page.getByRole('tab', { name: 'Preview' }).click();
 await page.waitForTimeout(120);
 const preview = {
