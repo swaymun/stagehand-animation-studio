@@ -68,6 +68,7 @@ type Character = {
   id: string;
   name: string;
   color: string;
+  assetId?: string;
   x: number;
   y: number;
   rotation: number;
@@ -139,7 +140,7 @@ type ValidationIssue = {
   path: string;
   message: string;
 };
-const WEBMCP_TOOL_COUNT = 30;
+const WEBMCP_TOOL_COUNT = 31;
 type ModelTool = {
   name: string;
   title: string;
@@ -1144,6 +1145,7 @@ function drawCharacter(
   width: number,
   height: number,
   selected: boolean,
+  characterImage?: CanvasImageSource,
 ) {
   const x = (c.x / 100) * width,
     ground = (c.y / 100) * height,
@@ -1162,6 +1164,23 @@ function drawCharacter(
     ctx.beginPath();
     ctx.arc(0, -282, 5, 0, Math.PI * 2);
     ctx.fill();
+  }
+  if (characterImage) {
+    const image = characterImage as HTMLImageElement;
+    const sourceWidth = image.naturalWidth || image.width || 100;
+    const sourceHeight = image.naturalHeight || image.height || 220;
+    const imageScale = Math.min(112 / sourceWidth, 242 / sourceHeight);
+    const imageWidth = sourceWidth * imageScale;
+    const imageHeight = sourceHeight * imageScale;
+    ctx.drawImage(
+      characterImage,
+      -imageWidth / 2,
+      -imageHeight,
+      imageWidth,
+      imageHeight,
+    );
+    ctx.restore();
+    return;
   }
   ctx.fillStyle = 'rgba(31,32,35,.16)';
   ctx.beginPath();
@@ -1242,7 +1261,14 @@ function drawRenderFrame(
     backgroundImage ? imageMap?.get(backgroundImage.id) : undefined,
   );
   evaluateCharacters(project, project.currentTime).forEach((character) =>
-    drawCharacter(ctx, character, width, height, false),
+    drawCharacter(
+      ctx,
+      character,
+      width,
+      height,
+      false,
+      character.assetId ? imageMap?.get(character.assetId) : undefined,
+    ),
   );
   drawImportedProps(ctx, project.assets, width, height, imageMap);
   ctx.restore();
@@ -1302,7 +1328,9 @@ function StageCanvas({
     project.assets
       .filter(
         (asset) =>
-          (asset.kind === 'background' || asset.kind === 'prop') &&
+          (asset.kind === 'rigged-character' ||
+            asset.kind === 'background' ||
+            asset.kind === 'prop') &&
           asset.dataUrl,
       )
       .forEach((asset) => {
@@ -1343,7 +1371,14 @@ function StageCanvas({
         : undefined,
     );
     evaluateCharacters(project, project.currentTime).forEach((c) =>
-      drawCharacter(ctx, c, width, height, c.id === project.selectedId),
+      drawCharacter(
+        ctx,
+        c,
+        width,
+        height,
+        c.id === project.selectedId,
+        c.assetId ? imageCacheRef.current.get(c.assetId) : undefined,
+      ),
     );
     drawImportedProps(
       ctx,
@@ -1449,9 +1484,9 @@ export default function Home() {
   const [editingSceneId, setEditingSceneId] = useState<string | null>(null);
   const [sceneTitleDraft, setSceneTitleDraft] = useState('');
   const [sceneDescriptionDraft, setSceneDescriptionDraft] = useState('');
-  const [assetImportKind, setAssetImportKind] = useState<'background' | 'prop'>(
-    'prop',
-  );
+  const [assetImportKind, setAssetImportKind] = useState<
+    'rigged-character' | 'background' | 'prop'
+  >('prop');
   const panStartRef = useRef<{
     x: number;
     y: number;
@@ -1929,6 +1964,9 @@ export default function Home() {
         commitRef.current(
           (next) => {
             next.assets = next.assets.filter((item) => item.id !== assetId);
+            next.characters.forEach((character) => {
+              if (character.assetId === assetId) character.assetId = undefined;
+            });
           },
           `Remove asset ${asset.label}`,
           true,
@@ -1937,6 +1975,51 @@ export default function Home() {
           ok: true,
           revision: current.revision + 1,
           removedAssetId: assetId,
+        };
+      },
+    );
+    register(
+      'bind_character_asset',
+      'Bind character art',
+      'Attach imported character art to a rigged character while preserving its animation keyframes.',
+      {
+        type: 'object',
+        required: ['characterId', 'assetId'],
+        additionalProperties: false,
+        properties: {
+          characterId: { type: 'string' },
+          assetId: { type: 'string' },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const characterId =
+          typeof input.characterId === 'string' ? input.characterId : '';
+        const assetId = typeof input.assetId === 'string' ? input.assetId : '';
+        const character = current.characters.find(
+          (item) => item.id === characterId,
+        );
+        const asset = current.assets.find((item) => item.id === assetId);
+        if (!character || !asset) return { ok: false, code: 'NOT_FOUND' };
+        if (asset.kind !== 'rigged-character' || !asset.dataUrl) {
+          return { ok: false, code: 'INVALID_ASSET' };
+        }
+        commitRef.current(
+          (next) => {
+            const item = next.characters.find(
+              (candidate) => candidate.id === characterId,
+            );
+            if (item) item.assetId = assetId;
+          },
+          `Bind ${asset.label} to ${character.name}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          characterId,
+          assetId,
+          changedPaths: [`characters.${characterId}.assetId`],
         };
       },
     );
@@ -2819,6 +2902,9 @@ export default function Home() {
   const removeAsset = (asset: Asset) => {
     commit((next) => {
       next.assets = next.assets.filter((item) => item.id !== asset.id);
+      next.characters.forEach((character) => {
+        if (character.assetId === asset.id) character.assetId = undefined;
+      });
     }, `Remove asset ${asset.label}`);
   };
   const addAudioCue = (kind: Exclude<AudioCueKind, 'music'>) => {
@@ -2863,16 +2949,28 @@ export default function Home() {
         return;
       }
       const label = file.name.replace(/\.[^/.]+$/, '') || 'Imported image';
-      commit((next) => {
-        next.assets.push({
-          id: nextAssetId(next.assets, assetImportKind),
-          kind: assetImportKind,
-          label,
-          source: 'imported',
-          mimeType: file.type,
-          dataUrl: reader.result as string,
-        });
-      }, `Import asset ${label}`);
+      const assetId = nextAssetId(project.assets, assetImportKind);
+      commit(
+        (next) => {
+          next.assets.push({
+            id: assetId,
+            kind: assetImportKind,
+            label,
+            source: 'imported',
+            mimeType: file.type,
+            dataUrl: reader.result as string,
+          });
+          if (assetImportKind === 'rigged-character') {
+            const character = next.characters.find(
+              (item) => item.id === next.selectedId,
+            );
+            if (character) character.assetId = assetId;
+          }
+        },
+        assetImportKind === 'rigged-character'
+          ? `Import and bind character art ${label}`
+          : `Import asset ${label}`,
+      );
     };
     reader.onerror = () => setNotice('Image import failed');
     reader.readAsDataURL(file);
@@ -3020,7 +3118,9 @@ export default function Home() {
       project.assets
         .filter(
           (asset) =>
-            (asset.kind === 'background' || asset.kind === 'prop') &&
+            (asset.kind === 'rigged-character' ||
+              asset.kind === 'background' ||
+              asset.kind === 'prop') &&
             asset.dataUrl,
         )
         .map(
@@ -3531,6 +3631,15 @@ export default function Home() {
                 ))}
               </div>
               <div className="asset-import-grid">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssetImportKind('rigged-character');
+                    assetImportInputRef.current?.click();
+                  }}
+                >
+                  <Upload size={11} /> Import character art
+                </button>
                 <button
                   type="button"
                   onClick={() => {
