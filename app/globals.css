@@ -734,6 +734,39 @@ button {
   white-space: nowrap;
   font-size: 8px;
 }
+.asset-placement {
+  color: #9d9288;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.asset-placement.is-in-scene {
+  color: var(--blue);
+}
+.asset-palette {
+  display: flex !important;
+  align-items: center;
+  gap: 3px !important;
+  margin-top: 2px;
+  padding: 0 !important;
+  color: #a0958b;
+  font-size: 7px;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+.asset-palette i {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border: 1px solid rgb(41 39 42 / 14%);
+  border-radius: 50%;
+}
+.asset-palette span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .asset-bind-control {
   display: flex;
   align-items: center;

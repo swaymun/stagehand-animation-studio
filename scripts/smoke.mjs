@@ -75,6 +75,17 @@ page.on('pageerror', (error) => errors.push(error.message));
 
 await page.addInitScript(() => {
   window.__stagehandTools = new Map();
+  window.__stagehandCanvasFilters = [];
+  const originalDrawImage = Object.getOwnPropertyDescriptor(
+    CanvasRenderingContext2D.prototype,
+    'drawImage',
+  )?.value;
+  CanvasRenderingContext2D.prototype.drawImage = function (...args) {
+    if (this.filter && this.filter !== 'none') {
+      window.__stagehandCanvasFilters.push(this.filter);
+    }
+    return Reflect.apply(originalDrawImage, this, args);
+  };
   document.modelContext = {
     registerTool(tool) {
       window.__stagehandTools.set(tool.name, tool);
@@ -347,6 +358,12 @@ const bridge = await page.evaluate(async () => {
     (asset) => asset.kind === 'prop' && asset.source === 'imported',
   );
   if (!prop) throw new Error('Imported smoke prop unavailable');
+  if (prop.placement !== 'stage' || prop.keyframeCount < 1) {
+    throw new Error(
+      `asset manifest should expose stage placement and animation state: ${JSON.stringify(prop)}`,
+    );
+  }
+  window.__stagehandCanvasFilters.length = 0;
   const styled = await call('set_asset_style', {
     assetId: prop.id,
     role: 'accent',
@@ -358,6 +375,13 @@ const bridge = await page.evaluate(async () => {
   if (!styled.ok || styled.style?.treatment !== 'inked') {
     throw new Error(
       `expected asset style update, got ${JSON.stringify(styled)}`,
+    );
+  }
+  await new Promise((resolve) => setTimeout(resolve, 140));
+  const inkedFilters = [...new Set(window.__stagehandCanvasFilters)];
+  if (!inkedFilters.some((filter) => filter.includes('grayscale'))) {
+    throw new Error(
+      `asset treatment should reach the canvas renderer: ${JSON.stringify({ inkedFilters })}`,
     );
   }
   const propReadBefore = await call('get_prop_keyframes', {
@@ -430,6 +454,7 @@ const bridge = await page.evaluate(async () => {
       ok: styled.ok,
       treatment: styled.style?.treatment,
       palette: styled.style?.palette,
+      rendererFilters: inkedFilters,
     },
     undone: { ok: undone.ok, revision: undone.revision },
     redone: { ok: redone.ok, revision: redone.revision },

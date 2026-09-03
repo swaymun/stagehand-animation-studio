@@ -250,6 +250,33 @@ function defaultAssetStyle(kind: AssetKind): AssetStyle {
           };
 }
 
+function assetTreatmentFilter(asset?: Asset) {
+  switch (asset?.style?.treatment) {
+    case 'inked':
+      return 'grayscale(0.12) saturate(0.78) contrast(1.28)';
+    case 'flat-color':
+      return 'saturate(1.42) contrast(1.08)';
+    case 'photo':
+      return 'saturate(0.94) contrast(1.03)';
+    case 'paper':
+      return 'saturate(0.84) contrast(1.05) brightness(1.02)';
+    default:
+      return 'none';
+  }
+}
+
+function paletteColor(value: string) {
+  const colors: Record<string, string> = {
+    amber: '#e3a847',
+    coral: '#e56b52',
+    'diner teal': '#32748f',
+    mustard: '#d9a53b',
+    violet: '#825291',
+    'warm paper': '#e9d6b8',
+  };
+  return colors[value.trim().toLowerCase()] ?? '#b8ada1';
+}
+
 const starterAssets: Asset[] = [
   {
     id: 'alice',
@@ -1564,9 +1591,13 @@ function drawDinerBackground(
   width: number,
   height: number,
   backgroundImage?: CanvasImageSource,
+  backgroundAsset?: Asset,
 ) {
   if (backgroundImage) {
+    ctx.save();
+    ctx.filter = assetTreatmentFilter(backgroundAsset);
     ctx.drawImage(backgroundImage, 0, 0, width, height);
+    ctx.restore();
     return;
   }
   ctx.fillStyle = '#e9d6b8';
@@ -1622,10 +1653,12 @@ function drawImportedProps(
   evaluateProps(project, time).forEach((prop) => {
     const image = imageMap?.get(prop.assetId);
     if (!image) return;
+    const asset = project.assets.find((item) => item.id === prop.assetId);
     const size = Math.min(width, height) * 0.16 * prop.scale;
     ctx.save();
     ctx.translate((prop.x / 100) * width, (prop.y / 100) * height);
     ctx.rotate((prop.rotation * Math.PI) / 180);
+    ctx.filter = assetTreatmentFilter(asset);
     ctx.drawImage(image, -size / 2, -size / 2, size, size);
     ctx.restore();
   });
@@ -1770,6 +1803,7 @@ function drawCharacter(
   }
   if (characterImage) {
     const image = characterImage as HTMLImageElement;
+    ctx.filter = assetTreatmentFilter(characterAsset);
     const frameCount = characterAsset?.frameCount === 4 ? 4 : 1;
     const sourceWidth = image.naturalWidth || image.width || 100;
     const sourceHeight = image.naturalHeight || image.height || 220;
@@ -1894,6 +1928,7 @@ function drawRenderFrame(
     width,
     height,
     backgroundImage ? imageMap?.get(backgroundImage.id) : undefined,
+    backgroundImage,
   );
   evaluateCharacters(project, project.currentTime).forEach((character) =>
     drawCharacter(
@@ -2074,6 +2109,7 @@ function StageCanvas({
       backgroundAsset
         ? imageCacheRef.current.get(backgroundAsset.id)
         : undefined,
+      backgroundAsset,
     );
     evaluateCharacters(project, project.currentTime).forEach((c) =>
       drawCharacter(
@@ -3401,7 +3437,29 @@ export default function Home() {
         return {
           ok: true,
           revision: current.revision,
-          assets: current.assets,
+          assets: current.assets.map((asset) => {
+            const boundTo = current.characters
+              .filter((character) => character.assetId === asset.id)
+              .map((character) => character.name);
+            const visibleOnStage =
+              boundTo.length > 0 ||
+              (asset.kind === 'background' &&
+                (asset.source === 'starter' || Boolean(asset.dataUrl))) ||
+              (asset.kind === 'prop' && Boolean(asset.dataUrl));
+            return {
+              ...asset,
+              placement:
+                boundTo.length > 0
+                  ? 'bound'
+                  : visibleOnStage
+                    ? 'stage'
+                    : 'library',
+              boundTo,
+              keyframeCount: current.propKeyframes.filter(
+                (frame) => frame.assetId === asset.id,
+              ).length,
+            };
+          }),
         };
       },
       true,
@@ -6419,6 +6477,14 @@ export default function Home() {
                 {project.assets.map((asset) => {
                   const assetStyle =
                     asset.style ?? defaultAssetStyle(asset.kind);
+                  const boundCharacters = project.characters.filter(
+                    (character) => character.assetId === asset.id,
+                  );
+                  const inScene =
+                    boundCharacters.length > 0 ||
+                    (asset.kind === 'background' &&
+                      (asset.source === 'starter' || Boolean(asset.dataUrl))) ||
+                    (asset.kind === 'prop' && Boolean(asset.dataUrl));
                   return (
                     <div className="asset-row" key={asset.id}>
                       <span
@@ -6429,6 +6495,7 @@ export default function Home() {
                                 backgroundImage: `url(${asset.dataUrl})`,
                                 backgroundPosition: 'center',
                                 backgroundSize: 'cover',
+                                filter: assetTreatmentFilter(asset),
                               }
                             : undefined
                         }
@@ -6440,12 +6507,16 @@ export default function Home() {
                           asset.frameCount === 4
                             ? '4-pose sheet'
                             : assetKindLabel(asset.kind)}{' '}
-                          · {asset.source}
-                          {project.characters.find(
-                            (character) => character.assetId === asset.id,
-                          )
-                            ? ` · bound to ${project.characters.find((character) => character.assetId === asset.id)?.name}`
-                            : ''}
+                          · {asset.source} ·{' '}
+                          <span
+                            className={`asset-placement ${inScene ? 'is-in-scene' : ''}`}
+                          >
+                            {boundCharacters.length > 0
+                              ? `bound · ${boundCharacters.map((character) => character.name).join(', ')}`
+                              : inScene
+                                ? 'on stage'
+                                : 'library'}
+                          </span>
                         </small>
                         <div className="asset-style-summary">
                           <span>
@@ -6463,6 +6534,19 @@ export default function Home() {
                           >
                             Style
                           </button>
+                        </div>
+                        <div
+                          className="asset-palette"
+                          aria-label={`${asset.label} palette: ${assetStyle.palette.join(', ')}`}
+                        >
+                          {assetStyle.palette.slice(0, 4).map((color) => (
+                            <i
+                              key={`${asset.id}-${color}`}
+                              title={color}
+                              style={{ background: paletteColor(color) }}
+                            />
+                          ))}
+                          <span>{assetStyle.palette.join(' · ')}</span>
                         </div>
                         {expandedAssetStyleId === asset.id && (
                           <div className="asset-style-editor">
