@@ -170,7 +170,7 @@ const humanFastDuration = await durationInput.inputValue();
 await page.getByRole('button', { name: '0.8×', exact: true }).click();
 await page.waitForTimeout(80);
 const humanSlowDuration = await durationInput.inputValue();
-if (humanFastDuration !== '4.00' || humanSlowDuration !== '5.00') {
+if (humanFastDuration !== '12.00' || humanSlowDuration !== '15.00') {
   throw new Error(
     `human speed controls should retime and restore duration: ${JSON.stringify({ humanFastDuration, humanSlowDuration })}`,
   );
@@ -336,14 +336,14 @@ const bridge = await page.evaluate(async () => {
   const retimed = await call('retime_scene', { speed: 1.25 });
   const retimedTimeline = await call('get_timeline');
   const restoredDuration = await call('set_scene_duration', {
-    durationMs: 5000,
+    durationMs: 15000,
   });
   if (
     !retimed.ok ||
-    retimed.durationMs !== 4000 ||
-    retimedTimeline.currentTimeMs > 4000 ||
+    retimed.durationMs !== 12000 ||
+    retimedTimeline.currentTimeMs > 12000 ||
     !restoredDuration.ok ||
-    restoredDuration.durationMs !== 5000
+    restoredDuration.durationMs !== 15000
   ) {
     throw new Error(
       `scene retime should synchronize duration and tracks: ${JSON.stringify({ retimed, retimedTimeline, restoredDuration })}`,
@@ -643,8 +643,8 @@ if (
   Math.abs(result.humanTimeline.currentTimeMs - 1250) > 1 ||
   !result.keyboardStep.ok ||
   result.keyboardStep.currentTimeMs <= result.humanTimeline.currentTimeMs ||
-  result.humanSpeed.fastDuration !== '4.00' ||
-  result.humanSpeed.restoredDuration !== '5.00' ||
+  result.humanSpeed.fastDuration !== '12.00' ||
+  result.humanSpeed.restoredDuration !== '15.00' ||
   result.sceneTitleLines < 2 ||
   result.h1 !== 'stagehand' ||
   result.modal.heading !== 'Help & shortcuts' ||
@@ -663,8 +663,8 @@ if (
   !bridge.renderSettings.preserved1080 ||
   !bridge.renderSettings.reset720 ||
   !bridge.retime.ok ||
-  bridge.retime.durationMs !== 4000 ||
-  bridge.retime.restoredDurationMs !== 5000 ||
+  bridge.retime.durationMs !== 12000 ||
+  bridge.retime.restoredDurationMs !== 15000 ||
   bridge.prop.before !== 1 ||
   !bridge.prop.keyframe.ok ||
   bridge.prop.keyframe.x !== 64 ||
@@ -689,7 +689,7 @@ if (
   frameDownloadedBytes <= 0 ||
   !frameDownload.suggestedFilename().endsWith('.png') ||
   result.humanAudioVolume !== '0.02' ||
-  storyboardCards !== 3 ||
+  storyboardCards !== 6 ||
   !result.sequencePreview.advanced ||
   preview.banner !== 1 ||
   preview.canvas !== 1 ||

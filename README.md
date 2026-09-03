@@ -1,6 +1,6 @@
 # Stagehand Animation Studio
 
-Stagehand is a WebMCP-native 2D animation studio for making short, editable paper-cutout scenes together with a person and ChatGPT. The current cut is a deterministic diner comedy scene with rigged characters, imported image assets, renderer-applied per-asset visual treatments, animated props, camera work, captions, non-voice audio cues, storyboard beats, multi-scene preview, and WebM export.
+Stagehand is a WebMCP-native 2D animation studio for making short, editable paper-cutout scenes together with a person and ChatGPT. The current cut is a deterministic 15-second, six-beat diner comedy scene with rigged characters, imported image assets, renderer-applied per-asset visual treatments, animated props, camera work, captions, non-voice audio cues, storyboard beats, multi-scene preview, and WebM export.
 
 ## Run it
 
@@ -47,11 +47,11 @@ TTS, voice cloning, dialogue recording, phoneme extraction, and lip-sync are exp
 
 ## Demo path
 
-1. Start with **Paper Cutout Comedy** and scrub the shared playhead.
+1. Start with **Paper Cutout Comedy**, a 15-second six-beat arc, and scrub the shared playhead.
 2. Choose Alice, change a transform, and add a keyframe; try **Nervous** or **Walk in**.
 3. Open **Assets**, import a prop, use **Pop in** or **Nudge**, then edit X/Y/Scale/Rot at the playhead.
 4. Open **Assets**, expand **Style**, and change treatment or palette to see the asset direction reflected in the stage and render path.
-5. Open **Storyboard** to inspect the three beat thumbnails, then return to **Animate**.
+5. Open **Storyboard** to inspect the six beat thumbnails, then return to **Animate**.
 6. Open **Preview** for the clean review player and let the sequence loop.
 7. Lower the music cue, click **Render WebM**, and inspect the downloaded result.
 

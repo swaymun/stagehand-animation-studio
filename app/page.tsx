@@ -212,7 +212,7 @@ const starterScenes: SceneMeta[] = [
     id: 'scene-01',
     title: 'Diner · first meeting',
     description: 'Alice waits. Bob arrives behind her.',
-    duration: 5000,
+    duration: 15000,
     templateId: 'first-meeting',
   },
 ];
@@ -363,6 +363,38 @@ const starterCameraKeyframes: CameraKeyframe[] = [
     panY: 0,
     rotation: 0,
   },
+  {
+    id: 'cam-7000',
+    time: 7000,
+    zoom: 1.16,
+    panX: -4,
+    panY: 1,
+    rotation: 0,
+  },
+  {
+    id: 'cam-9800',
+    time: 9800,
+    zoom: 1.3,
+    panX: 1,
+    panY: 0,
+    rotation: 0,
+  },
+  {
+    id: 'cam-12000',
+    time: 12000,
+    zoom: 1.08,
+    panX: 0,
+    panY: 0,
+    rotation: 0,
+  },
+  {
+    id: 'cam-15000',
+    time: 15000,
+    zoom: 1,
+    panX: 0,
+    panY: 0,
+    rotation: 0,
+  },
 ];
 const storyboardBeats: StoryBeat[] = [
   {
@@ -388,6 +420,30 @@ const storyboardBeats: StoryBeat[] = [
     description: 'Neither knows what to do.',
     startMs: 3100,
     endMs: 5000,
+  },
+  {
+    id: 'beat-04',
+    index: '04',
+    title: 'The spill',
+    description: 'A tiny accident makes the silence worse.',
+    startMs: 5000,
+    endMs: 7000,
+  },
+  {
+    id: 'beat-05',
+    index: '05',
+    title: 'The recovery',
+    description: 'They attempt a normal conversation.',
+    startMs: 7000,
+    endMs: 10000,
+  },
+  {
+    id: 'beat-06',
+    index: '06',
+    title: 'A second chance',
+    description: 'One honest sentence finally lands.',
+    startMs: 10000,
+    endMs: 15000,
   },
 ];
 const starterStyleBible: StyleBible = {
@@ -434,7 +490,7 @@ const starterAudioCues: AudioCue[] = [
     kind: 'music',
     label: 'Quiet diner bed',
     start: 0,
-    end: 5000,
+    end: 15000,
     volume: 0.08,
   },
   {
@@ -461,11 +517,27 @@ const starterAudioCues: AudioCue[] = [
     end: 3450,
     volume: 0.18,
   },
+  {
+    id: 'mug-hit',
+    kind: 'stinger',
+    label: 'Mug hit',
+    start: 5000,
+    end: 5350,
+    volume: 0.14,
+  },
+  {
+    id: 'second-chance-sting',
+    kind: 'stinger',
+    label: 'Second chance sting',
+    start: 10800,
+    end: 11250,
+    volume: 0.16,
+  },
 ];
 const starterProject: Project = {
   name: 'Paper Cutout Comedy',
   revision: 7,
-  duration: 5000,
+  duration: 15000,
   currentTime: 1800,
   fps: 12,
   renderWidth: 720,
@@ -531,6 +603,42 @@ const starterProject: Project = {
       pose: 'wave',
     },
     {
+      id: 'kf-alice-7000',
+      characterId: 'alice',
+      time: 7000,
+      x: 43,
+      y: 62,
+      rotation: -2,
+      pose: 'point',
+    },
+    {
+      id: 'kf-alice-9800',
+      characterId: 'alice',
+      time: 9800,
+      x: 45,
+      y: 62,
+      rotation: -1,
+      pose: 'point',
+    },
+    {
+      id: 'kf-alice-12000',
+      characterId: 'alice',
+      time: 12000,
+      x: 43,
+      y: 62,
+      rotation: -2,
+      pose: 'shrug',
+    },
+    {
+      id: 'kf-alice-15000',
+      characterId: 'alice',
+      time: 15000,
+      x: 43,
+      y: 62,
+      rotation: -2,
+      pose: 'shrug',
+    },
+    {
       id: 'kf-bob-0000',
       characterId: 'bob',
       time: 0,
@@ -566,6 +674,42 @@ const starterProject: Project = {
       rotation: 3,
       pose: 'lean-in',
     },
+    {
+      id: 'kf-bob-7000',
+      characterId: 'bob',
+      time: 7000,
+      x: 64,
+      y: 57,
+      rotation: 3,
+      pose: 'lean-in',
+    },
+    {
+      id: 'kf-bob-9800',
+      characterId: 'bob',
+      time: 9800,
+      x: 66,
+      y: 57,
+      rotation: 3,
+      pose: 'point',
+    },
+    {
+      id: 'kf-bob-12000',
+      characterId: 'bob',
+      time: 12000,
+      x: 66,
+      y: 57,
+      rotation: 3,
+      pose: 'shrug',
+    },
+    {
+      id: 'kf-bob-15000',
+      characterId: 'bob',
+      time: 15000,
+      x: 66,
+      y: 57,
+      rotation: 3,
+      pose: 'shrug',
+    },
   ],
   propKeyframes: [],
   cameraKeyframes: starterCameraKeyframes,
@@ -584,6 +728,27 @@ const starterProject: Project = {
       end: 4000,
       speaker: 'Bob',
     },
+    {
+      id: 'caption-3',
+      text: 'The mug is okay',
+      start: 5000,
+      end: 6500,
+      speaker: 'Alice',
+    },
+    {
+      id: 'caption-4',
+      text: 'That makes one of us',
+      start: 7600,
+      end: 9200,
+      speaker: 'Bob',
+    },
+    {
+      id: 'caption-5',
+      text: 'Can we start over?',
+      start: 10800,
+      end: 13000,
+      speaker: 'Alice',
+    },
   ],
   audioCues: starterAudioCues,
   assets: starterAssets,
@@ -601,7 +766,7 @@ function makeTemplateScene(templateId: TemplateId, id: string): SceneMeta {
     {
       title: string;
       description: string;
-      captions: [string, string];
+      captions: string[];
       cameraZoom: number;
       cameraPanX: number;
     }
@@ -638,7 +803,7 @@ function makeTemplateScene(templateId: TemplateId, id: string): SceneMeta {
   const variant = variants[templateId];
   const cameraKeyframes = base.cameraKeyframes.map((frame) => ({ ...frame }));
   cameraKeyframes.forEach((frame) => {
-    if (frame.time >= 3100 && frame.time < 5000) {
+    if (frame.time >= 3100 && frame.time < base.duration) {
       frame.zoom = variant.cameraZoom;
       frame.panX = variant.cameraPanX;
     }
@@ -655,7 +820,7 @@ function makeTemplateScene(templateId: TemplateId, id: string): SceneMeta {
     cameraKeyframes,
     captions: base.captions.map((caption, index) => ({
       ...caption,
-      text: variant.captions[index],
+      text: variant.captions[index] ?? caption.text,
     })),
     audioCues: base.audioCues,
   };
@@ -7005,7 +7170,7 @@ export default function Home() {
               <div className="mode-banner">
                 <span>STORYBOARD</span>
                 <strong>
-                  {project.storyboardBeats.length} beats · one awkward pause
+                  {project.storyboardBeats.length} beats · one awkward arc
                 </strong>
                 <small>Review the beat plan before promoting timing.</small>
               </div>
