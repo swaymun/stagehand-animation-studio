@@ -340,11 +340,12 @@ button {
   border-color: var(--coral);
 }
 .scene-card-main {
+  position: relative;
   min-width: 0;
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 7px;
+  padding: 7px 29px 7px 7px;
   border: 0;
   border-radius: 6px;
   color: var(--ink);
@@ -405,7 +406,10 @@ button {
   font-style: normal;
 }
 .scene-status {
-  align-self: center;
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
   color: #a69d93;
   font-weight: 800;
 }

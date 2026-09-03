@@ -28,6 +28,19 @@ await page.evaluate(() => localStorage.clear());
 await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
 await page.waitForTimeout(700);
 await page.waitForFunction(() => window.__stagehandTools?.size === 51);
+const sceneTitleLines = await page
+  .locator('.scene-meta strong')
+  .first()
+  .evaluate((node) => {
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    return range.getClientRects().length;
+  });
+if (sceneTitleLines < 2) {
+  throw new Error(
+    `scene title should remain readable across two lines: ${sceneTitleLines}`,
+  );
+}
 
 const marks = page.locator('button[aria-label^="Alice keyframe"]');
 const beforeDrag = await marks.nth(1).getAttribute('aria-label');
@@ -332,6 +345,7 @@ const result = {
     before: beforeDrag,
     after: afterDrag,
   },
+  sceneTitleLines,
   bridge,
   render: {
     ok: rendered.ok,
@@ -365,6 +379,7 @@ const result = {
 if (
   result.toolCount !== 51 ||
   !result.timelineDrag.moved ||
+  result.sceneTitleLines < 2 ||
   !bridge.audio.ok ||
   bridge.audio.volume !== 0.03 ||
   !bridge.inspected.ok ||
