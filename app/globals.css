@@ -2977,3 +2977,23 @@ button {
     width: min(350px, 94vw);
   }
 }
+
+@media (max-width: 900px) and (min-width: 761px) {
+  .timeline {
+    height: 326px;
+    flex-basis: 326px;
+  }
+  .timeline-toolbar {
+    height: 82px;
+    flex-wrap: wrap;
+    align-content: center;
+    row-gap: 3px;
+  }
+  .play-controls,
+  .timeline-actions {
+    flex: 1 1 100%;
+  }
+  .timeline-actions {
+    justify-content: flex-end;
+  }
+}
