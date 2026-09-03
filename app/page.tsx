@@ -12,6 +12,7 @@ import {
   CircleHelp,
   Clapperboard,
   ChevronDown,
+  CopyPlus,
   Film,
   FolderOpen,
   Grid2X2,
@@ -19,9 +20,11 @@ import {
   Layers3,
   Lock,
   Maximize2,
+  MoreHorizontal,
   MousePointer2,
   Pause,
   Play,
+  Pencil,
   Redo2,
   RotateCcw,
   Save,
@@ -29,6 +32,7 @@ import {
   Settings2,
   Sparkles,
   SquareDashedMousePointer,
+  Trash2,
   Undo2,
   Upload,
   WandSparkles,
@@ -90,7 +94,13 @@ type Project = {
   activeSceneId: string;
   dirty: boolean;
 };
-const WEBMCP_TOOL_COUNT = 17;
+type ValidationIssue = {
+  code: string;
+  severity: 'error' | 'warning';
+  path: string;
+  message: string;
+};
+const WEBMCP_TOOL_COUNT = 20;
 type ModelTool = {
   name: string;
   title: string;
@@ -268,6 +278,85 @@ const isPose = (value: unknown): value is Pose =>
   value === 'nervous' ||
   value === 'wave' ||
   value === 'lean-in';
+
+function nextSceneId(scenes: SceneMeta[]) {
+  let index = scenes.length + 1;
+  let id = `scene-${String(index).padStart(2, '0')}`;
+  while (scenes.some((scene) => scene.id === id)) {
+    index += 1;
+    id = `scene-${String(index).padStart(2, '0')}`;
+  }
+  return id;
+}
+
+function loadSceneContent(project: Project, sceneId: string) {
+  const target = project.scenes.find((scene) => scene.id === sceneId);
+  if (!target) return false;
+  project.activeSceneId = sceneId;
+  project.duration = target.duration;
+  project.characters = copy(target.characters ?? project.characters);
+  project.keyframes = copy(target.keyframes ?? project.keyframes);
+  project.captions = copy(target.captions ?? project.captions);
+  project.currentTime = 0;
+  if (
+    !project.characters.some((character) => character.id === project.selectedId)
+  )
+    project.selectedId = project.characters[0]?.id ?? '';
+  return true;
+}
+
+function validateProjectState(project: Project): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  if (project.scenes.length === 0)
+    issues.push({
+      code: 'NO_SCENES',
+      severity: 'error',
+      path: 'scenes',
+      message: 'Project needs at least one scene.',
+    });
+  if (project.characters.length === 0)
+    issues.push({
+      code: 'NO_CHARACTERS',
+      severity: 'error',
+      path: 'characters',
+      message: 'Active scene needs at least one character.',
+    });
+  if (!Number.isFinite(project.duration) || project.duration <= 0)
+    issues.push({
+      code: 'INVALID_DURATION',
+      severity: 'error',
+      path: 'duration',
+      message: 'Active scene needs a positive duration.',
+    });
+  project.captions.forEach((caption) => {
+    if (
+      !caption.text.trim() ||
+      caption.end <= caption.start ||
+      caption.start < 0 ||
+      caption.end > project.duration
+    )
+      issues.push({
+        code: 'CAPTION_OUT_OF_BOUNDS',
+        severity: 'error',
+        path: `captions.${caption.id}`,
+        message: `${caption.id} has invalid timing or empty text.`,
+      });
+  });
+  project.keyframes.forEach((frame) => {
+    if (
+      !project.characters.some(
+        (character) => character.id === frame.characterId,
+      )
+    )
+      issues.push({
+        code: 'ORPHAN_KEYFRAME',
+        severity: 'error',
+        path: `keyframes.${frame.id}`,
+        message: `${frame.id} points to a missing character.`,
+      });
+  });
+  return issues;
+}
 
 function syncActiveScene(project: Project) {
   const activeScene = project.scenes.find(
@@ -684,6 +773,10 @@ export default function Home() {
   const importInputRef = useRef<HTMLInputElement>(null);
   const [lastCommand, setLastCommand] = useState('set_pose( alice )');
   const [showSafeArea, setShowSafeArea] = useState(true);
+  const [sceneMenuId, setSceneMenuId] = useState<string | null>(null);
+  const [editingSceneId, setEditingSceneId] = useState<string | null>(null);
+  const [sceneTitleDraft, setSceneTitleDraft] = useState('');
+  const [sceneDescriptionDraft, setSceneDescriptionDraft] = useState('');
   const evaluatedCharacters = evaluateCharacters(project, project.currentTime),
     selected =
       evaluatedCharacters.find((c) => c.id === project.selectedId) ??
@@ -1105,9 +1198,10 @@ export default function Home() {
       },
       (input) => {
         const current = projectRef.current;
+        const id = nextSceneId(current.scenes);
         const sceneNumber = current.scenes.length + 1;
         const scene = {
-          id: `scene-${String(sceneNumber).padStart(2, '0')}`,
+          id,
           title:
             typeof input.title === 'string' && input.title.trim()
               ? input.title.trim()
@@ -1124,7 +1218,7 @@ export default function Home() {
         commitRef.current(
           (next) => {
             next.scenes.push(scene);
-            next.activeSceneId = scene.id;
+            loadSceneContent(next, scene.id);
           },
           `Add ${scene.title}`,
           true,
@@ -1135,6 +1229,136 @@ export default function Home() {
           scene,
           changedEntityIds: [scene.id],
           warnings: [],
+        };
+      },
+    );
+    register(
+      'rename_scene',
+      'Rename scene',
+      'Update a scene title and description without changing its animation content.',
+      {
+        type: 'object',
+        required: ['sceneId', 'title'],
+        additionalProperties: false,
+        properties: {
+          sceneId: { type: 'string' },
+          title: { type: 'string', minLength: 1 },
+          description: { type: 'string' },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const title = typeof input.title === 'string' ? input.title.trim() : '';
+        const sceneId = typeof input.sceneId === 'string' ? input.sceneId : '';
+        const target = current.scenes.find((scene) => scene.id === sceneId);
+        if (!target || !title) return { ok: false, code: 'INVALID_INPUT' };
+        const description =
+          typeof input.description === 'string'
+            ? input.description.trim()
+            : target.description;
+        commitRef.current(
+          (next) => {
+            const scene = next.scenes.find(
+              (candidate) => candidate.id === sceneId,
+            );
+            if (scene) {
+              scene.title = title;
+              scene.description = description;
+            }
+          },
+          `Rename ${sceneId}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          scene: { ...target, title, description },
+        };
+      },
+    );
+    register(
+      'duplicate_scene',
+      'Duplicate scene',
+      'Create an independent editable copy of a scene and make the copy active.',
+      {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          sceneId: { type: 'string' },
+          title: { type: 'string' },
+          description: { type: 'string' },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const sourceId =
+          typeof input.sceneId === 'string'
+            ? input.sceneId
+            : current.activeSceneId;
+        const source = current.scenes.find((scene) => scene.id === sourceId);
+        if (!source) return { ok: false, code: 'NOT_FOUND' };
+        const scene = {
+          ...copy(source),
+          id: nextSceneId(current.scenes),
+          title:
+            typeof input.title === 'string' && input.title.trim()
+              ? input.title.trim()
+              : `${source.title} copy`,
+          description:
+            typeof input.description === 'string'
+              ? input.description.trim()
+              : source.description,
+        } satisfies SceneMeta;
+        commitRef.current(
+          (next) => {
+            next.scenes.push(scene);
+            loadSceneContent(next, scene.id);
+          },
+          `Duplicate ${source.title}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          scene,
+          changedEntityIds: [scene.id],
+        };
+      },
+    );
+    register(
+      'delete_scene',
+      'Delete scene',
+      'Remove a scene when another scene remains, then activate a neighboring scene if needed.',
+      {
+        type: 'object',
+        required: ['sceneId'],
+        additionalProperties: false,
+        properties: { sceneId: { type: 'string' } },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const sceneId = typeof input.sceneId === 'string' ? input.sceneId : '';
+        const index = current.scenes.findIndex((scene) => scene.id === sceneId);
+        if (index < 0) return { ok: false, code: 'NOT_FOUND' };
+        if (current.scenes.length === 1)
+          return { ok: false, code: 'LAST_SCENE' };
+        const nextActiveId =
+          current.activeSceneId === sceneId
+            ? (current.scenes[index + 1]?.id ?? current.scenes[index - 1]?.id)
+            : current.activeSceneId;
+        commitRef.current(
+          (next) => {
+            next.scenes.splice(index, 1);
+            if (nextActiveId) loadSceneContent(next, nextActiveId);
+          },
+          `Delete ${sceneId}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          deletedSceneId: sceneId,
+          activeSceneId: nextActiveId,
         };
       },
     );
@@ -1392,36 +1616,7 @@ export default function Home() {
       { type: 'object', properties: {}, additionalProperties: false },
       () => {
         const current = projectRef.current;
-        const issues: Array<{
-          code: string;
-          severity: 'error' | 'warning';
-          path: string;
-          message: string;
-        }> = [];
-        if (current.scenes.length === 0)
-          issues.push({
-            code: 'NO_SCENES',
-            severity: 'error',
-            path: 'scenes',
-            message: 'Project needs at least one scene.',
-          });
-        if (current.characters.length === 0)
-          issues.push({
-            code: 'NO_CHARACTERS',
-            severity: 'error',
-            path: 'characters',
-            message: 'Active scene needs at least one character.',
-          });
-        current.captions.forEach((caption) => {
-          if (caption.end <= caption.start || caption.end > current.duration) {
-            issues.push({
-              code: 'CAPTION_OUT_OF_BOUNDS',
-              severity: 'error',
-              path: `captions.${caption.id}`,
-              message: `${caption.id} has invalid timing.`,
-            });
-          }
-        });
+        const issues = validateProjectState(current);
         return {
           ok: issues.every((issue) => issue.severity !== 'error'),
           revision: current.revision,
@@ -1476,7 +1671,7 @@ export default function Home() {
   const addScene = () => {
     const sceneNumber = project.scenes.length + 1;
     const scene = {
-      id: `scene-${String(sceneNumber).padStart(2, '0')}`,
+      id: nextSceneId(project.scenes),
       title: `Scene ${String(sceneNumber).padStart(2, '0')}`,
       description: 'New scene ready for blocking.',
       duration: project.duration,
@@ -1486,8 +1681,62 @@ export default function Home() {
     } satisfies SceneMeta;
     commit((next) => {
       next.scenes.push(scene);
-      next.activeSceneId = scene.id;
+      loadSceneContent(next, scene.id);
     }, `Add ${scene.title}`);
+  };
+  const beginSceneEdit = (scene: SceneMeta) => {
+    setSceneMenuId(null);
+    setEditingSceneId(scene.id);
+    setSceneTitleDraft(scene.title);
+    setSceneDescriptionDraft(scene.description);
+  };
+  const finishSceneEdit = () => {
+    if (!editingSceneId) return;
+    const title = sceneTitleDraft.trim();
+    if (!title) {
+      setNotice('Scene title cannot be empty');
+      return;
+    }
+    const sceneId = editingSceneId;
+    commit((next) => {
+      const scene = next.scenes.find((candidate) => candidate.id === sceneId);
+      if (scene) {
+        scene.title = title;
+        scene.description = sceneDescriptionDraft.trim() || 'Untitled scene.';
+      }
+    }, `Rename ${sceneId}`);
+    setEditingSceneId(null);
+  };
+  const duplicateScene = (source: SceneMeta) => {
+    const scene = {
+      ...copy(source),
+      id: nextSceneId(project.scenes),
+      title: `${source.title} copy`,
+      description: source.description,
+    } satisfies SceneMeta;
+    commit((next) => {
+      next.scenes.push(scene);
+      loadSceneContent(next, scene.id);
+    }, `Duplicate ${source.title}`);
+    setSceneMenuId(null);
+  };
+  const deleteScene = (scene: SceneMeta) => {
+    if (project.scenes.length === 1) {
+      setNotice('Keep at least one scene in the project');
+      return;
+    }
+    const index = project.scenes.findIndex(
+      (candidate) => candidate.id === scene.id,
+    );
+    const nextActiveId =
+      scene.id === project.activeSceneId
+        ? (project.scenes[index + 1]?.id ?? project.scenes[index - 1]?.id)
+        : project.activeSceneId;
+    commit((next) => {
+      next.scenes.splice(index, 1);
+      if (nextActiveId) loadSceneContent(next, nextActiveId);
+    }, `Delete ${scene.title}`);
+    setSceneMenuId(null);
   };
   const exportProject = useCallback(() => {
     const exportable = copy(project);
@@ -1617,6 +1866,10 @@ export default function Home() {
   const selectedKeyframeCount = project.keyframes.filter(
     (frame) => frame.characterId === selected.id,
   ).length;
+  const validationIssues = validateProjectState(project);
+  const renderReady = validationIssues.every(
+    (issue) => issue.severity !== 'error',
+  );
   return (
     <main className="studio-shell">
       <header className="topbar">
@@ -1721,39 +1974,107 @@ export default function Home() {
                 <Sparkles size={13} />
               </div>
               {project.scenes.map((scene, index) => (
-                <button
+                <div
                   className={`scene-card ${scene.id === project.activeSceneId ? 'active' : ''}`}
                   key={scene.id}
-                  type="button"
-                  onClick={() =>
-                    commit((next) => {
-                      const target = next.scenes.find(
-                        (candidate) => candidate.id === scene.id,
-                      );
-                      if (!target) return;
-                      next.activeSceneId = scene.id;
-                      next.duration = scene.duration;
-                      next.characters = copy(
-                        target.characters ?? next.characters,
-                      );
-                      next.keyframes = copy(target.keyframes ?? next.keyframes);
-                      next.captions = copy(target.captions ?? next.captions);
-                      next.currentTime = 0;
-                    }, `Open ${scene.title}`)
-                  }
                 >
-                  <div className="scene-thumbnail">
-                    <span>{String(index + 1).padStart(2, '0')}</span>
-                    <div className="thumb-diner" />
-                  </div>
-                  <div className="scene-meta">
-                    <strong>{scene.title}</strong>
-                    <span>
-                      {timecode(scene.duration)} <i>12 fps</i>
-                    </span>
-                  </div>
-                  <span className="scene-more">ready</span>
-                </button>
+                  {editingSceneId === scene.id ? (
+                    <div className="scene-editor">
+                      <label>
+                        Scene title
+                        <input
+                          value={sceneTitleDraft}
+                          onChange={(event) =>
+                            setSceneTitleDraft(event.target.value)
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') finishSceneEdit();
+                            if (event.key === 'Escape') setEditingSceneId(null);
+                          }}
+                        />
+                      </label>
+                      <label>
+                        Description
+                        <input
+                          value={sceneDescriptionDraft}
+                          onChange={(event) =>
+                            setSceneDescriptionDraft(event.target.value)
+                          }
+                        />
+                      </label>
+                      <div className="scene-editor-actions">
+                        <button
+                          type="button"
+                          onClick={() => setEditingSceneId(null)}
+                        >
+                          Cancel
+                        </button>
+                        <button type="button" onClick={finishSceneEdit}>
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        className="scene-card-main"
+                        type="button"
+                        onClick={() =>
+                          commit((next) => {
+                            loadSceneContent(next, scene.id);
+                          }, `Open ${scene.title}`)
+                        }
+                      >
+                        <div className="scene-thumbnail">
+                          <span>{String(index + 1).padStart(2, '0')}</span>
+                          <div className="thumb-diner" />
+                        </div>
+                        <div className="scene-meta">
+                          <strong>{scene.title}</strong>
+                          <span>
+                            {timecode(scene.duration)} <i>12 fps</i>
+                          </span>
+                        </div>
+                        <span className="scene-status">ready</span>
+                      </button>
+                      <button
+                        className="scene-more"
+                        type="button"
+                        aria-label={`Actions for ${scene.title}`}
+                        aria-expanded={sceneMenuId === scene.id}
+                        onClick={() =>
+                          setSceneMenuId((current) =>
+                            current === scene.id ? null : scene.id,
+                          )
+                        }
+                      >
+                        <MoreHorizontal size={15} />
+                      </button>
+                      {sceneMenuId === scene.id && (
+                        <div className="scene-actions">
+                          <button
+                            type="button"
+                            onClick={() => beginSceneEdit(scene)}
+                          >
+                            <Pencil size={12} /> Rename
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => duplicateScene(scene)}
+                          >
+                            <CopyPlus size={12} /> Duplicate
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteScene(scene)}
+                          >
+                            <Trash2 size={12} /> Delete
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               ))}
               <button className="add-scene" type="button" onClick={addScene}>
                 <span>＋</span> Add scene
@@ -1774,6 +2095,27 @@ export default function Home() {
               >
                 <RotateCcw size={14} /> Reset to starter
               </button>
+              <div
+                className={`validation-card ${renderReady ? 'ready' : 'attention'}`}
+              >
+                <div className="validation-heading">
+                  <span className="validation-dot" />
+                  <strong>
+                    {renderReady ? 'READY TO RENDER' : 'NEEDS ATTENTION'}
+                  </strong>
+                  <span>
+                    {validationIssues.length ? validationIssues.length : '✓'}
+                  </span>
+                </div>
+                <small>
+                  {renderReady
+                    ? 'Scene structure, timing, captions, and rigs pass.'
+                    : validationIssues[0]?.message}
+                </small>
+                {!renderReady && validationIssues.length > 1 && (
+                  <small>+ {validationIssues.length - 1} more issue(s)</small>
+                )}
+              </div>
             </div>
           )}
           {panel === 'storyboard' && (

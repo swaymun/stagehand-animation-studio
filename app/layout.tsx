@@ -14,7 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: 'Stagehand · Animation Studio',
-  description: 'A WebMCP-native 2D animation studio for editable cartoon scenes.',
+  description:
+    'A WebMCP-native 2D animation studio for editable cartoon scenes.',
 };
 
 export default function RootLayout({

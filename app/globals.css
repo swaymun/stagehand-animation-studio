@@ -248,20 +248,35 @@ button {
 }
 .scene-card {
   position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px;
   width: 100%;
-  gap: 9px;
-  padding: 7px;
+  gap: 0;
+  margin-bottom: 6px;
   border: 1px solid var(--line);
   border-radius: 7px;
   color: var(--ink);
   text-align: left;
-  appearance: none;
   background: #fffaf2;
   box-shadow: 0 2px 0 rgba(41, 39, 42, 0.05);
 }
 .scene-card.active {
   border-color: var(--coral);
+}
+.scene-card-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--ink);
+  text-align: left;
+  background: transparent;
+}
+.scene-card-main:hover {
+  background: #fff6eb;
 }
 .scene-thumbnail {
   width: 51px;
@@ -313,9 +328,139 @@ button {
   color: var(--blue);
   font-style: normal;
 }
-.scene-more {
+.scene-status {
+  align-self: center;
   color: #a69d93;
   font-weight: 800;
+}
+.scene-more {
+  width: 24px;
+  height: 30px;
+  align-self: center;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  color: #a69d93;
+  background: transparent;
+}
+.scene-more:hover,
+.scene-more[aria-expanded='true'] {
+  color: var(--ink);
+}
+.scene-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 3px;
+  padding: 0 6px 6px;
+  border-top: 1px solid #eee5d9;
+}
+.scene-actions button,
+.scene-editor-actions button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 6px;
+  border: 0;
+  border-radius: 4px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 9px;
+}
+.scene-actions button:hover,
+.scene-editor-actions button:hover {
+  color: var(--ink);
+  background: #f0e8dc;
+}
+.scene-actions button:last-child {
+  color: #b65f51;
+}
+.scene-editor {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 7px;
+  padding: 9px;
+}
+.scene-editor label {
+  display: grid;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.scene-editor input {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 7px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  outline: none;
+  color: var(--ink);
+  background: var(--paper);
+  font-size: 10px;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.scene-editor input:focus {
+  border-color: var(--blue);
+}
+.scene-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.scene-editor-actions button:last-child {
+  color: #fffaf2;
+  background: var(--ink);
+}
+.validation-card {
+  display: grid;
+  gap: 5px;
+  padding: 9px;
+  margin-top: 18px;
+  border: 1px solid #c9d9cf;
+  border-radius: 6px;
+  background: #f0f6ef;
+}
+.validation-card.attention {
+  border-color: #e1b6a9;
+  background: #fff0eb;
+}
+.validation-heading {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #4d7c60;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+}
+.validation-card.attention .validation-heading {
+  color: #a64f43;
+}
+.validation-heading > span:last-child {
+  margin-left: auto;
+  font:
+    9px ui-monospace,
+    monospace;
+}
+.validation-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #69a77d;
+}
+.validation-card.attention .validation-dot {
+  background: #cf745e;
+}
+.validation-card small {
+  color: #6d766c;
+  font-size: 9px;
+  line-height: 1.35;
+}
+.validation-card.attention small {
+  color: #8f6259;
 }
 .add-scene,
 .starter-link {
