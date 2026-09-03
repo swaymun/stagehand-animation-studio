@@ -161,7 +161,7 @@ type ValidationIssue = {
   path: string;
   message: string;
 };
-const WEBMCP_TOOL_COUNT = 44;
+const WEBMCP_TOOL_COUNT = 45;
 type ModelTool = {
   name: string;
   title: string;
@@ -1908,6 +1908,8 @@ export default function Home() {
   const assetImportInputRef = useRef<HTMLInputElement>(null);
   const projectNameInputRef = useRef<HTMLInputElement>(null);
   const projectRef = useRef(project);
+  const historyRef = useRef<Project[]>([]);
+  const futureRef = useRef<Project[]>([]);
   const [lastCommand, setLastCommand] = useState('set_pose( alice )');
   const [showSafeArea, setShowSafeArea] = useState(true);
   const [sceneMenuId, setSceneMenuId] = useState<string | null>(null);
@@ -1962,7 +1964,10 @@ export default function Home() {
       next.dirty = true;
       projectRef.current = next;
       setProject(next);
-      setHistory((items) => [...items.slice(-29), copy(current)]);
+      const nextHistory = [...historyRef.current.slice(-29), copy(current)];
+      historyRef.current = nextHistory;
+      futureRef.current = [];
+      setHistory(nextHistory);
       setFuture([]);
       setSaved(false);
       setLastCommand(label);
@@ -1989,33 +1994,51 @@ export default function Home() {
     if (editingProjectName) projectNameInputRef.current?.focus();
   }, [editingProjectName]);
   const undo = useCallback(() => {
-    setHistory((items) => {
-      const previous = items.at(-1);
-      if (!previous) {
-        setNotice('Nothing to undo');
-        return items;
-      }
-      setFuture((redo) => [copy(project), ...redo]);
-      setProject({ ...previous, revision: project.revision + 1, dirty: true });
-      setLastCommand('undo()');
-      setNotice('Undo · restored previous command');
-      return items.slice(0, -1);
-    });
-  }, [project]);
+    const current = projectRef.current;
+    const previous = historyRef.current.at(-1);
+    if (!previous) {
+      setNotice('Nothing to undo');
+      return;
+    }
+    const restored = {
+      ...previous,
+      revision: current.revision + 1,
+      dirty: true,
+    };
+    const nextHistory = historyRef.current.slice(0, -1);
+    const nextFuture = [copy(current), ...futureRef.current];
+    historyRef.current = nextHistory;
+    futureRef.current = nextFuture;
+    setHistory(nextHistory);
+    setFuture(nextFuture);
+    projectRef.current = restored;
+    setProject(restored);
+    setLastCommand('undo()');
+    setNotice('Undo · restored previous command');
+  }, []);
   const redo = useCallback(() => {
-    setFuture((items) => {
-      const next = items[0];
-      if (!next) {
-        setNotice('Nothing to redo');
-        return items;
-      }
-      setHistory((old) => [...old, copy(project)]);
-      setProject({ ...next, revision: project.revision + 1, dirty: true });
-      setLastCommand('redo()');
-      setNotice('Redo · reapplied command');
-      return items.slice(1);
-    });
-  }, [project]);
+    const current = projectRef.current;
+    const next = futureRef.current[0];
+    if (!next) {
+      setNotice('Nothing to redo');
+      return;
+    }
+    const restored = {
+      ...next,
+      revision: current.revision + 1,
+      dirty: true,
+    };
+    const nextHistory = [...historyRef.current, copy(current)];
+    const nextFuture = futureRef.current.slice(1);
+    historyRef.current = nextHistory;
+    futureRef.current = nextFuture;
+    setHistory(nextHistory);
+    setFuture(nextFuture);
+    projectRef.current = restored;
+    setProject(restored);
+    setLastCommand('redo()');
+    setNotice('Redo · reapplied command');
+  }, []);
   const exportStill = useCallback(async () => {
     const output = document.createElement('canvas');
     output.width = project.renderWidth;
@@ -2062,19 +2085,29 @@ export default function Home() {
     };
   }, [project]);
   const commitRef = useRef(commit),
-    undoRef = useRef(undo);
+    undoRef = useRef(undo),
+    redoRef = useRef(redo);
   useEffect(() => {
     projectRef.current = project;
     commitRef.current = commit;
     undoRef.current = undo;
+    redoRef.current = redo;
     exportStillRef.current = exportStill;
-  }, [project, commit, undo, exportStill]);
+  }, [project, commit, undo, redo, exportStill]);
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const stored = window.localStorage.getItem(STORAGE_KEY);
       if (stored) {
         try {
-          setProject(hydrateProject(JSON.parse(stored) as Partial<Project>));
+          const recovered = hydrateProject(
+            JSON.parse(stored) as Partial<Project>,
+          );
+          projectRef.current = recovered;
+          historyRef.current = [];
+          futureRef.current = [];
+          setHistory([]);
+          setFuture([]);
+          setProject(recovered);
           setNotice('Recovered local project');
         } catch {
           /* starter remains */
@@ -2178,6 +2211,8 @@ export default function Home() {
           audioCueCount: current.audioCues.length,
           assetCount: current.assets.length,
           storyboardBeatCount: current.storyboardBeats.length,
+          canUndo: historyRef.current.length > 0,
+          canRedo: futureRef.current.length > 0,
         };
       },
       true,
@@ -3921,7 +3956,17 @@ export default function Home() {
       { type: 'object', properties: {}, additionalProperties: false },
       () => {
         undoRef.current();
-        return { ok: true, revision: projectRef.current.revision + 1 };
+        return { ok: true, revision: projectRef.current.revision };
+      },
+    );
+    register(
+      'redo_command',
+      'Redo command',
+      'Redo the latest undone conflict-free command.',
+      { type: 'object', properties: {}, additionalProperties: false },
+      () => {
+        redoRef.current();
+        return { ok: true, revision: projectRef.current.revision };
       },
     );
     register(
@@ -4119,7 +4164,10 @@ export default function Home() {
       syncActiveScene(finalized);
       projectRef.current = finalized;
       setProject(finalized);
-      setHistory((items) => [...items.slice(-29), copy(drag.before)]);
+      const nextHistory = [...historyRef.current.slice(-29), copy(drag.before)];
+      historyRef.current = nextHistory;
+      futureRef.current = [];
+      setHistory(nextHistory);
       setFuture([]);
       setSaved(false);
       setLastCommand(`Retimed ${drag.mark.label}`);
@@ -4561,6 +4609,9 @@ export default function Home() {
         const imported = hydrateProject(
           JSON.parse(contents) as Partial<Project>,
         );
+        projectRef.current = imported;
+        historyRef.current = [];
+        futureRef.current = [];
         setProject(imported);
         setHistory([]);
         setFuture([]);
@@ -5101,9 +5152,13 @@ export default function Home() {
                 className="starter-link"
                 type="button"
                 onClick={() => {
+                  const starter = copy(starterProject);
+                  projectRef.current = starter;
+                  historyRef.current = [];
+                  futureRef.current = [];
                   setHistory([]);
                   setFuture([]);
-                  setProject(copy(starterProject));
+                  setProject(starter);
                   setLastCommand('reset_to_starter()');
                   setNotice('Starter restored');
                 }}
