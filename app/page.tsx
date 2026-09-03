@@ -1,6 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type ChangeEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   CircleHelp,
   Clapperboard,
@@ -423,9 +430,13 @@ export default function Home() {
     [viewMode, setViewMode] = useState<'animate' | 'storyboard' | 'preview'>(
       'animate',
     ),
+    [dialog, setDialog] = useState<'help' | 'settings' | null>(null),
     [rendering, setRendering] = useState(false),
     [notice, setNotice] = useState('Ready for direction'),
     [saved, setSaved] = useState(true);
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const [lastCommand, setLastCommand] = useState('set_pose( alice )');
+  const [showSafeArea, setShowSafeArea] = useState(true);
   const selected =
       project.characters.find((c) => c.id === project.selectedId) ??
       project.characters[0],
@@ -443,6 +454,7 @@ export default function Home() {
         setHistory((items) => [...items.slice(-29), copy(current)]);
         setFuture([]);
         setSaved(false);
+        setLastCommand(label);
         setNotice(`${agent ? 'Agent' : 'Human'} · ${label}`);
         return next;
       });
@@ -458,6 +470,7 @@ export default function Home() {
       }
       setFuture((redo) => [copy(project), ...redo]);
       setProject({ ...previous, revision: project.revision + 1, dirty: true });
+      setLastCommand('undo()');
       setNotice('Undo · restored previous command');
       return items.slice(0, -1);
     });
@@ -471,6 +484,7 @@ export default function Home() {
       }
       setHistory((old) => [...old, copy(project)]);
       setProject({ ...next, revision: project.revision + 1, dirty: true });
+      setLastCommand('redo()');
       setNotice('Redo · reapplied command');
       return items.slice(1);
     });
@@ -891,6 +905,37 @@ export default function Home() {
       next.activeSceneId = scene.id;
     }, `Add ${scene.title}`);
   };
+  const exportProject = useCallback(() => {
+    const blob = new Blob([JSON.stringify(project, null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'stagehand-paper-cutout-comedy.stagehand.json';
+    link.click();
+    URL.revokeObjectURL(url);
+    setLastCommand('export_project()');
+    setNotice('Project JSON downloaded');
+  }, [project]);
+  const importProject = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    void file
+      .text()
+      .then((contents) => {
+        const imported = hydrateProject(
+          JSON.parse(contents) as Partial<Project>,
+        );
+        setProject(imported);
+        setHistory([]);
+        setFuture([]);
+        setLastCommand('import_project()');
+        setNotice('Project JSON imported');
+      })
+      .catch(() => setNotice('Import failed · expected Stagehand JSON'));
+  };
   const renderWebM = useCallback(() => {
     if (rendering) return;
     const canvas = document.querySelector(
@@ -908,7 +953,8 @@ export default function Home() {
       setNotice('Render surface could not be created');
       return;
     }
-    const stream = output.captureStream(12),
+    const stream = output.captureStream(0),
+      track = stream.getVideoTracks()[0] as CanvasCaptureMediaStreamTrack,
       chunks: Blob[] = [];
     const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
       ? 'video/webm;codecs=vp9'
@@ -930,12 +976,12 @@ export default function Home() {
       stream.getTracks().forEach((track) => track.stop());
       setPlaying(false);
       setRendering(false);
-      setNotice('WebM downloaded · silent preview render complete');
+      setNotice('Silent WebM downloaded · preview render complete');
     };
     setProject((current) => ({ ...current, currentTime: 0 }));
     setRendering(true);
     setPlaying(false);
-    setNotice('Rendering 5-second WebM preview');
+    setNotice('Rendering 5-second silent WebM preview');
     recorder.start(250);
     const drawNextFrame = () => {
       drawRenderFrame(
@@ -944,6 +990,7 @@ export default function Home() {
         output.width,
         output.height,
       );
+      track.requestFrame();
       frame += 1000 / 12;
       if (frame > project.duration) {
         window.clearInterval(timer);
@@ -992,15 +1039,37 @@ export default function Home() {
             <span className="status-dot" />
             {saved ? 'Saved locally' : 'Saving…'}
           </div>
-          <IconButton label="Help">
+          <IconButton label="Help" onClick={() => setDialog('help')}>
             <CircleHelp size={17} />
           </IconButton>
-          <IconButton label="Settings">
+          <IconButton label="Settings" onClick={() => setDialog('settings')}>
             <Settings2 size={17} />
           </IconButton>
           <button className="render-button" type="button" onClick={renderWebM}>
-            <Film size={16} /> {rendering ? 'Rendering…' : 'Render WebM'}
+            <Film size={16} /> {rendering ? 'Rendering…' : 'Render silent WebM'}
           </button>
+          <button
+            className="top-secondary-button"
+            type="button"
+            onClick={() => importInputRef.current?.click()}
+          >
+            <Upload size={14} /> Import
+          </button>
+          <button
+            className="top-secondary-button"
+            type="button"
+            onClick={exportProject}
+          >
+            <Save size={14} /> Export
+          </button>
+          <input
+            ref={importInputRef}
+            className="visually-hidden"
+            type="file"
+            accept="application/json,.json"
+            onChange={importProject}
+            aria-label="Import Stagehand project JSON"
+          />
         </div>
       </header>
       <div className="workspace">
@@ -1072,7 +1141,7 @@ export default function Home() {
                       {timecode(scene.duration)} <i>12 fps</i>
                     </span>
                   </div>
-                  <span className="scene-more">···</span>
+                  <span className="scene-more">ready</span>
                 </button>
               ))}
               <button className="add-scene" type="button" onClick={addScene}>
@@ -1088,6 +1157,7 @@ export default function Home() {
                   setHistory([]);
                   setFuture([]);
                   setProject(copy(starterProject));
+                  setLastCommand('reset_to_starter()');
                   setNotice('Starter restored');
                 }}
               >
@@ -1122,7 +1192,7 @@ export default function Home() {
             <div className="rail-content">
               <div className="section-label">
                 <span>
-                  ASSETS <b>5</b>
+                  ASSETS <b>4</b>
                 </span>
                 <Upload size={13} />
               </div>
@@ -1216,7 +1286,7 @@ export default function Home() {
               <div className="mode-banner">
                 <span>STORYBOARD</span>
                 <strong>Three beats · one awkward pause</strong>
-                <small>Arrange the story before blocking motion.</small>
+                <small>Review the beat plan before promoting timing.</small>
               </div>
             )}
             {viewMode === 'preview' && (
@@ -1224,7 +1294,7 @@ export default function Home() {
                 <span>PREVIEW PLAYBACK</span>
                 <strong>
                   {playing
-                    ? 'Playing scene 01'
+                    ? `Playing Scene ${String(activeSceneIndex + 1).padStart(2, '0')} — ${activeScene.title}`
                     : 'Paused at ' + timecode(project.currentTime)}
                 </strong>
                 <small>
@@ -1239,10 +1309,19 @@ export default function Home() {
                 FPS
               </span>
               <span className="stage-header-right">
-                SAFE AREA <span className="safe-toggle" />
+                SAFE AREA{' '}
+                <button
+                  className={`safe-toggle ${showSafeArea ? 'on' : ''}`}
+                  type="button"
+                  aria-label="Show safe area"
+                  aria-pressed={showSafeArea}
+                  onClick={() => setShowSafeArea((value) => !value)}
+                />
               </span>
             </div>
-            <div className="canvas-frame">
+            <div
+              className={`canvas-frame ${showSafeArea ? 'safe-area-visible' : ''}`}
+            >
               <StageCanvas
                 project={project}
                 sceneLabel={activeScene.title}
@@ -1297,21 +1376,23 @@ export default function Home() {
               <div className="timeline-actions">
                 <button
                   type="button"
-                  onClick={() =>
-                    setNotice('Add keyframe is available for the selected rig')
-                  }
+                  disabled
+                  title="Coming soon · keyframe authoring"
                 >
                   <Sparkles size={14} /> Keyframe
                 </button>
                 <button
                   type="button"
-                  onClick={() =>
-                    setNotice('Split command is scoped to the active scene')
-                  }
+                  disabled
+                  title="Coming soon · clip splitting"
                 >
                   <Scissors size={14} /> Split
                 </button>
-                <button type="button">
+                <button
+                  type="button"
+                  disabled
+                  title="Coming soon · track locking"
+                >
                   <Lock size={14} /> Lock track
                 </button>
               </div>
@@ -1514,7 +1595,7 @@ export default function Home() {
               <span>LAST COMMAND</span>
               <span className="command-actor">{notice.split(' · ')[0]}</span>
             </div>
-            <code>set_pose({selected.id})</code>
+            <code>{lastCommand}</code>
             <small>revision {project.revision} · undoable</small>
           </div>
           <div className="inspector-bottom">
@@ -1542,6 +1623,67 @@ export default function Home() {
           </div>
         </aside>
       </div>
+      {dialog && (
+        <div className="dialog-backdrop">
+          <dialog
+            className="studio-dialog"
+            open
+            aria-labelledby="studio-dialog-title"
+          >
+            <div className="dialog-heading">
+              <div>
+                <span className="eyebrow">STAGEHAND</span>
+                <h2 id="studio-dialog-title">
+                  {dialog === 'help' ? 'Help & shortcuts' : 'Studio settings'}
+                </h2>
+              </div>
+              <button
+                className="dialog-close"
+                type="button"
+                aria-label="Close dialog"
+                onClick={() => setDialog(null)}
+              >
+                ×
+              </button>
+            </div>
+            {dialog === 'help' ? (
+              <div className="dialog-copy">
+                <p>Build the awkward moment in beats, then refine the pose.</p>
+                <dl>
+                  <div>
+                    <dt>Space</dt>
+                    <dd>Play or pause the scene clock</dd>
+                  </div>
+                  <div>
+                    <dt>Undo</dt>
+                    <dd>Restore the last human or agent command</dd>
+                  </div>
+                  <div>
+                    <dt>Render</dt>
+                    <dd>Export a silent, editable-preview WebM</dd>
+                  </div>
+                </dl>
+              </div>
+            ) : (
+              <div className="dialog-copy">
+                <p>Project data stays in this browser until you export it.</p>
+                <div className="setting-line">
+                  <span>Frame rate</span>
+                  <strong>12 fps · paper cutout</strong>
+                </div>
+                <div className="setting-line">
+                  <span>Storage</span>
+                  <strong>Local browser project</strong>
+                </div>
+                <div className="setting-line">
+                  <span>Agent surface</span>
+                  <strong>11 WebMCP tools</strong>
+                </div>
+              </div>
+            )}
+          </dialog>
+        </div>
+      )}
       <output className="toast" aria-live="polite">
         <span className="toast-icon">
           <Sparkles size={13} />
