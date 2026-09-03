@@ -6912,7 +6912,11 @@ export default function Home() {
               </IconButton>
             </div>
           </div>
-          <div className={`stage-wrap ${viewMode}-mode`}>
+          <div
+            className={`stage-wrap ${viewMode}-mode`}
+            tabIndex={-1}
+            aria-label="Animation stage"
+          >
             {viewMode === 'storyboard' && (
               <div className="mode-banner">
                 <span>STORYBOARD</span>

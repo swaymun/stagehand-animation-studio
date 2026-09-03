@@ -179,7 +179,7 @@ if (!humanTimeline.ok || Math.abs(humanTimeline.currentTimeMs - 1250) > 1) {
     `agent timeline read should follow human scrubbing: ${JSON.stringify(humanTimeline)}`,
   );
 }
-await page.locator('.stage-footer').click();
+await page.locator('.stage-wrap').focus();
 await page.keyboard.press('ArrowRight');
 await page.waitForTimeout(80);
 const keyboardTimeline = await page.evaluate(() =>
