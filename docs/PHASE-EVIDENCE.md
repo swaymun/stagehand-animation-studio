@@ -6,10 +6,10 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement �
 
 - Date: 2026-09-03
 - Private source: [github.com/swaymun/stagehand-animation-studio](https://github.com/swaymun/stagehand-animation-studio)
-- Verified source commit: `b4e95cf02541837594486481ce18e9fac6452042`
+- Verified source commit: `d17941f50df0f9e15beff9c7fd438b07ecb9f850`
 - Public Site: [stagehand-animation-studio.saimun-h-shahee.chatgpt.site](https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site)
-- Sites version: `69`
-- Scope at this checkpoint: revision-safe and idempotent WebMCP mutations, synchronized Storyboard/Board navigation, review-first Preview, accessible transform controls, and the existing imported-prop/sequence coverage.
+- Sites version: `71`
+- Scope at this checkpoint: structured per-asset visual direction, clarified motion actions, revision-safe and idempotent WebMCP mutations, synchronized Storyboard/Board navigation, review-first Preview, accessible transform controls, and the existing imported-prop/sequence coverage.
 
 ## Implement
 
@@ -17,6 +17,8 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement �
 - WebMCP exposes `get_prop_keyframes`, `set_prop_keyframe`, and `apply_prop_preset`.
 - Mutating WebMCP tools now expose an optional `expectedRevision` optimistic-concurrency guard; stale commands return `REVISION_CONFLICT` with the current revision and a reread hint.
 - Mutating WebMCP tools also expose an optional `idempotencyKey`; repeated successful commands replay the original result without incrementing the project revision or duplicating edits.
+- Assets now persist role, treatment, silhouette, palette, and direction notes; the Assets rail exposes a compact Style editor and `set_asset_style` provides agent parity.
+- Motion actions now show their affected character and bounded duration while pose presets remain a separate visible group.
 - Human Assets controls expose Pop in, Nudge, and four transform fields at the playhead.
 - Prop keyframes flow through scene duplication, splitting, templates, persistence, validation, thumbnails, Preview, and WebM rendering.
 - Preview hides the inspector, scene tools, duration editing, and mutation actions while retaining transport, scrubber, scene context, and Exit preview.
@@ -36,8 +38,9 @@ npm run smoke        PASS
 
 The local smoke result verified:
 
-- 50 registered tools and no page errors.
-- 37 mutating tools expose the concurrency/retry contract; a stale pose command returns `REVISION_CONFLICT`, and a repeated rename replays at the same revision.
+- 51 registered tools and no page errors.
+- 38 mutating tools expose the concurrency/retry contract; a stale pose command returns `REVISION_CONFLICT`, and a repeated rename replays at the same revision.
+- Human asset-style editor and agent `set_asset_style` update: PASS.
 - Human prop X edit: `63.0`.
 - Agent prop keyframe at explicit time and Pop in preset: PASS.
 - Undo/redo revisions: PASS.
@@ -52,16 +55,16 @@ The local smoke result verified:
 STAGEHAND_URL=https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site npm run smoke
 ```
 
-Result: PASS. The hosted run verified the same 50-tool injected bridge, stale-write conflict, idempotent replay, prop workflow, two-scene WebM download, synchronized Storyboard/Board context, clean Preview state, and zero page errors. This is labeled a Playwright fallback: the public Site did not expose live WebMCP enumeration to the available runner, so it does not prove that ChatGPT’s production host enumerates the tools.
+Result: PASS. The hosted run verified the same 51-tool injected bridge, stale-write conflict, idempotent replay, asset-style update, prop workflow, two-scene WebM download, synchronized Storyboard/Board context, clarified motion copy, clean Preview state, and zero page errors. This is labeled a Playwright fallback: the public Site did not expose live WebMCP enumeration to the available runner, so it does not prove that ChatGPT’s production host enumerates the tools.
 
 ## UI roast and fixes
 
-Evidence screenshots are captured from the hosted v69 build at 1440×960:
+Evidence screenshots are captured from the hosted v71 build at 1440×960:
 
-- [`v69-animate.png`](evidence/v69-animate.png): baseline editing workspace.
-- [`v69-assets.png`](evidence/v69-assets.png): asset library and imported-prop workflow surface.
-- [`v69-storyboard.png`](evidence/v69-storyboard.png): Storyboard mode with the Board rail selected.
-- [`v69-preview.png`](evidence/v69-preview.png): clean review-first Preview player with scene-only context.
+- [`v71-animate.png`](evidence/v71-animate.png): editing workspace with clarified motion actions.
+- [`v71-assets-style.png`](evidence/v71-assets-style.png): expandable per-asset style editor.
+- [`v71-storyboard.png`](evidence/v71-storyboard.png): Storyboard mode with the Board rail selected.
+- [`v71-preview.png`](evidence/v71-preview.png): clean review-first Preview player with scene-only context.
 
 Findings from the current screenshot review:
 
@@ -72,6 +75,8 @@ Findings from the current screenshot review:
 5. Agent retries could duplicate successful writes. Fixed with optional idempotency-key replay protection and a hosted smoke assertion.
 6. Switching top-level Storyboard mode could leave the Assets rail selected. Fixed by syncing mode selection to its companion project rail.
 7. Character transform inputs lacked explicit accessible names. Fixed with dynamic X/Y/rotation/opacity labels and a smoke check for unnamed numeric controls.
+8. Asset briefs carried style intent only as prose. Fixed with structured role, treatment, silhouette, palette, and direction fields, plus human/agent parity.
+9. Motion action buttons were visually mixed with pose presets. Fixed with explicit action durations, affected-character copy, and a Pose presets label.
 
 ## Limits and warnings
 
