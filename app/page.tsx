@@ -159,7 +159,7 @@ type ValidationIssue = {
   path: string;
   message: string;
 };
-const WEBMCP_TOOL_COUNT = 41;
+const WEBMCP_TOOL_COUNT = 42;
 type ModelTool = {
   name: string;
   title: string;
@@ -1062,6 +1062,37 @@ const hydrateProject = (value: Partial<Project>): Project => {
     assets: copy(fallbackAssets),
   };
 };
+
+function resizeProjectDuration(project: Project, durationMs: number) {
+  const previousDuration = project.duration;
+  const duration = clamp(Math.round(durationMs), 500, 60000);
+  project.duration = duration;
+  project.currentTime = Math.min(project.currentTime, duration);
+  project.keyframes = project.keyframes.filter(
+    (frame) => frame.time <= duration,
+  );
+  project.cameraKeyframes = project.cameraKeyframes.filter(
+    (frame) => frame.time <= duration,
+  );
+  project.captions = project.captions
+    .filter((caption) => caption.start < duration)
+    .map((caption) => ({
+      ...caption,
+      end: Math.min(caption.end, duration),
+    }))
+    .filter((caption) => caption.end > caption.start);
+  project.audioCues = project.audioCues
+    .filter((cue) => cue.start < duration)
+    .map((cue) => ({
+      ...cue,
+      end:
+        cue.kind === 'music' && cue.end === previousDuration
+          ? duration
+          : Math.min(cue.end, duration),
+    }))
+    .filter((cue) => cue.end > cue.start);
+  return duration;
+}
 
 function evaluateCharacters(project: Project, time: number) {
   return project.characters.map((character) => {
@@ -2254,6 +2285,43 @@ export default function Home() {
           true,
         );
         return { ok: true, revision: current.revision + 1, timeMs };
+      },
+    );
+    register(
+      'set_scene_duration',
+      'Set scene duration',
+      'Resize the active scene and safely trim or extend its timed animation data.',
+      {
+        type: 'object',
+        required: ['durationMs'],
+        additionalProperties: false,
+        properties: {
+          durationMs: { type: 'number', minimum: 500, maximum: 60000 },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        if (
+          typeof input.durationMs !== 'number' ||
+          !Number.isFinite(input.durationMs) ||
+          input.durationMs < 500 ||
+          input.durationMs > 60000
+        )
+          return { ok: false, code: 'INVALID_DURATION' };
+        const durationMs = Math.round(input.durationMs);
+        commitRef.current(
+          (next) => {
+            resizeProjectDuration(next, durationMs);
+          },
+          `Set scene duration to ${timecode(durationMs)}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          durationMs,
+          activeSceneId: current.activeSceneId,
+        };
       },
     );
     register(
@@ -3803,6 +3871,21 @@ export default function Home() {
       next.renderHeight = height;
     }, `Set render ${preset} · ${fps} fps`);
   };
+  const updateSceneDuration = (value: string) => {
+    const seconds = Number(value);
+    if (!Number.isFinite(seconds) || seconds < 0.5 || seconds > 60) {
+      setNotice('Scene duration must be between 0.5 and 60 seconds');
+      return;
+    }
+    const durationMs = Math.round(seconds * 1000);
+    if (durationMs === project.duration) return;
+    commit(
+      (next) => {
+        resizeProjectDuration(next, durationMs);
+      },
+      `Set scene duration to ${timecode(durationMs)}`,
+    );
+  };
   const importAsset = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -5092,6 +5175,20 @@ export default function Home() {
                   {timecode(project.currentTime)}{' '}
                   <small>/ {timecode(project.duration)}</small>
                 </span>
+                <label className="duration-control">
+                  <span>Duration</span>
+                  <input
+                    key={project.duration}
+                    type="number"
+                    min="0.5"
+                    max="60"
+                    step="0.1"
+                    aria-label="Scene duration seconds"
+                    defaultValue={(project.duration / 1000).toFixed(2)}
+                    onBlur={(event) => updateSceneDuration(event.target.value)}
+                  />
+                  <em>s</em>
+                </label>
               </div>
               <div className="timeline-actions">
                 <button
