@@ -183,7 +183,7 @@ type ValidationIssue = {
   path: string;
   message: string;
 };
-const WEBMCP_TOOL_COUNT = 51;
+const WEBMCP_TOOL_COUNT = 52;
 type ModelTool = {
   name: string;
   title: string;
@@ -1345,6 +1345,53 @@ function resizeProjectDuration(project: Project, durationMs: number) {
           : Math.min(cue.end, duration),
     }))
     .filter((cue) => cue.end > cue.start);
+  return duration;
+}
+
+function retimeProjectBySpeed(project: Project, speed: number) {
+  const duration = clamp(Math.round(project.duration / speed), 500, 60000);
+  const retime = (time: number) => clamp(Math.round(time / speed), 0, duration);
+  const retimeRange = (start: number, end: number) => {
+    const nextStart = retime(start);
+    return {
+      start: nextStart,
+      end: Math.min(duration, Math.max(nextStart + 1, retime(end))),
+    };
+  };
+  project.duration = duration;
+  project.currentTime = retime(project.currentTime);
+  project.keyframes = project.keyframes.map((frame) => ({
+    ...frame,
+    time: retime(frame.time),
+  }));
+  project.propKeyframes = project.propKeyframes.map((frame) => ({
+    ...frame,
+    time: retime(frame.time),
+  }));
+  project.cameraKeyframes = project.cameraKeyframes.map((frame) => ({
+    ...frame,
+    time: retime(frame.time),
+  }));
+  project.captions = project.captions
+    .map((caption) => ({
+      ...caption,
+      ...retimeRange(caption.start, caption.end),
+    }))
+    .filter(
+      (caption) => caption.end <= duration && caption.end > caption.start,
+    );
+  project.audioCues = project.audioCues
+    .map((cue) => ({
+      ...cue,
+      ...retimeRange(cue.start, cue.end),
+    }))
+    .filter((cue) => cue.end <= duration && cue.end > cue.start);
+  project.storyboardBeats = project.storyboardBeats
+    .map((beat) => {
+      const range = retimeRange(beat.startMs, beat.endMs);
+      return { ...beat, startMs: range.start, endMs: range.end };
+    })
+    .filter((beat) => beat.endMs <= duration && beat.endMs > beat.startMs);
   return duration;
 }
 
@@ -3032,6 +3079,61 @@ export default function Home() {
           revision: current.revision + 1,
           durationMs,
           activeSceneId: current.activeSceneId,
+        };
+      },
+    );
+    register(
+      'retime_scene',
+      'Retime scene',
+      'Speed up or slow down the active scene while preserving its structure and synchronizing all timed tracks.',
+      {
+        type: 'object',
+        required: ['speed'],
+        additionalProperties: false,
+        properties: {
+          speed: {
+            type: 'number',
+            minimum: 0.5,
+            maximum: 2,
+            description:
+              'Playback speed multiplier; 0.8 is slower and 1.25 is faster.',
+          },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        if (
+          typeof input.speed !== 'number' ||
+          !Number.isFinite(input.speed) ||
+          input.speed < 0.5 ||
+          input.speed > 2
+        )
+          return { ok: false, code: 'INVALID_SPEED' };
+        const speed = input.speed;
+        let durationMs = current.duration;
+        commitRef.current(
+          (next) => {
+            durationMs = retimeProjectBySpeed(next, speed);
+          },
+          `Set scene speed to ${speed.toFixed(2)}×`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          speed,
+          durationMs,
+          activeSceneId: current.activeSceneId,
+          changedPaths: [
+            'duration',
+            'currentTime',
+            'keyframes',
+            'propKeyframes',
+            'cameraKeyframes',
+            'captions',
+            'audioCues',
+            'storyboardBeats',
+          ],
         };
       },
     );
@@ -5156,6 +5258,15 @@ export default function Home() {
       `Set scene duration to ${timecode(durationMs)}`,
     );
   };
+  const retimeSceneBySpeed = (speed: number) => {
+    if (!Number.isFinite(speed) || speed < 0.5 || speed > 2) return;
+    commit(
+      (next) => {
+        retimeProjectBySpeed(next, speed);
+      },
+      `Set scene speed to ${speed.toFixed(2)}×`,
+    );
+  };
   const updatePropTransform = (
     asset: Asset,
     key: 'x' | 'y' | 'scale' | 'rotation',
@@ -6986,6 +7097,26 @@ export default function Home() {
                   />
                   <em>s</em>
                 </label>
+                <div
+                  className="retime-controls"
+                  aria-label="Scene speed controls"
+                >
+                  <span>Speed</span>
+                  <button
+                    type="button"
+                    title="Slow the scene to 80 percent speed"
+                    onClick={() => retimeSceneBySpeed(0.8)}
+                  >
+                    0.8×
+                  </button>
+                  <button
+                    type="button"
+                    title="Speed the scene to 125 percent"
+                    onClick={() => retimeSceneBySpeed(1.25)}
+                  >
+                    1.25×
+                  </button>
+                </div>
                 <span className="timeline-hint">
                   Drag diamonds · click to jump
                 </span>

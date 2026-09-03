@@ -90,7 +90,7 @@ await page.waitForTimeout(700);
 await page.evaluate(() => localStorage.clear());
 await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
 await page.waitForTimeout(700);
-await page.waitForFunction(() => window.__stagehandTools?.size === 51);
+await page.waitForFunction(() => window.__stagehandTools?.size === 52);
 const h1 = page.locator('h1');
 if (
   (await h1.count()) !== 1 ||
@@ -152,6 +152,18 @@ await page.mouse.move(
 await page.mouse.up();
 await page.waitForTimeout(100);
 const afterDrag = await marks.nth(1).getAttribute('aria-label');
+const durationInput = page.getByLabel('Scene duration seconds');
+await page.getByRole('button', { name: '1.25×', exact: true }).click();
+await page.waitForTimeout(80);
+const humanFastDuration = await durationInput.inputValue();
+await page.getByRole('button', { name: '0.8×', exact: true }).click();
+await page.waitForTimeout(80);
+const humanSlowDuration = await durationInput.inputValue();
+if (humanFastDuration !== '4.00' || humanSlowDuration !== '5.00') {
+  throw new Error(
+    `human speed controls should retime and restore duration: ${JSON.stringify({ humanFastDuration, humanSlowDuration })}`,
+  );
+}
 const scrubber = page.getByLabel('Timeline playhead');
 await scrubber.evaluate((input) => {
   input.value = '1250';
@@ -293,6 +305,22 @@ const bridge = await page.evaluate(async () => {
     preset: '720p',
     fps: 12,
   });
+  const retimed = await call('retime_scene', { speed: 1.25 });
+  const retimedTimeline = await call('get_timeline');
+  const restoredDuration = await call('set_scene_duration', {
+    durationMs: 5000,
+  });
+  if (
+    !retimed.ok ||
+    retimed.durationMs !== 4000 ||
+    retimedTimeline.currentTimeMs > 4000 ||
+    !restoredDuration.ok ||
+    restoredDuration.durationMs !== 5000
+  ) {
+    throw new Error(
+      `scene retime should synchronize duration and tracks: ${JSON.stringify({ retimed, retimedTimeline, restoredDuration })}`,
+    );
+  }
   const audio = await call('update_audio_cue', {
     cueId: 'music-low',
     volume: 0.03,
@@ -368,6 +396,11 @@ const bridge = await page.evaluate(async () => {
       reset720:
         render720.ok && render720.width === 720 && render720.height === 405,
     },
+    retime: {
+      ok: retimed.ok,
+      durationMs: retimed.durationMs,
+      restoredDurationMs: restoredDuration.durationMs,
+    },
     audio: { ok: audio.ok, volume: audio.cue?.volume },
     prop: {
       id: prop.id,
@@ -394,7 +427,7 @@ const bridge = await page.evaluate(async () => {
 await page.waitForTimeout(650);
 await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
 await page.waitForTimeout(700);
-await page.waitForFunction(() => window.__stagehandTools?.size === 51);
+await page.waitForFunction(() => window.__stagehandTools?.size === 52);
 const recovery = await page.evaluate(() =>
   window.__stagehandTools.get('get_project_summary').execute({}),
 );
@@ -504,6 +537,10 @@ const result = {
     ok: humanTimeline.ok,
     currentTimeMs: humanTimeline.currentTimeMs,
   },
+  humanSpeed: {
+    fastDuration: humanFastDuration,
+    restoredDuration: humanSlowDuration,
+  },
   sceneTitleLines,
   h1: (await h1.textContent())?.trim(),
   modal: { heading: modalHeading },
@@ -554,10 +591,12 @@ const result = {
 };
 
 if (
-  result.toolCount !== 51 ||
+  result.toolCount !== 52 ||
   !result.timelineDrag.moved ||
   !result.humanTimeline.ok ||
   Math.abs(result.humanTimeline.currentTimeMs - 1250) > 1 ||
+  result.humanSpeed.fastDuration !== '4.00' ||
+  result.humanSpeed.restoredDuration !== '5.00' ||
   result.sceneTitleLines < 2 ||
   result.h1 !== 'stagehand' ||
   result.modal.heading !== 'Help & shortcuts' ||
@@ -575,6 +614,9 @@ if (
   bridge.inspected.height !== 405 ||
   !bridge.renderSettings.preserved1080 ||
   !bridge.renderSettings.reset720 ||
+  !bridge.retime.ok ||
+  bridge.retime.durationMs !== 4000 ||
+  bridge.retime.restoredDurationMs !== 5000 ||
   bridge.prop.before !== 1 ||
   !bridge.prop.keyframe.ok ||
   bridge.prop.keyframe.x !== 64 ||

@@ -21,7 +21,7 @@ npm run smoke
 STAGEHAND_URL=https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site npm run smoke
 ```
 
-The smoke gate injects a model-context bridge, verifies all 51 tools, inspects a deterministic frame, exports a real PNG frame, imports a PNG prop fixture and a wide four-column pose-sheet fixture, edits a prop from the human controls, verifies a human-scrubbed playhead through `get_timeline`, applies an agent prop preset, retimes a character keyframe, exercises undo/redo, audio levels, and partial render-settings updates, adds a second scene, verifies recovery and cross-scene Preview playback, switches Storyboard and Preview, and waits for a two-scene WebM download. The hosted command is a Playwright fallback because the public Site does not expose live WebMCP enumeration to this runner.
+The smoke gate injects a model-context bridge, verifies all 52 tools, inspects a deterministic frame, exports a real PNG frame, imports a PNG prop fixture and a wide four-column pose-sheet fixture, edits a prop from the human controls, verifies a human-scrubbed playhead through `get_timeline`, exercises human and agent scene speed retiming, applies an agent prop preset, retimes a character keyframe, exercises undo/redo, audio levels, and partial render-settings updates, adds a second scene, verifies recovery and cross-scene Preview playback, switches Storyboard and Preview, and waits for a two-scene WebM download. The hosted command is a Playwright fallback because the public Site does not expose live WebMCP enumeration to this runner.
 
 ## Studio map
 
