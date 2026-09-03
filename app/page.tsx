@@ -8539,6 +8539,9 @@ export default function Home() {
                 </span>
                 <Upload size={13} />
               </div>
+              <small className="panel-hint asset-hint">
+                Audio library: bundled CC0 sounds plus your imported files.
+              </small>
               <div className="asset-list">
                 {project.assets.map((asset) => {
                   const assetStyle =
@@ -8941,6 +8944,17 @@ export default function Home() {
               >
                 <Maximize2 size={15} />
               </IconButton>
+              <button
+                className="compact-panel-trigger mobile-only"
+                type="button"
+                aria-label={mobileDrawer === 'rail' ? 'Close project panels' : 'Open project panels'}
+                onClick={() =>
+                  setMobileDrawer((value) => (value === 'rail' ? null : 'rail'))
+                }
+              >
+                <Layers3 size={14} />
+                {mobileDrawer === 'rail' ? 'Close panels' : 'Panels'}
+              </button>
               <button
                 className="compact-inspector-trigger"
                 type="button"

@@ -1346,7 +1346,8 @@ button {
   color: var(--ink);
   outline: none;
 }
-.compact-inspector-trigger {
+.compact-inspector-trigger,
+.compact-panel-trigger {
   display: none;
   align-items: center;
   gap: 5px;
@@ -1361,7 +1362,9 @@ button {
   white-space: nowrap;
 }
 .compact-inspector-trigger:hover,
-.compact-inspector-trigger:focus-visible {
+.compact-inspector-trigger:focus-visible,
+.compact-panel-trigger:hover,
+.compact-panel-trigger:focus-visible {
   border-color: var(--blue);
   background: #f0f5f2;
   outline: none;
@@ -3012,7 +3015,7 @@ button {
     padding: 12px 12px 8px;
   }
   .timeline-grid {
-    grid-template-columns: 96px minmax(280px, 1fr);
+    grid-template-columns: 124px minmax(360px, 1fr);
   }
   .track-label {
     padding-left: 9px;
@@ -3141,6 +3144,11 @@ button {
   .workspace:not(.preview-workspace) > .inspector {
     top: 56px;
     width: min(350px, 94vw);
+  }
+  .compact-panel-trigger,
+  .compact-inspector-trigger {
+    min-height: 28px;
+    padding: 5px 7px;
   }
 }
 

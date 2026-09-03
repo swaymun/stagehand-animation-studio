@@ -847,7 +847,7 @@ await mobileContext.close();
 if (
   responsive.bodyWidth !== 390 ||
   responsive.documentWidth !== 390 ||
-  responsive.mobileMenuItems !== 2 ||
+  responsive.mobileMenuItems !== 3 ||
   !responsive.inspectorDrawer
 ) {
   throw new Error(
