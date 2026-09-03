@@ -135,6 +135,12 @@ button {
 .project-name-button:hover .title-name {
   color: var(--blue);
 }
+.preview-project-name {
+  cursor: default;
+}
+.preview-project-name:hover .title-name {
+  color: var(--ink);
+}
 .project-name-input {
   width: 190px;
   min-width: 0;

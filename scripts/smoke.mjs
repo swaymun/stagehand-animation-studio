@@ -299,6 +299,18 @@ const preview = {
   canvas: await page.locator('.stage-canvas').count(),
   inspector: await page.locator('.preview-workspace .inspector').isVisible(),
   exit: await page.getByRole('button', { name: 'Exit preview' }).count(),
+  settings: await page
+    .getByRole('button', { name: 'Settings', exact: true })
+    .count(),
+  import: await page
+    .getByRole('button', { name: 'Import', exact: true })
+    .count(),
+  export: await page
+    .getByRole('button', { name: 'Export', exact: true })
+    .count(),
+  renameProject: await page
+    .getByRole('button', { name: /Rename project/ })
+    .count(),
   boardTab: await page.getByRole('tab', { name: 'Board', exact: true }).count(),
   assetsTab: await page
     .getByRole('tab', { name: 'Assets', exact: true })
@@ -389,6 +401,10 @@ if (
   preview.canvas !== 1 ||
   preview.inspector ||
   preview.exit !== 1 ||
+  preview.settings !== 0 ||
+  preview.import !== 0 ||
+  preview.export !== 0 ||
+  preview.renameProject !== 0 ||
   preview.boardTab !== 0 ||
   preview.assetsTab !== 0 ||
   preview.addScene !== 0 ||

@@ -5796,7 +5796,7 @@ export default function Home() {
         </div>
         <div className="project-title">
           <span className="eyebrow">PROJECT</span>
-          {editingProjectName ? (
+          {editingProjectName && viewMode !== 'preview' ? (
             <input
               className="project-name-input"
               ref={projectNameInputRef}
@@ -5810,6 +5810,10 @@ export default function Home() {
               onBlur={finishProjectNameEdit}
               maxLength={80}
             />
+          ) : viewMode === 'preview' ? (
+            <span className="project-name-button preview-project-name">
+              <span className="title-name">{project.name}</span>
+            </span>
           ) : (
             <button
               className="project-name-button"
@@ -5830,9 +5834,11 @@ export default function Home() {
           <IconButton label="Help" onClick={() => setDialog('help')}>
             <CircleHelp size={17} />
           </IconButton>
-          <IconButton label="Settings" onClick={() => setDialog('settings')}>
-            <Settings2 size={17} />
-          </IconButton>
+          {viewMode !== 'preview' && (
+            <IconButton label="Settings" onClick={() => setDialog('settings')}>
+              <Settings2 size={17} />
+            </IconButton>
+          )}
           <button className="render-button" type="button" onClick={renderWebM}>
             <Film size={16} /> {rendering ? 'Rendering…' : 'Render WebM'}
           </button>
@@ -5844,20 +5850,24 @@ export default function Home() {
           >
             <ImageIcon size={14} /> PNG frame
           </button>
-          <button
-            className="top-secondary-button"
-            type="button"
-            onClick={() => importInputRef.current?.click()}
-          >
-            <Upload size={14} /> Import
-          </button>
-          <button
-            className="top-secondary-button"
-            type="button"
-            onClick={exportProject}
-          >
-            <Save size={14} /> Export
-          </button>
+          {viewMode !== 'preview' && (
+            <>
+              <button
+                className="top-secondary-button"
+                type="button"
+                onClick={() => importInputRef.current?.click()}
+              >
+                <Upload size={14} /> Import
+              </button>
+              <button
+                className="top-secondary-button"
+                type="button"
+                onClick={exportProject}
+              >
+                <Save size={14} /> Export
+              </button>
+            </>
+          )}
           <input
             ref={importInputRef}
             className="visually-hidden"
@@ -6699,6 +6709,7 @@ export default function Home() {
                 tabIndex={viewMode === 'preview' ? 0 : -1}
                 onKeyDown={handleTabListKeyDown}
                 onClick={() => {
+                  setEditingProjectName(false);
                   setViewMode('preview');
                   setPanel('scenes');
                   setPlaying(true);
