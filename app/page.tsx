@@ -12,7 +12,9 @@ import {
   ArrowUpRight,
   CircleHelp,
   Clapperboard,
+  ChevronLeft,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   CopyPlus,
   Film,
@@ -2207,12 +2209,10 @@ function RenderThumbnail({
 function StageCanvas({
   project,
   onSelect,
-  sceneLabel,
   interactionMode,
 }: {
   project: Project;
   onSelect: (id: string) => void;
-  sceneLabel: string;
   interactionMode: 'select' | 'pan' | 'preview';
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -2298,24 +2298,7 @@ function StageCanvas({
       imageCacheRef.current,
     );
     ctx.restore();
-    const camera = evaluateCamera(project, project.currentTime);
-    ctx.fillStyle = 'rgba(41,39,42,.55)';
-    ctx.font = '10px ui-monospace, monospace';
-    ctx.textAlign = 'right';
-    ctx.fillText(
-      `CAM ${camera.zoom.toFixed(2)}×  ${camera.panX >= 0 ? '+' : ''}${camera.panX.toFixed(0)} / ${camera.panY >= 0 ? '+' : ''}${camera.panY.toFixed(0)}`,
-      width - 16,
-      height - 14,
-    );
-    ctx.fillStyle = 'rgba(41,39,42,.55)';
-    ctx.font = '11px ui-monospace, monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText(
-      `${sceneLabel.toUpperCase()}  /  ${timecode(project.currentTime)}`,
-      16,
-      height - 14,
-    );
-  }, [interactionMode, project, sceneLabel]);
+  }, [interactionMode, project]);
   useEffect(() => {
     redrawRef.current = draw;
     draw();
@@ -6314,7 +6297,7 @@ export default function Home() {
               onClick={beginProjectNameEdit}
             >
               <span className="title-name">{project.name}</span>
-              <ChevronDown size={14} />
+              <Pencil size={13} />
             </button>
           )}
         </div>
@@ -7191,6 +7174,23 @@ export default function Home() {
               >
                 <Maximize2 size={15} />
               </IconButton>
+              <button
+                className="compact-inspector-trigger"
+                type="button"
+                aria-label={
+                  mobileDrawer === 'inspector'
+                    ? 'Close Inspector'
+                    : 'Open Inspector'
+                }
+                onClick={() =>
+                  setMobileDrawer((value) =>
+                    value === 'inspector' ? null : 'inspector',
+                  )
+                }
+              >
+                <Settings2 size={14} />
+                {mobileDrawer === 'inspector' ? 'Close Inspector' : 'Inspector'}
+              </button>
             </div>
           </div>
           <div
@@ -7280,60 +7280,61 @@ export default function Home() {
             <div className="stage-header">
               <span className="stage-scene-name">{activeScene.title}</span>
             </div>
-            <div
-              className={`canvas-frame ${showSafeArea ? 'safe-area-visible' : ''} ${stageTool === 'pan' ? 'pan-mode' : ''}`}
-              onPointerDown={(event) => {
-                if (stageTool !== 'pan') return;
-                event.currentTarget.setPointerCapture(event.pointerId);
-                panStartRef.current = {
-                  x: event.clientX,
-                  y: event.clientY,
-                  originX: viewportPan.x,
-                  originY: viewportPan.y,
-                };
-              }}
-              onPointerMove={(event) => {
-                const start = panStartRef.current;
-                if (!start) return;
-                setViewportPan({
-                  x: start.originX + event.clientX - start.x,
-                  y: start.originY + event.clientY - start.y,
-                });
-              }}
-              onPointerUp={(event) => {
-                if (event.currentTarget.hasPointerCapture(event.pointerId))
-                  event.currentTarget.releasePointerCapture(event.pointerId);
-                panStartRef.current = null;
-              }}
-              onPointerCancel={() => {
-                panStartRef.current = null;
-              }}
-            >
+            <div className="canvas-stage-area">
               <div
-                className="canvas-viewport"
-                style={{
-                  transform: `translate(${viewportPan.x}px, ${viewportPan.y}px) scale(${viewportZoom / 100})`,
+                className={`canvas-frame ${showSafeArea ? 'safe-area-visible' : ''} ${stageTool === 'pan' ? 'pan-mode' : ''}`}
+                onPointerDown={(event) => {
+                  if (stageTool !== 'pan') return;
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                  panStartRef.current = {
+                    x: event.clientX,
+                    y: event.clientY,
+                    originX: viewportPan.x,
+                    originY: viewportPan.y,
+                  };
+                }}
+                onPointerMove={(event) => {
+                  const start = panStartRef.current;
+                  if (!start) return;
+                  setViewportPan({
+                    x: start.originX + event.clientX - start.x,
+                    y: start.originY + event.clientY - start.y,
+                  });
+                }}
+                onPointerUp={(event) => {
+                  if (event.currentTarget.hasPointerCapture(event.pointerId))
+                    event.currentTarget.releasePointerCapture(event.pointerId);
+                  panStartRef.current = null;
+                }}
+                onPointerCancel={() => {
+                  panStartRef.current = null;
                 }}
               >
-                <StageCanvas
-                  project={project}
-                  sceneLabel={activeScene.title}
-                  interactionMode={
-                    viewMode === 'preview' ? 'preview' : stageTool
-                  }
-                  onSelect={(id) =>
-                    updateProjectView((current) => ({
-                      ...current,
-                      selectedId: id,
-                    }))
-                  }
-                />
-                {activeCaption && (
-                  <div className="canvas-caption">
-                    <span>{activeCaption.speaker}</span>
-                    {activeCaption.text}
-                  </div>
-                )}
+                <div
+                  className="canvas-viewport"
+                  style={{
+                    transform: `translate(${viewportPan.x}px, ${viewportPan.y}px) scale(${viewportZoom / 100})`,
+                  }}
+                >
+                  <StageCanvas
+                    project={project}
+                    interactionMode={
+                      viewMode === 'preview' ? 'preview' : stageTool
+                    }
+                    onSelect={(id) =>
+                      updateProjectView((current) => ({
+                        ...current,
+                        selectedId: id,
+                      }))
+                    }
+                  />
+                  {activeCaption && (
+                    <div className="canvas-caption">
+                      <span>{activeCaption.speaker}</span>
+                      {activeCaption.text}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -7402,7 +7403,7 @@ export default function Home() {
                     }))
                   }
                 >
-                  −
+                  <ChevronLeft size={14} />
                 </IconButton>
                 <IconButton
                   label="Step forward"
@@ -7416,7 +7417,7 @@ export default function Home() {
                     }))
                   }
                 >
-                  +
+                  <ChevronRight size={14} />
                 </IconButton>
                 <span className="timecode">
                   {timecode(project.currentTime)}{' '}
@@ -7457,10 +7458,15 @@ export default function Home() {
                   </button>
                 </div>
                 <span className="timeline-hint">
-                  Drag diamonds · click to jump
+                  {showTimelineDetails
+                    ? 'Drag keyframes · click to jump'
+                    : 'Click a clip to jump'}
                 </span>
               </div>
               <div className="timeline-actions">
+                <span className="timeline-selection-context">
+                  {selected.name} selected
+                </span>
                 <button
                   className="timeline-details-toggle"
                   type="button"
@@ -7475,7 +7481,7 @@ export default function Home() {
                   onClick={addKeyframe}
                   title={`Add ${selected.name} keyframe at ${timecode(project.currentTime)}`}
                 >
-                  <Sparkles size={14} /> Keyframe
+                  <Sparkles size={14} /> Add keyframe
                 </button>
                 <button
                   type="button"
@@ -7500,8 +7506,8 @@ export default function Home() {
                 >
                   <Lock size={14} />{' '}
                   {isTrackLocked(project, selected.id)
-                    ? 'Unlock track'
-                    : 'Lock track'}
+                    ? `Unlock ${selected.name}`
+                    : `Lock ${selected.name}`}
                 </button>
               </div>
             </div>

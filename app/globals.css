@@ -1297,6 +1297,26 @@ button {
 .scene-tools {
   gap: 2px;
 }
+.compact-inspector-trigger {
+  display: none;
+  align-items: center;
+  gap: 5px;
+  min-height: 29px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--ink);
+  background: #fffaf2;
+  font-size: 10px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+.compact-inspector-trigger:hover,
+.compact-inspector-trigger:focus-visible {
+  border-color: var(--blue);
+  background: #f0f5f2;
+  outline: none;
+}
 .divider {
   width: 1px;
   height: 17px;
@@ -1366,11 +1386,22 @@ button {
 .safe-toggle.on:after {
   left: 10px;
 }
-.canvas-frame {
-  position: relative;
+.canvas-stage-area {
+  min-width: 0;
   min-height: 180px;
   flex: 1;
+  display: grid;
+  place-items: center;
+  container-type: size;
+}
+.canvas-frame {
+  position: relative;
+  width: min(100%, 177.7778cqh);
+  height: min(100%, 56.25cqw);
+  min-height: 0;
+  flex: 0 0 auto;
   overflow: hidden;
+  aspect-ratio: 16 / 9;
   border: 1px solid #cdbca6;
   border-radius: 3px;
   background: #e9d6b8;
@@ -1531,6 +1562,17 @@ button {
 .timeline-actions {
   gap: 4px;
 }
+.timeline-selection-context {
+  display: none;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--muted);
+  background: #f7efe4;
+  font-size: 9px;
+  font-weight: 750;
+  white-space: nowrap;
+}
 .timeline-actions button {
   display: flex;
   align-items: center;
@@ -1587,6 +1629,7 @@ button {
 .track-area {
   position: relative;
   overflow: hidden;
+  min-width: 0;
 }
 .ruler {
   height: 25px;
@@ -2481,7 +2524,7 @@ button {
   font-size: 9px;
 }
 .storyboard-mode .stage-header,
-.storyboard-mode .canvas-frame,
+.storyboard-mode .canvas-stage-area,
 .storyboard-mode .stage-footer {
   display: none;
 }
@@ -2800,6 +2843,9 @@ button {
   .mobile-only {
     display: flex !important;
   }
+  .compact-inspector-trigger {
+    display: flex;
+  }
   .rail-drawer-action {
     display: none !important;
   }
@@ -2818,6 +2864,53 @@ button {
     padding-left: 9px;
     padding-right: 9px;
   }
+  .scene-thumbnail {
+    width: 44px;
+    height: 34px;
+  }
+  .scene-meta strong {
+    font-size: 11px;
+    line-height: 13px;
+  }
+  .scene-meta span,
+  .timeline-hint,
+  .ruler span {
+    font-size: 10px;
+  }
+  .track-label {
+    font-size: 11px;
+  }
+  .timeline-selection-context {
+    display: inline-flex;
+    padding: 3px 4px;
+    font-size: 8px;
+  }
+  .timeline-actions {
+    min-width: 0;
+    flex-shrink: 1;
+    gap: 2px;
+  }
+  .timeline-actions button {
+    gap: 3px;
+    padding: 4px;
+    font-size: 10px;
+  }
+  .timeline-actions button svg {
+    width: 12px;
+    height: 12px;
+  }
+  .play-controls {
+    min-width: 0;
+    flex-shrink: 1;
+  }
+  .track-area {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .track-area > .ruler,
+  .track-area > .track-row {
+    min-width: 900px;
+  }
 }
 
 @media (max-width: 760px) {
@@ -2829,6 +2922,11 @@ button {
     display: none;
   }
   .scene-tools {
+    display: flex;
+  }
+  .scene-tools .icon-button,
+  .scene-tools .divider,
+  .scene-tools .zoom-readout {
     display: none;
   }
   .workspace,

@@ -181,6 +181,9 @@ if (inspectorGroupCount !== 5 || !transformCollapsed) {
 
 const marks = page.locator('button[aria-label^="Alice keyframe"]');
 const semanticEvents = page.locator('.timeline-event');
+const timelineHintBefore = await page
+  .getByText('Click a clip to jump', { exact: true })
+  .count();
 const detailsToggle = page.getByRole('button', {
   name: 'Show details',
   exact: true,
@@ -191,6 +194,14 @@ if ((await semanticEvents.count()) < 4 || (await detailsToggle.count()) !== 1) {
   );
 }
 await detailsToggle.click();
+const timelineHintAfter = await page
+  .getByText('Drag keyframes · click to jump', { exact: true })
+  .count();
+if (timelineHintBefore !== 1 || timelineHintAfter !== 1) {
+  throw new Error(
+    `timeline hint should describe the current detail mode: ${JSON.stringify({ timelineHintBefore, timelineHintAfter })}`,
+  );
+}
 const beforeDrag = await marks.nth(1).getAttribute('aria-label');
 const keyframeBox = await marks.nth(1).boundingBox();
 const trackBox = await page.locator('.track-area').boundingBox();
@@ -764,7 +775,12 @@ await splitPage.waitForTimeout(400);
 const splitInspector = splitPage.locator(
   '.workspace:not(.preview-workspace) > .inspector',
 );
+const splitInspectorTrigger = splitPage.getByRole('button', {
+  name: 'Open Inspector',
+  exact: true,
+});
 const splitInitiallyVisible = await splitInspector.isVisible();
+const splitInspectorTriggerVisible = await splitInspectorTrigger.isVisible();
 await splitPage
   .getByRole('button', { name: 'More actions', exact: true })
   .click();
@@ -786,7 +802,19 @@ const splitPane = {
   documentWidth: await splitPage.evaluate(
     () => document.documentElement.scrollWidth,
   ),
+  canvasFrameRatio: await splitPage
+    .locator('.canvas-frame')
+    .evaluate(
+      (node) =>
+        node.getBoundingClientRect().width /
+        node.getBoundingClientRect().height,
+    ),
+  timelineTrackWidth: await splitPage
+    .locator('.track-area .track-row')
+    .first()
+    .evaluate((node) => Math.round(node.getBoundingClientRect().width)),
   inspectorInitiallyClosed: !splitInitiallyVisible,
+  inspectorTrigger: splitInspectorTriggerVisible,
   inspectorMenu: splitMenu.inspector,
   railMenuHidden: !splitMenu.rail,
   inspectorDrawer: await splitInspector.isVisible(),
@@ -798,7 +826,10 @@ await splitContext.close();
 if (
   splitPane.bodyWidth !== 960 ||
   splitPane.documentWidth !== 960 ||
+  Math.abs(splitPane.canvasFrameRatio - 16 / 9) > 0.02 ||
+  splitPane.timelineTrackWidth < 900 ||
   !splitPane.inspectorInitiallyClosed ||
+  !splitPane.inspectorTrigger ||
   !splitPane.inspectorMenu ||
   !splitPane.railMenuHidden ||
   !splitPane.inspectorDrawer ||
