@@ -192,6 +192,82 @@ function drawCharacter(
   ctx.restore();
 }
 
+function drawRenderFrame(
+  ctx: CanvasRenderingContext2D,
+  project: Project,
+  width: number,
+  height: number,
+) {
+  ctx.fillStyle = '#e9d6b8';
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = '#c38b62';
+  ctx.fillRect(0, height * 0.69, width, height * 0.31);
+  ctx.fillStyle = '#f4ead9';
+  ctx.fillRect(width * 0.05, height * 0.08, width * 0.9, height * 0.52);
+  ctx.strokeStyle = '#d8c4a5';
+  ctx.lineWidth = 3;
+  for (let i = 0; i < 5; i++) {
+    ctx.beginPath();
+    ctx.moveTo(width * (0.11 + i * 0.19), height * 0.08);
+    ctx.lineTo(width * (0.11 + i * 0.19), height * 0.6);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#506d72';
+  ctx.fillRect(width * 0.1, height * 0.2, width * 0.8, 7);
+  ctx.fillStyle = '#2d4448';
+  ctx.font = '700 13px ui-monospace, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(
+    'THE LATE PLATE  ·  OPEN UNTIL AWKWARD',
+    width / 2,
+    height * 0.17,
+  );
+  ctx.fillStyle = '#714b3c';
+  ctx.fillRect(width * 0.17, height * 0.55, width * 0.66, 20);
+  ctx.fillStyle = '#d6a26d';
+  ctx.fillRect(width * 0.2, height * 0.59, width * 0.6, 11);
+  ctx.fillStyle = '#b86e4e';
+  ctx.beginPath();
+  ctx.arc(width * 0.3, height * 0.52, 25, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#f5d69b';
+  ctx.beginPath();
+  ctx.arc(width * 0.3, height * 0.52, 16, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#597579';
+  ctx.fillRect(width * 0.71, height * 0.27, 32, 72);
+  ctx.fillStyle = '#f0c27f';
+  ctx.fillRect(width * 0.73, height * 0.3, 28, 40);
+  project.characters.forEach((character) =>
+    drawCharacter(ctx, character, width, height, false),
+  );
+  const caption = project.captions.find(
+    (item) =>
+      project.currentTime >= item.start && project.currentTime <= item.end,
+  );
+  if (caption) {
+    ctx.font = '800 15px Inter, sans-serif';
+    const textWidth = ctx.measureText(caption.text).width + 28;
+    ctx.fillStyle = 'rgba(41,39,42,.92)';
+    ctx.fillRect((width - textWidth) / 2, height * 0.78, textWidth, 30);
+    ctx.fillStyle = '#f2b84b';
+    ctx.font = '800 9px ui-monospace, monospace';
+    ctx.fillText(
+      caption.speaker.toUpperCase(),
+      width / 2 - textWidth / 2 + 28,
+      height * 0.78 + 19,
+    );
+    ctx.fillStyle = '#fffaf2';
+    ctx.font = '800 15px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(
+      caption.text,
+      width / 2 - textWidth / 2 + 58,
+      height * 0.78 + 20,
+    );
+  }
+}
+
 function StageCanvas({
   project,
   onSelect,
@@ -318,6 +394,7 @@ export default function Home() {
     [viewMode, setViewMode] = useState<'animate' | 'storyboard' | 'preview'>(
       'animate',
     ),
+    [rendering, setRendering] = useState(false),
     [notice, setNotice] = useState('Ready for direction'),
     [saved, setSaved] = useState(true);
   const selected =
@@ -553,6 +630,68 @@ export default function Home() {
       const c = next.characters.find((item) => item.id === next.selectedId);
       if (c) c[key] = value;
     }, `Adjust ${key}`);
+  const renderWebM = useCallback(() => {
+    if (rendering) return;
+    const canvas = document.querySelector(
+      '.stage-canvas',
+    ) as HTMLCanvasElement | null;
+    if (!canvas?.captureStream || !('MediaRecorder' in window)) {
+      setNotice('WebM export is not supported in this browser');
+      return;
+    }
+    const output = document.createElement('canvas');
+    output.width = 720;
+    output.height = 405;
+    const outputContext = output.getContext('2d');
+    if (!outputContext) {
+      setNotice('Render surface could not be created');
+      return;
+    }
+    const stream = output.captureStream(12),
+      chunks: Blob[] = [];
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+      ? 'video/webm;codecs=vp9'
+      : 'video/webm';
+    const recorder = new MediaRecorder(stream, { mimeType });
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) chunks.push(event.data);
+    };
+    let frame = 0;
+    let timer = 0;
+    recorder.onstop = () => {
+      window.clearInterval(timer);
+      const url = URL.createObjectURL(new Blob(chunks, { type: 'video/webm' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'stagehand-paper-cutout-comedy.webm';
+      link.click();
+      URL.revokeObjectURL(url);
+      stream.getTracks().forEach((track) => track.stop());
+      setPlaying(false);
+      setRendering(false);
+      setNotice('WebM downloaded · silent preview render complete');
+    };
+    setProject((current) => ({ ...current, currentTime: 0 }));
+    setRendering(true);
+    setPlaying(false);
+    setNotice('Rendering 5-second WebM preview');
+    recorder.start(250);
+    const drawNextFrame = () => {
+      drawRenderFrame(
+        outputContext,
+        { ...project, currentTime: frame },
+        output.width,
+        output.height,
+      );
+      frame += 1000 / 12;
+      if (frame > project.duration) {
+        window.clearInterval(timer);
+        window.setTimeout(() => recorder.stop(), 300);
+      }
+    };
+    drawNextFrame();
+    timer = window.setInterval(drawNextFrame, 1000 / 12);
+  }, [project, rendering]);
   const tracks = useMemo(
     () => [
       { name: 'Camera', color: 'blue', marks: [0, 28, 55, 74] },
@@ -593,14 +732,8 @@ export default function Home() {
           <IconButton label="Settings">
             <Settings2 size={17} />
           </IconButton>
-          <button
-            className="render-button"
-            type="button"
-            onClick={() =>
-              setNotice('Render queued · WebM export lands in Phase 5')
-            }
-          >
-            <Film size={16} /> Render
+          <button className="render-button" type="button" onClick={renderWebM}>
+            <Film size={16} /> {rendering ? 'Rendering…' : 'Render WebM'}
           </button>
         </div>
       </header>
@@ -1047,6 +1180,10 @@ export default function Home() {
                 <b>%</b>
               </label>
             </div>
+            <small className="transform-help">
+              Move the selected character in the scene. Changes are
+              keyframe-ready and undoable.
+            </small>
           </div>
           <div className="inspector-section">
             <div className="inspector-label">
