@@ -1,0 +1,5 @@
+{
+  "case": "low-confidence",
+  "criticalJoints": [{ "id": "left-elbow", "confidence": 0.31 }],
+  "expected": ["LOW_CONFIDENCE_CRITICAL_JOINT"]
+}

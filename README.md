@@ -16,13 +16,15 @@ Open `http://localhost:3000` in a desktop browser. The project stores its editab
 ```bash
 npm run format
 npm run lint
+npm run typecheck
 npm run build
+npm run smoke:skill
 npm run smoke
 npm run smoke:native
 STAGEHAND_URL=https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site npm run smoke
 ```
 
-The regular smoke gate injects a model-context bridge, verifies all 69 tools, exercises the generated-asset checklist/request/attach/inspect/approval handoff, proposes and approves a segmented skeleton, sets bone keyframes, routes a cue through the bundled audio library, inspects a deterministic frame, exports a real PNG frame, imports a PNG prop fixture and a wide four-column pose-sheet fixture, edits a prop from the human controls, verifies a human-scrubbed playhead through `get_timeline`, checks stage placement and renderer-applied asset treatment, exercises human and agent scene speed retiming, applies an agent prop preset, retimes a character keyframe, exercises undo/redo, audio levels, partial render-settings updates, recovery, and cross-scene Preview playback, then waits for a two-scene WebM download. `smoke:native` launches Chromium with its experimental WebMCP flag, captures the browser-native registration path, verifies all 69 tools register without errors, and executes valid and invalid tool calls through the registered callbacks. The hosted regular command is a Playwright fallback for the full interaction suite; the hosted native command verifies registration in experimental Chromium. ChatGPT Site tools themselves require no separate connection; in the ChatGPT desktop app they are account/model-gated and controlled by the Enable site tools permission.
+The regular smoke gate injects a model-context bridge, verifies the exact ordered set of 38 public tools and unique schema IDs, checks concurrency guards and the explicit legacy adapter, then exercises the asset, rig, motion, audio, recovery, PNG, and WebM paths. `smoke:native` launches Chromium with its experimental WebMCP flag and verifies the same 38-tool contract through browser-native registration. `smoke:skill` checks the downloadable skill and five golden rigging fixtures. ChatGPT Site tools themselves require no separate connection; in the ChatGPT desktop app they are account/model-gated and controlled by the Enable site tools permission.
 
 ## Studio map
 
@@ -31,7 +33,7 @@ The regular smoke gate injects a model-context bridge, verifies all 69 tools, ex
 - **Storyboard**: renderer-backed beat thumbnails that move the shared playhead; beats can be promoted into trimmed scenes.
 - **Preview**: primary review action using the same deterministic evaluator as export; editing chrome is hidden while transport, a compact scrubber, and scene context remain available.
 - **Render**: deterministic project-sequence WebM export with captions and cue-based audio. PNG frame export, project import/export, templates, settings, help, and guides live under More actions.
-- **WebMCP surface**: read tools expose project, asset-request, skeleton, bone, and audio-library state; narrow mutation tools share the human command path and revisioned undo/redo history. Every mutation accepts optional `expectedRevision` and `idempotencyKey` safeguards for stale reads and safe retries, including generated-asset approval, segmented/mesh binding metadata, joint-level motion, audio asset routing, and structured per-asset visual style edits.
+- **WebMCP surface**: exactly 38 public tools expose the complete project, asset, audio, skeleton, motion, validation, and export loop. Narrow mutations share the human command path and revisioned undo/redo history. Every mutation accepts optional `expectedRevision` and `idempotencyKey`; older granular operations remain available only through an explicit in-page legacy adapter.
 
 ## Architecture
 
@@ -59,3 +61,5 @@ TTS, voice cloning, dialogue recording, phoneme extraction, and lip-sync are exp
 When the studio is used beside a ChatGPT or Codex conversation, the split-pane layout keeps the project rail and artwork visible while the Inspector stays available from More actions. The public demo has also been exercised by a Sol-powered Codex task through the page's WebMCP tools: it generated and applied an Alice/Bob coupon gag, then validated and inspected the punchline frame.
 
 See [`AGENTS.md`](AGENTS.md) for the repo-local asset/rigging contract, [`SPEC.md`](SPEC.md) for the phase gates, and [`docs/PHASE-EVIDENCE.md`](docs/PHASE-EVIDENCE.md) for the current verification record.
+
+The installable `stagehand-asset-rigging` Codex skill is available from the app's Help dialog or directly as [`stagehand-asset-rigging-v1.0.0.zip`](public/downloads/stagehand-asset-rigging-v1.0.0.zip), with an adjacent SHA-256 checksum.

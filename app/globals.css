@@ -14,6 +14,90 @@
   --violet: #687276;
   --accent: #327985;
 }
+
+.asset-review-card,
+.rig-preview-report,
+.skill-download-card {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 9px;
+  border: 1px solid rgba(40, 37, 38, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.asset-review-actions,
+.skeleton-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.review-warning,
+.rig-preview-report.failed {
+  color: #9a382f;
+}
+
+.rig-preview-report.passed {
+  color: #276749;
+}
+
+.rig-preview-report span {
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.rig-part-row {
+  display: grid;
+  grid-template-columns: minmax(92px, 1fr) auto;
+  gap: 6px;
+  align-items: end;
+}
+
+.rig-part-row > label {
+  display: grid;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.rig-part-row > label:first-of-type {
+  grid-column: 1 / -1;
+}
+
+.rig-part-row input,
+.rig-part-row select,
+.skeleton-status-row select {
+  min-width: 0;
+  width: 100%;
+}
+
+.rig-part-row > button.active {
+  color: #074e58;
+  border-color: #18aabd;
+  background: rgba(24, 198, 216, 0.16);
+}
+
+.skill-download-card {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.skill-download-card span {
+  display: grid;
+  gap: 3px;
+}
+
+.skill-download-card a {
+  padding: 8px 10px;
+  border-radius: 7px;
+  color: #fff;
+  background: #29272a;
+  text-decoration: none;
+  white-space: nowrap;
+}
 * {
   box-sizing: border-box;
 }
@@ -2108,6 +2192,40 @@ button {
   align-items: center;
   gap: 7px;
 }
+.motion-clip-label {
+  margin-top: 12px;
+}
+.motion-clip-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+.motion-clip-grid button {
+  display: grid;
+  gap: 3px;
+  min-height: 36px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--ink);
+  background: #fffaf2;
+  font-size: 9px;
+  font-weight: 750;
+  text-align: left;
+}
+.motion-clip-grid button:hover:not(:disabled) {
+  border-color: var(--teal);
+  background: #f3f7f4;
+}
+.motion-clip-grid button:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+.motion-clip-grid small {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 600;
+}
 .field-row {
   gap: 7px;
   margin-bottom: 7px;
@@ -2364,6 +2482,39 @@ button {
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 4px 7px;
+}
+.rig-quality-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.rig-quality-summary span:first-child {
+  color: var(--teal);
+  font-weight: 750;
+}
+.rig-part-list {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fffaf2;
+}
+.rig-part-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  color: var(--ink);
+  font-size: 10px;
+}
+.rig-part-row small {
+  color: var(--muted);
+  font-size: 9px;
+  text-align: right;
 }
 
 .skeleton-joint-list {

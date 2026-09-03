@@ -1,0 +1,13 @@
+{
+  "case": "variant-topology",
+  "basePartIds": [
+    "head",
+    "torso",
+    "left-arm",
+    "right-arm",
+    "left-leg",
+    "right-leg"
+  ],
+  "variantPartIds": ["head", "torso", "left-arm", "right-arm", "left-leg"],
+  "expected": ["VARIANT_TOPOLOGY_MISMATCH"]
+}

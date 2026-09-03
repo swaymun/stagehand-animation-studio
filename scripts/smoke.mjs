@@ -2,6 +2,47 @@ import { chromium } from 'playwright';
 import { readFile, stat } from 'node:fs/promises';
 import { deflateSync } from 'node:zlib';
 
+const PUBLIC_TOOL_NAMES = [
+  'inspect_project',
+  'edit_project',
+  'get_timeline',
+  'set_playhead',
+  'edit_scene',
+  'edit_storyboard',
+  'set_current_scene',
+  'set_pose',
+  'set_keyframe',
+  'set_bone_keyframe',
+  'delete_keyframe',
+  'get_bone_keyframes',
+  'set_character_variant',
+  'validate_project',
+  'undo',
+  'redo',
+  'edit_history',
+  'list_assets',
+  'get_asset_generation_checklist',
+  'create_asset_request',
+  'attach_generated_asset',
+  'inspect_asset_candidate',
+  'approve_asset',
+  'list_asset_audio',
+  'import_asset_audio',
+  'attach_imported_audio',
+  'add_audio_clip',
+  'set_audio_clip',
+  'inspect_audio_clip',
+  'propose_skeleton',
+  'get_skeleton',
+  'approve_skeleton',
+  'validate_skeleton',
+  'bind_skeleton_asset',
+  'apply_motion_clip',
+  'inspect_frame',
+  'export_frame',
+  'render_webm',
+];
+
 function crc32(buffer) {
   let crc = 0xffffffff;
   for (const byte of buffer) {
@@ -64,7 +105,51 @@ function widePngFixture() {
   ]);
 }
 
-const fixtureDataUrl = `data:image/png;base64,${widePngFixture().toString('base64')}`;
+function segmentedPngFixture() {
+  const width = 600;
+  const height = 600;
+  const stride = width * 4 + 1;
+  const raw = Buffer.alloc(height * stride);
+  const parts = [
+    [18, 18, 180, 220, [239, 107, 87, 255]],
+    [228, 18, 150, 280, [239, 107, 87, 255]],
+    [390, 18, 90, 250, [52, 118, 143, 255]],
+    [492, 18, 90, 250, [52, 118, 143, 255]],
+    [228, 344, 90, 220, [242, 184, 75, 255]],
+    [330, 344, 90, 220, [242, 184, 75, 255]],
+  ];
+  for (let y = 0; y < height; y += 1) {
+    const row = y * stride;
+    for (let x = 0; x < width; x += 1) {
+      const part = parts.find(
+        ([partX, partY, partWidth, partHeight]) =>
+          x >= partX &&
+          x < partX + partWidth &&
+          y >= partY &&
+          y < partY + partHeight,
+      );
+      if (!part) continue;
+      const pixel = row + 1 + x * 4;
+      raw[pixel] = part[4][0];
+      raw[pixel + 1] = part[4][1];
+      raw[pixel + 2] = part[4][2];
+      raw[pixel + 3] = part[4][3];
+    }
+  }
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8;
+  header[9] = 6;
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    pngChunk('IHDR', header),
+    pngChunk('IDAT', deflateSync(raw)),
+    pngChunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+const fixtureDataUrl = `data:image/png;base64,${segmentedPngFixture().toString('base64')}`;
 
 const baseUrl = process.env.STAGEHAND_URL ?? 'http://localhost:3000';
 const browser = await chromium.launch({ headless: true });
@@ -104,7 +189,7 @@ await page.waitForTimeout(700);
 await page.evaluate(() => localStorage.clear());
 await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
 await page.waitForTimeout(700);
-await page.waitForFunction(() => window.__stagehandTools?.size === 69);
+await page.waitForFunction(() => window.__stagehandTools?.size === 38);
 const h1 = page.locator('h1');
 if (
   (await h1.count()) !== 1 ||
@@ -352,313 +437,384 @@ if (unnamedNumberInputs.length > 0) {
   );
 }
 
-const bridge = await page.evaluate(async (fixtureDataUrl) => {
-  const tools = window.__stagehandTools;
-  const call = (name, input = {}) => tools.get(name).execute(input);
-  const unguardedMutations = [...tools.values()]
-    .filter((tool) => !tool.annotations?.readOnlyHint)
-    .filter((tool) => !tool.inputSchema?.properties?.expectedRevision)
-    .map((tool) => tool.name);
-  if (unguardedMutations.length > 0) {
-    throw new Error(
-      `mutating tools must expose expectedRevision: ${unguardedMutations.join(', ')}`,
-    );
-  }
-  const initial = await call('get_project_summary');
-  const stale = await call('set_pose', {
-    characterId: 'alice',
-    pose: 'wave',
-    expectedRevision: initial.revision - 1,
-  });
-  if (stale.ok !== false || stale.code !== 'REVISION_CONFLICT') {
-    throw new Error(
-      `expected stale revision conflict, got ${JSON.stringify(stale)}`,
-    );
-  }
-  const renamed = await call('set_project_name', {
-    name: 'Smoke Project',
-    expectedRevision: initial.revision,
-    idempotencyKey: 'smoke-rename-1',
-  });
-  const renamedReplay = await call('set_project_name', {
-    name: 'Smoke Project',
-    expectedRevision: initial.revision,
-    idempotencyKey: 'smoke-rename-1',
-  });
-  if (
-    !renamed.ok ||
-    !renamedReplay.ok ||
-    !renamedReplay.idempotentReplay ||
-    renamedReplay.revision !== renamed.revision
-  ) {
-    throw new Error(
-      `expected idempotent replay, got ${JSON.stringify({ renamed, renamedReplay })}`,
-    );
-  }
-  const posed = await call('set_pose', {
-    characterId: 'alice',
-    pose: 'point',
-  });
-  const inspected = await call('inspect_frame', { timeMs: 125 });
-  if (
-    !inspected.ok ||
-    inspected.timeMs !== 125 ||
-    inspected.renderSize?.width !== 720 ||
-    inspected.renderSize?.height !== 405
-  ) {
-    throw new Error(`frame inspection mismatch: ${JSON.stringify(inspected)}`);
-  }
-  const render1080 = await call('set_render_settings', {
-    preset: '1080p',
-    fps: 24,
-  });
-  const renderFpsOnly = await call('set_render_settings', { fps: 12 });
-  if (
-    !render1080.ok ||
-    render1080.width !== 1920 ||
-    !renderFpsOnly.ok ||
-    renderFpsOnly.width !== 1920 ||
-    renderFpsOnly.height !== 1080
-  ) {
-    throw new Error(
-      `partial render settings update lost resolution: ${JSON.stringify({ render1080, renderFpsOnly })}`,
-    );
-  }
-  const render720 = await call('set_render_settings', {
-    preset: '720p',
-    fps: 12,
-  });
-  const retimed = await call('retime_scene', { speed: 1.25 });
-  const retimedTimeline = await call('get_timeline');
-  const restoredDuration = await call('set_scene_duration', {
-    durationMs: 15000,
-  });
-  if (
-    !retimed.ok ||
-    retimed.durationMs !== 12000 ||
-    retimedTimeline.currentTimeMs > 12000 ||
-    !restoredDuration.ok ||
-    restoredDuration.durationMs !== 15000
-  ) {
-    throw new Error(
-      `scene retime should synchronize duration and tracks: ${JSON.stringify({ retimed, retimedTimeline, restoredDuration })}`,
-    );
-  }
-  const audio = await call('update_audio_cue', {
-    cueId: 'music-low',
-    volume: 0.03,
-  });
-  const audioLibrary = await call('get_audio_library');
-  const audioRoute = await call('set_audio_cue_asset', {
-    cueId: 'footstep-1',
-    assetId: 'audio-pop-2',
-  });
-  const checklist = await call('get_asset_generation_checklist', {
-    kind: 'rigged-character',
-    targetCharacterId: 'alice',
-    bindingMethod: 'segmented',
-  });
-  const assetRequest = await call('create_asset_request', {
-    kind: 'rigged-character',
-    label: 'Smoke segmented Alice',
-    targetCharacterId: 'alice',
-    bindingMethod: 'segmented',
-  });
-  const candidate = await call('attach_generated_asset', {
-    requestId: assetRequest.request.id,
-    dataUrl: fixtureDataUrl,
-    frameLayout: 'parts-sheet',
-  });
-  const candidateInspection = await call('inspect_asset_candidate', {
-    assetId: candidate.asset.id,
-  });
-  const blockedBind = await call('bind_character_asset', {
-    characterId: 'alice',
-    assetId: candidate.asset.id,
-  });
-  const approvedAsset = await call('approve_asset', {
-    assetId: candidate.asset.id,
-    approved: true,
-  });
-  const boundGenerated = await call('bind_character_asset', {
-    characterId: 'alice',
-    assetId: candidate.asset.id,
-  });
-  const skeletonProposal = await call('propose_skeleton', {
-    assetId: candidate.asset.id,
-    bindingMethod: 'segmented',
-  });
-  const skeletonId = skeletonProposal.skeleton.id;
-  const blockedBoneKeyframe = await call('set_bone_keyframe', {
-    skeletonId,
-    timeMs: 0,
-    transforms: [{ boneId: 'bone-chest-left-hand', rotation: -22, x: 0, y: 0, scale: 1 }],
-  });
-  const correctedJoint = await call('update_skeleton_joint', {
-    skeletonId,
-    jointId: 'left-hand',
-    x: 30,
-    y: 50,
-  });
-  const approvedSkeleton = await call('approve_skeleton', {
-    skeletonId,
-    approved: true,
-  });
-  const boneAtStart = await call('set_bone_keyframe', {
-    skeletonId,
-    timeMs: 0,
-    transforms: [{ boneId: 'bone-chest-left-hand', rotation: -22, x: 0, y: 0, scale: 1 }],
-  });
-  const boneAtReveal = await call('set_bone_keyframe', {
-    skeletonId,
-    timeMs: 3300,
-    transforms: [
-      { boneId: 'bone-chest-left-hand', rotation: -52, x: 0, y: 0, scale: 1 },
-      { boneId: 'bone-chest-right-hand', rotation: 28, x: 0, y: 0, scale: 1 },
-    ],
-  });
-  const skeletonValidation = await call('validate_skeleton', { skeletonId });
-  const skeletonFrame = await call('inspect_frame', { timeMs: 3300 });
-  const manifest = await call('get_asset_manifest');
-  const prop = manifest.assets.find(
-    (asset) => asset.kind === 'prop' && asset.source === 'imported',
-  );
-  if (!prop) throw new Error('Imported smoke prop unavailable');
-  if (prop.placement !== 'stage' || prop.keyframeCount < 1) {
-    throw new Error(
-      `asset manifest should expose stage placement and animation state: ${JSON.stringify(prop)}`,
-    );
-  }
-  window.__stagehandCanvasFilters.length = 0;
-  const styled = await call('set_asset_style', {
-    assetId: prop.id,
-    role: 'accent',
-    treatment: 'inked',
-    silhouette: 'clear',
-    palette: ['amber', 'coral'],
-    notes: 'One readable silhouette for the beat.',
-  });
-  if (!styled.ok || styled.style?.treatment !== 'inked') {
-    throw new Error(
-      `expected asset style update, got ${JSON.stringify(styled)}`,
-    );
-  }
-  await new Promise((resolve) => setTimeout(resolve, 140));
-  const inkedFilters = [...new Set(window.__stagehandCanvasFilters)];
-  if (!inkedFilters.some((filter) => filter.includes('grayscale'))) {
-    throw new Error(
-      `asset treatment should reach the canvas renderer: ${JSON.stringify({ inkedFilters })}`,
-    );
-  }
-  const propReadBefore = await call('get_prop_keyframes', {
-    assetId: prop.id,
-  });
-  const propKeyframe = await call('set_prop_keyframe', {
-    assetId: prop.id,
-    timeMs: 0,
-    x: 64,
-    y: 58,
-    scale: 1.1,
-    rotation: -3,
-  });
-  const propPreset = await call('apply_prop_preset', {
-    assetId: prop.id,
-    preset: 'pop-in',
-  });
-  const propReadAfter = await call('get_prop_keyframes', {
-    assetId: prop.id,
-  });
-  const undone = await call('undo_command');
-  const redone = await call('redo_command');
-  const duration = await call('set_scene_duration', { durationMs: 500 });
-  const secondScene = await call('add_scene', { title: 'Smoke Outro' });
-  return {
-    toolCount: tools.size,
-    guardedMutations:
-      tools.size -
-      [...tools.values()].filter((tool) => tool.annotations?.readOnlyHint)
-        .length,
-    initial: { revision: initial.revision, canUndo: initial.canUndo },
-    revisionConflict: {
-      ok: stale.ok,
-      code: stale.code,
-      actualRevision: stale.actualRevision,
-    },
-    renamed: { ok: renamed.ok, revision: renamed.revision },
-    idempotency: {
-      ok: renamedReplay.ok,
-      replay: renamedReplay.idempotentReplay,
-      revision: renamedReplay.revision,
-    },
-    posed: { ok: posed.ok, revision: posed.revision },
-    inspected: {
-      ok: inspected.ok,
-      timeMs: inspected.timeMs,
-      width: inspected.renderSize?.width,
-      height: inspected.renderSize?.height,
-    },
-    renderSettings: {
-      preserved1080:
-        renderFpsOnly.width === 1920 && renderFpsOnly.height === 1080,
-      reset720:
-        render720.ok && render720.width === 720 && render720.height === 405,
-    },
-    retime: {
-      ok: retimed.ok,
-      durationMs: retimed.durationMs,
-      restoredDurationMs: restoredDuration.durationMs,
-    },
-    audio: {
-      ok: audio.ok,
-      volume: audio.cue?.volume,
-      libraryCount: audioLibrary.assets?.length,
-      routed: audioRoute.ok,
-    },
-    generatedRig: {
-      checklist: checklist.ok,
-      request: assetRequest.ok,
-      candidate: candidateInspection.readyForApproval,
-      blockedBind: blockedBind.code,
-      approvedAsset: approvedAsset.reviewStatus,
-      bound: boundGenerated.ok,
+const bridge = await page.evaluate(
+  async ({ fixtureDataUrl, publicToolNames }) => {
+    const tools = window.__stagehandTools;
+    const legacyTools = window.__stagehandLegacyTools;
+    const call = (name, input = {}) =>
+      (tools.get(name) ?? legacyTools.get(name)).execute(input);
+    const registeredNames = [...tools.keys()];
+    if (JSON.stringify(registeredNames) !== JSON.stringify(publicToolNames)) {
+      throw new Error(
+        `public tool registry mismatch: ${JSON.stringify(registeredNames)}`,
+      );
+    }
+    const schemaIds = [...tools.values()].map((tool) => tool.inputSchema?.$id);
+    if (schemaIds.some((id) => !id) || new Set(schemaIds).size !== tools.size) {
+      throw new Error(
+        `public tools require unique schema ids: ${JSON.stringify(schemaIds)}`,
+      );
+    }
+    const unguardedMutations = [...tools.values()]
+      .filter((tool) => !tool.annotations?.readOnlyHint)
+      .filter((tool) => !tool.inputSchema?.properties?.expectedRevision)
+      .map((tool) => tool.name);
+    if (unguardedMutations.length > 0) {
+      throw new Error(
+        `mutating tools must expose expectedRevision: ${unguardedMutations.join(', ')}`,
+      );
+    }
+    const initial = await call('inspect_project');
+    const stale = await call('set_pose', {
+      characterId: 'alice',
+      pose: 'wave',
+      expectedRevision: initial.revision - 1,
+    });
+    if (stale.ok !== false || stale.code !== 'REVISION_CONFLICT') {
+      throw new Error(
+        `expected stale revision conflict, got ${JSON.stringify(stale)}`,
+      );
+    }
+    const renamed = await call('set_project_name', {
+      name: 'Smoke Project',
+      expectedRevision: initial.revision,
+      idempotencyKey: 'smoke-rename-1',
+    });
+    const renamedReplay = await call('set_project_name', {
+      name: 'Smoke Project',
+      expectedRevision: initial.revision,
+      idempotencyKey: 'smoke-rename-1',
+    });
+    if (
+      !renamed.ok ||
+      !renamedReplay.ok ||
+      !renamedReplay.idempotentReplay ||
+      renamedReplay.revision !== renamed.revision
+    ) {
+      throw new Error(
+        `expected idempotent replay, got ${JSON.stringify({ renamed, renamedReplay })}`,
+      );
+    }
+    const posed = await call('set_pose', {
+      characterId: 'alice',
+      pose: 'point',
+    });
+    const inspected = await call('inspect_frame', { timeMs: 125 });
+    if (
+      !inspected.ok ||
+      inspected.timeMs !== 125 ||
+      inspected.renderSize?.width !== 1920 ||
+      inspected.renderSize?.height !== 1080
+    ) {
+      throw new Error(
+        `frame inspection mismatch: ${JSON.stringify(inspected)}`,
+      );
+    }
+    const render1080 = await call('set_render_settings', {
+      preset: '1080p',
+      fps: 24,
+    });
+    const renderFpsOnly = await call('set_render_settings', { fps: 12 });
+    if (
+      !render1080.ok ||
+      render1080.width !== 1920 ||
+      !renderFpsOnly.ok ||
+      renderFpsOnly.width !== 1920 ||
+      renderFpsOnly.height !== 1080
+    ) {
+      throw new Error(
+        `partial render settings update lost resolution: ${JSON.stringify({ render1080, renderFpsOnly })}`,
+      );
+    }
+    const render720 = await call('set_render_settings', {
+      preset: '720p',
+      fps: 12,
+    });
+    const retimed = await call('retime_scene', { speed: 1.25 });
+    const retimedTimeline = await call('get_timeline');
+    const restoredDuration = await call('set_scene_duration', {
+      durationMs: 15000,
+    });
+    if (
+      !retimed.ok ||
+      retimed.durationMs !== 12000 ||
+      retimedTimeline.currentTimeMs > 12000 ||
+      !restoredDuration.ok ||
+      restoredDuration.durationMs !== 15000
+    ) {
+      throw new Error(
+        `scene retime should synchronize duration and tracks: ${JSON.stringify({ retimed, retimedTimeline, restoredDuration })}`,
+      );
+    }
+    const audio = await call('update_audio_cue', {
+      cueId: 'music-low',
+      volume: 0.03,
+    });
+    const audioLibrary = await call('get_audio_library');
+    const audioRoute = await call('set_audio_cue_asset', {
+      cueId: 'footstep-1',
+      assetId: 'audio-pop-2',
+    });
+    const checklist = await call('get_asset_generation_checklist', {
+      kind: 'rigged-character',
+      targetCharacterId: 'alice',
+      bindingMethod: 'segmented',
+    });
+    const assetRequest = await call('create_asset_request', {
+      kind: 'rigged-character',
+      label: 'Smoke segmented Alice',
+      targetCharacterId: 'alice',
+      bindingMethod: 'segmented',
+    });
+    const candidate = await call('attach_generated_asset', {
+      requestId: assetRequest.request.id,
+      dataUrl: fixtureDataUrl,
+      frameLayout: 'parts-sheet',
+    });
+    const candidateInspection = await call('inspect_asset_candidate', {
+      assetId: candidate.asset.id,
+    });
+    const blockedBind = await call('bind_character_asset', {
+      characterId: 'alice',
+      assetId: candidate.asset.id,
+    });
+    const approvedAsset = await call('approve_asset', {
+      assetId: candidate.asset.id,
+      approved: true,
+    });
+    const boundGenerated = await call('bind_character_asset', {
+      characterId: 'alice',
+      assetId: candidate.asset.id,
+    });
+    const skeletonProposal = await call('propose_skeleton', {
+      assetId: candidate.asset.id,
+      bindingMethod: 'segmented',
+    });
+    const skeletonId = skeletonProposal.skeleton.id;
+    const blockedBoneKeyframe = await call('set_bone_keyframe', {
       skeletonId,
-      blockedBoneKeyframe: blockedBoneKeyframe.code,
-      correctedJoint: correctedJoint.ok,
-      approvedSkeleton: approvedSkeleton.reviewStatus,
-      boneAtStart: boneAtStart.ok,
-      boneAtReveal: boneAtReveal.ok,
-      valid: skeletonValidation.valid,
-      inspectedTransforms: skeletonFrame.skeletons?.find((item) => item.id === skeletonId)?.boneTransforms?.length,
-    },
-    prop: {
-      id: prop.id,
-      before: propReadBefore.propKeyframes.length,
-      keyframe: { ok: propKeyframe.ok, x: propKeyframe.keyframe?.x },
-      preset: { ok: propPreset.ok, count: propPreset.keyframes?.length },
-      after: propReadAfter.propKeyframes.length,
-    },
-    assetStyle: {
-      ok: styled.ok,
-      treatment: styled.style?.treatment,
-      palette: styled.style?.palette,
-      rendererFilters: inkedFilters,
-    },
-    undone: { ok: undone.ok, revision: undone.revision },
-    redone: { ok: redone.ok, revision: redone.revision },
-    duration: { ok: duration.ok, durationMs: duration.durationMs },
-    secondScene: {
-      ok: secondScene.ok,
-      sceneCount: secondScene.scene ? 2 : 0,
-    },
-  };
-}, fixtureDataUrl);
+      timeMs: 0,
+      transforms: [
+        { boneId: 'bone-chest-left-hand', rotation: -22, x: 0, y: 0, scale: 1 },
+      ],
+    });
+    const correctedJoint = await call('update_skeleton_joint', {
+      skeletonId,
+      jointId: 'left-hand',
+      x: 30,
+      y: 50,
+    });
+    const approvedSkeleton = await call('approve_skeleton', {
+      skeletonId,
+      approved: true,
+    });
+    const statusAfterApproval = await call('get_skeleton', { skeletonId });
+    const motionLibrary = await call('get_motion_library');
+    const motionPreview = await call('preview_motion_clip', {
+      clipId: 'motion-embarrassed-reaction',
+      timeMs: 350,
+    });
+    const motionAnalysis = await call('analyze_scene_motion');
+    const motionApplied = await call('apply_motion_clip', {
+      characterId: 'alice',
+      clipId: 'motion-embarrassed-reaction',
+      startTimeMs: 3300,
+    });
+    const statusAfterMotion = await call('get_skeleton', { skeletonId });
+    const bobVariant = await call('set_character_variant', {
+      characterId: 'bob',
+      variantId: 'bob-three-quarter-v2',
+    });
+    const boneAtStart = await call('set_bone_keyframe', {
+      skeletonId,
+      timeMs: 0,
+      transforms: [
+        { boneId: 'bone-chest-left-hand', rotation: -22, x: 0, y: 0, scale: 1 },
+      ],
+    });
+    const boneAtReveal = await call('set_bone_keyframe', {
+      skeletonId,
+      timeMs: 3300,
+      transforms: [
+        { boneId: 'bone-chest-left-hand', rotation: -52, x: 0, y: 0, scale: 1 },
+        { boneId: 'bone-chest-right-hand', rotation: 28, x: 0, y: 0, scale: 1 },
+      ],
+    });
+    const boneReadback = await call('get_bone_keyframes', { skeletonId });
+    const statusAfterBone = await call('get_skeleton', { skeletonId });
+    const skeletonValidation = await call('validate_skeleton', { skeletonId });
+    const skeletonFrame = await call('inspect_frame', { timeMs: 3300 });
+    const manifest = await call('get_asset_manifest');
+    const prop = manifest.assets.find(
+      (asset) => asset.kind === 'prop' && asset.source === 'imported',
+    );
+    if (!prop) throw new Error('Imported smoke prop unavailable');
+    if (prop.placement !== 'stage' || prop.keyframeCount < 1) {
+      throw new Error(
+        `asset manifest should expose stage placement and animation state: ${JSON.stringify(prop)}`,
+      );
+    }
+    window.__stagehandCanvasFilters.length = 0;
+    const styled = await call('set_asset_style', {
+      assetId: prop.id,
+      role: 'accent',
+      treatment: 'inked',
+      silhouette: 'clear',
+      palette: ['amber', 'coral'],
+      notes: 'One readable silhouette for the beat.',
+    });
+    if (!styled.ok || styled.style?.treatment !== 'inked') {
+      throw new Error(
+        `expected asset style update, got ${JSON.stringify(styled)}`,
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, 140));
+    const inkedFilters = [...new Set(window.__stagehandCanvasFilters)];
+    if (!inkedFilters.some((filter) => filter.includes('grayscale'))) {
+      throw new Error(
+        `asset treatment should reach the canvas renderer: ${JSON.stringify({ inkedFilters })}`,
+      );
+    }
+    const propReadBefore = await call('get_prop_keyframes', {
+      assetId: prop.id,
+    });
+    const propKeyframe = await call('set_prop_keyframe', {
+      assetId: prop.id,
+      timeMs: 0,
+      x: 64,
+      y: 58,
+      scale: 1.1,
+      rotation: -3,
+    });
+    const propPreset = await call('apply_prop_preset', {
+      assetId: prop.id,
+      preset: 'pop-in',
+    });
+    const propReadAfter = await call('get_prop_keyframes', {
+      assetId: prop.id,
+    });
+    const undone = await call('undo_command');
+    const redone = await call('redo_command');
+    const duration = await call('set_scene_duration', { durationMs: 500 });
+    const secondScene = await call('add_scene', { title: 'Smoke Outro' });
+    const responseLeaks = [candidate, candidateInspection, approvedAsset]
+      .map((result) => JSON.stringify(result))
+      .filter(
+        (value) => value.includes('data:image') || value.includes('base64,'),
+      );
+    return {
+      toolCount: tools.size,
+      legacyToolCount: legacyTools.size,
+      registeredNames,
+      responseLeaks,
+      guardedMutations:
+        tools.size -
+        [...tools.values()].filter((tool) => tool.annotations?.readOnlyHint)
+          .length,
+      initial: { revision: initial.revision, canUndo: initial.canUndo },
+      revisionConflict: {
+        ok: stale.ok,
+        code: stale.code,
+        actualRevision: stale.actualRevision,
+      },
+      renamed: { ok: renamed.ok, revision: renamed.revision },
+      idempotency: {
+        ok: renamedReplay.ok,
+        replay: renamedReplay.idempotentReplay,
+        revision: renamedReplay.revision,
+      },
+      posed: { ok: posed.ok, revision: posed.revision },
+      inspected: {
+        ok: inspected.ok,
+        timeMs: inspected.timeMs,
+        width: inspected.renderSize?.width,
+        height: inspected.renderSize?.height,
+      },
+      renderSettings: {
+        preserved1080:
+          renderFpsOnly.width === 1920 && renderFpsOnly.height === 1080,
+        reset720:
+          render720.ok && render720.width === 720 && render720.height === 405,
+      },
+      retime: {
+        ok: retimed.ok,
+        durationMs: retimed.durationMs,
+        restoredDurationMs: restoredDuration.durationMs,
+      },
+      audio: {
+        ok: audio.ok,
+        volume: audio.cue?.volume,
+        libraryCount: audioLibrary.assets?.length,
+        routed: audioRoute.ok,
+      },
+      generatedRig: {
+        checklist: checklist.ok,
+        request: assetRequest.ok,
+        candidate: candidateInspection.readyForApproval,
+        blockedBind: blockedBind.code,
+        approvedAsset: approvedAsset.reviewStatus,
+        bound: boundGenerated.ok,
+        skeletonId,
+        blockedBoneKeyframe: blockedBoneKeyframe.code,
+        correctedJoint: correctedJoint.ok,
+        approvedSkeleton: approvedSkeleton.reviewStatus,
+        statusAfterApproval: statusAfterApproval.skeleton?.reviewStatus,
+        motionLibrary: motionLibrary.motionClips?.length,
+        motionPreview: motionPreview.evaluation?.transforms?.length,
+        motionAnalysis: motionAnalysis.proposals?.length,
+        motionApplied: motionApplied.ok,
+        motionAppliedCode: motionApplied.code,
+        statusAfterMotion: statusAfterMotion.skeleton?.reviewStatus,
+        bobVariant: bobVariant.ok,
+        boneAtStart: boneAtStart.ok,
+        boneAtStartCode: boneAtStart.code,
+        boneAtReveal: boneAtReveal.ok,
+        boneAtRevealCode: boneAtReveal.code,
+        boneReadback: boneReadback.boneKeyframes?.length,
+        boneReadbackScenes: boneReadback.boneKeyframes?.map(
+          (frame) => frame.sceneId,
+        ),
+        statusAfterBone: statusAfterBone.skeleton?.reviewStatus,
+        valid: skeletonValidation.valid,
+        validationIssues: skeletonValidation.issues,
+        inspectedSkeleton: skeletonFrame.skeletons?.find(
+          (item) => item.id === skeletonId,
+        ),
+        inspectedTransforms: skeletonFrame.skeletons?.find(
+          (item) => item.id === skeletonId,
+        )?.boneTransforms?.length,
+      },
+      prop: {
+        id: prop.id,
+        before: propReadBefore.propKeyframes.length,
+        keyframe: { ok: propKeyframe.ok, x: propKeyframe.keyframe?.x },
+        preset: { ok: propPreset.ok, count: propPreset.keyframes?.length },
+        after: propReadAfter.propKeyframes.length,
+      },
+      assetStyle: {
+        ok: styled.ok,
+        treatment: styled.style?.treatment,
+        palette: styled.style?.palette,
+        rendererFilters: inkedFilters,
+      },
+      undone: { ok: undone.ok, revision: undone.revision },
+      redone: { ok: redone.ok, revision: redone.revision },
+      duration: { ok: duration.ok, durationMs: duration.durationMs },
+      secondScene: {
+        ok: secondScene.ok,
+        sceneCount: secondScene.scene ? 2 : 0,
+      },
+    };
+  },
+  { fixtureDataUrl, publicToolNames: PUBLIC_TOOL_NAMES },
+);
 
 await page.waitForTimeout(650);
 await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
 await page.waitForTimeout(700);
-await page.waitForFunction(() => window.__stagehandTools?.size === 69);
+await page.waitForFunction(() => window.__stagehandTools?.size === 38);
 const recovery = await page.evaluate(() =>
-  window.__stagehandTools.get('get_project_summary').execute({}),
+  window.__stagehandTools.get('inspect_project').execute({}),
 );
 if (
   !recovery.ok ||
@@ -767,7 +923,7 @@ const preview = {
     .count(),
 };
 const summary = await page.evaluate(() =>
-  window.__stagehandTools.get('get_project_summary').execute({}),
+  window.__stagehandTools.get('inspect_project').execute({}),
 );
 
 await page.getByRole('button', { name: 'Exit preview' }).click();
@@ -776,7 +932,9 @@ const pauseButton = page.getByRole('button', { name: 'Pause', exact: true });
 if ((await pauseButton.count()) > 0) await pauseButton.click();
 const emptied = await page.evaluate(async () => {
   const tools = window.__stagehandTools;
-  const call = (name, input = {}) => tools.get(name).execute(input);
+  const legacyTools = window.__stagehandLegacyTools;
+  const call = (name, input = {}) =>
+    (tools.get(name) ?? legacyTools.get(name)).execute(input);
   const storyboard = await call('get_storyboard');
   const timeline = await call('get_timeline');
   const manifest = await call('get_asset_manifest');
@@ -798,9 +956,9 @@ const emptied = await page.evaluate(async () => {
 await page.waitForTimeout(650);
 await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
 await page.waitForTimeout(700);
-await page.waitForFunction(() => window.__stagehandTools?.size === 69);
+await page.waitForFunction(() => window.__stagehandTools?.size === 38);
 const emptyStatePersistence = await page.evaluate(() =>
-  window.__stagehandTools.get('get_project_summary').execute({}),
+  window.__stagehandTools.get('inspect_project').execute({}),
 );
 if (
   emptied.beatsRemoved !== 6 ||
@@ -1029,7 +1187,11 @@ const result = {
 };
 
 if (
-  result.toolCount !== 69 ||
+  result.toolCount !== 38 ||
+  bridge.legacyToolCount < 38 ||
+  JSON.stringify(bridge.registeredNames) !==
+    JSON.stringify(PUBLIC_TOOL_NAMES) ||
+  bridge.responseLeaks.length !== 0 ||
   !result.timelineDrag.moved ||
   !result.humanTimeline.ok ||
   Math.abs(result.humanTimeline.currentTimeMs - 1250) > 1 ||
@@ -1059,14 +1221,19 @@ if (
   bridge.generatedRig.blockedBoneKeyframe !== 'SKELETON_NOT_APPROVED' ||
   !bridge.generatedRig.correctedJoint ||
   bridge.generatedRig.approvedSkeleton !== 'approved' ||
+  bridge.generatedRig.motionLibrary < 4 ||
+  bridge.generatedRig.motionPreview < 2 ||
+  bridge.generatedRig.motionAnalysis < 1 ||
+  !bridge.generatedRig.motionApplied ||
+  !bridge.generatedRig.bobVariant ||
   !bridge.generatedRig.boneAtStart ||
   !bridge.generatedRig.boneAtReveal ||
   !bridge.generatedRig.valid ||
   bridge.generatedRig.inspectedTransforms < 2 ||
   !bridge.inspected.ok ||
   bridge.inspected.timeMs !== 125 ||
-  bridge.inspected.width !== 720 ||
-  bridge.inspected.height !== 405 ||
+  bridge.inspected.width !== 1920 ||
+  bridge.inspected.height !== 1080 ||
   !bridge.renderSettings.preserved1080 ||
   !bridge.renderSettings.reset720 ||
   !bridge.retime.ok ||

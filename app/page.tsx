@@ -49,9 +49,29 @@ import {
 type Pose = 'idle' | 'nervous' | 'wave' | 'lean-in' | 'point' | 'shrug';
 type AssetKind = 'rigged-character' | 'background' | 'prop' | 'audio';
 type AssetFrameLayout = 'single' | 'four-column' | 'parts-sheet';
-type AssetSource = 'starter' | 'placeholder' | 'imported' | 'generated' | 'bundled';
+type AssetSource =
+  | 'starter'
+  | 'placeholder'
+  | 'imported'
+  | 'generated'
+  | 'bundled';
 type ReviewStatus = 'draft' | 'pending-review' | 'approved' | 'rejected';
 type BindingMethod = 'rigid' | 'segmented' | 'mesh';
+type AssetVariantKind = 'base' | 'view' | 'pose' | 'expression' | 'motion';
+type ViewDirection = 'front' | 'three-quarter' | 'profile' | 'back';
+type MotionClipKind =
+  | 'idle'
+  | 'walk-in'
+  | 'walk-cycle'
+  | 'stop'
+  | 'turn'
+  | 'lean'
+  | 'wave'
+  | 'point'
+  | 'shrug'
+  | 'surprise'
+  | 'embarrassed'
+  | 'pleased';
 type AssetRole = 'hero' | 'support' | 'environment' | 'accent';
 type AssetTreatment = 'paper' | 'inked' | 'flat-color' | 'photo';
 type AssetSilhouette = 'clear' | 'detailed';
@@ -77,6 +97,14 @@ type Asset = {
   mimeType?: string;
   dataUrl?: string;
   frameCount?: number;
+  variantOf?: string;
+  variantKind?: AssetVariantKind;
+  viewDirection?: ViewDirection;
+  poseVariant?: Pose;
+  expression?: 'neutral' | 'surprised' | 'embarrassed' | 'pleased';
+  rigManifest?: RigManifest;
+  assetPackage?: StagehandAssetPackageV2;
+  packageIssues?: string[];
   dimensions?: { width: number; height: number };
   transparencyStatus?: 'yes' | 'no' | 'unknown';
   detectedLayout?: AssetFrameLayout;
@@ -110,6 +138,7 @@ type Character = {
   name: string;
   color: string;
   assetId?: string;
+  variantId?: string;
   x: number;
   y: number;
   rotation: number;
@@ -123,6 +152,7 @@ type Keyframe = {
   y: number;
   rotation: number;
   pose: Pose;
+  variantId?: string;
 };
 type PropKeyframe = {
   id: string;
@@ -147,6 +177,10 @@ type AssetGenerationRequest = {
   label: string;
   targetCharacterId?: string;
   bindingMethod?: BindingMethod;
+  variantKind?: AssetVariantKind;
+  viewDirection?: ViewDirection;
+  pose?: Pose;
+  expression?: string;
   prompt: string;
   checklist: string[];
   status: 'pending' | 'attached' | 'approved' | 'rejected';
@@ -186,9 +220,119 @@ type SkeletonBinding = {
     targetY?: number;
     targetWidth?: number;
     targetHeight?: number;
+    boneId?: string;
+    pivotX?: number;
+    pivotY?: number;
+    attachX?: number;
+    attachY?: number;
+    confidence?: number;
+    zIndex?: number;
+    overlapPx?: number;
   }>;
   vertices?: Array<{ id: string; x: number; y: number }>;
   weights?: Array<{ vertexId: string; boneId: string; weight: number }>;
+};
+type StagehandAssetPackageV2 = {
+  version: 2;
+  atlasWidth: number;
+  atlasHeight: number;
+  source: 'manifest' | 'alpha-inference' | 'hybrid';
+  sourceAsset: {
+    assetId: string;
+    immutable: true;
+    provenance: {
+      prompt?: string;
+      sourceUrl?: string;
+      author?: string;
+      license?: string;
+      licenseUrl?: string;
+      checksum?: string;
+    };
+  };
+  image: {
+    width: number;
+    height: number;
+    colorspace: 'sRGB';
+    alpha: 'straight';
+  };
+  canvasAnchor: { x: number; y: number };
+  parts: Array<{
+    id: string;
+    label: string;
+    boneId: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    pivotX: number;
+    pivotY: number;
+    attachX: number;
+    attachY: number;
+    confidence: number;
+    zIndex: number;
+    overlapPx: number;
+    mask: { kind: 'alpha'; threshold: number };
+    bounds: { x: number; y: number; width: number; height: number };
+    pivot: { x: number; y: number };
+    parentAnchor: { x: number; y: number };
+    attachmentMargins: {
+      top: number;
+      right: number;
+      bottom: number;
+      left: number;
+    };
+  }>;
+  views?: Partial<Record<ViewDirection, string>>;
+  expressions?: Partial<
+    Record<'neutral' | 'surprised' | 'embarrassed' | 'pleased', string>
+  >;
+  variants?: Array<{
+    id: string;
+    kind: AssetVariantKind;
+    label: string;
+    assetId?: string;
+    viewDirection?: ViewDirection;
+    pose?: Pose;
+    expression?: string;
+  }>;
+  alignment?: {
+    connected: boolean;
+    seamCount: number;
+    minConfidence: number;
+    warnings: string[];
+  };
+  skeleton: {
+    confidence: number;
+    minCriticalConfidence: number;
+    criticalJointIds: string[];
+  };
+  experimentalMesh?: {
+    status: 'experimental';
+    triangles: Array<[number, number, number]>;
+    uvs: Array<{ vertexId: string; u: number; v: number }>;
+    weights: Array<{ vertexId: string; boneId: string; weight: number }>;
+  };
+};
+type RigManifest = StagehandAssetPackageV2;
+type RigPreviewPoseReport = {
+  id: string;
+  label: string;
+  alphaPixels: number;
+  significantComponents: number;
+  visibleGaps: number;
+  excessiveOverlaps: number;
+  clippedEdges: number;
+  disconnectedAlphaIslands: number;
+  invertedLimbs: string[];
+  invalidDrawOrder: string[];
+  coordinateMismatches: string[];
+  passed: boolean;
+};
+type RigPreviewReport = {
+  passed: boolean;
+  renderer: 'canvas-alpha-v1';
+  poses: RigPreviewPoseReport[];
+  blockedReasons: string[];
 };
 type Skeleton = {
   id: string;
@@ -215,6 +359,20 @@ type BoneKeyframe = {
   time: number;
   transforms: BoneTransform[];
 };
+type MotionClip = {
+  id: string;
+  label: string;
+  kind: MotionClipKind;
+  durationMs: number;
+  loop: boolean;
+  easing: 'linear' | 'ease-in-out' | 'hold';
+  transforms: Array<{
+    time: number;
+    transforms: BoneTransform[];
+    variantId?: string;
+  }>;
+  description: string;
+};
 type Caption = {
   id: string;
   text: string;
@@ -236,6 +394,7 @@ type SceneMeta = {
   audioCues?: AudioCue[];
   boneKeyframes?: BoneKeyframe[];
   lockedTrackIds?: string[];
+  motionClipIds?: string[];
 };
 type StoryBeat = {
   id: string;
@@ -272,6 +431,7 @@ type Project = {
   assetRequests: AssetGenerationRequest[];
   skeletons: Skeleton[];
   boneKeyframes: BoneKeyframe[];
+  motionClips: MotionClip[];
   storyboardBeats: StoryBeat[];
   styleBible: StyleBible;
   scenes: SceneMeta[];
@@ -299,6 +459,47 @@ type ModelContext = {
     options?: { signal?: AbortSignal },
   ) => void | Promise<void>;
 };
+const PUBLIC_WEBMCP_TOOL_NAMES = [
+  'inspect_project',
+  'edit_project',
+  'get_timeline',
+  'set_playhead',
+  'edit_scene',
+  'edit_storyboard',
+  'set_current_scene',
+  'set_pose',
+  'set_keyframe',
+  'set_bone_keyframe',
+  'delete_keyframe',
+  'get_bone_keyframes',
+  'set_character_variant',
+  'validate_project',
+  'undo',
+  'redo',
+  'edit_history',
+  'list_assets',
+  'get_asset_generation_checklist',
+  'create_asset_request',
+  'attach_generated_asset',
+  'inspect_asset_candidate',
+  'approve_asset',
+  'list_asset_audio',
+  'import_asset_audio',
+  'attach_imported_audio',
+  'add_audio_clip',
+  'set_audio_clip',
+  'inspect_audio_clip',
+  'propose_skeleton',
+  'get_skeleton',
+  'approve_skeleton',
+  'validate_skeleton',
+  'bind_skeleton_asset',
+  'apply_motion_clip',
+  'inspect_frame',
+  'export_frame',
+  'render_webm',
+] as const;
+const PUBLIC_WEBMCP_TOOL_SET = new Set<string>(PUBLIC_WEBMCP_TOOL_NAMES);
 type TimelineMark = {
   time: number;
   id: string;
@@ -387,46 +588,146 @@ const starterAssets: Asset[] = [
   {
     id: 'alice',
     kind: 'rigged-character',
-    label: 'Alice · generated parts',
+    label: 'Alice · v2 rig pack',
     brief:
       'Warm coral paper protagonist; keep her silhouette clear for awkward reactions.',
     source: 'generated',
     frameLayout: 'parts-sheet',
     detectedLayout: 'parts-sheet',
-    dataUrl: '/assets/alice-parts.png',
+    dataUrl: '/assets/alice-parts-v2.png',
     reviewStatus: 'approved',
     transparencyStatus: 'yes',
-    dimensions: { width: 1126, height: 1126 },
+    dimensions: { width: 1536, height: 1024 },
     provenance: {
-      prompt: 'Transparent coral paper-cutout Alice parts sheet generated for the Stagehand demo pack.',
+      prompt:
+        'Transparent coral paper-cutout Alice v2 rig-ready parts sheet with shoulder and hip overlap, generated for the Stagehand demo pack.',
       author: 'OpenAI ImageGen',
-      checksum: '78cae96cf7c92694946d01f9f7ef5ed3f70e656a0a23d2d097abc17ab17fc7f2',
+      checksum:
+        '27c235ad1c2377e7af7c7ac5ae478c2605469816c918b8153cc1adb33de8ffa4',
     },
+    variantKind: 'base',
+    rigManifest: rigManifestForAsset('alice'),
     style: defaultAssetStyle('rigged-character'),
   },
   {
     id: 'bob',
     kind: 'rigged-character',
-    label: 'Bob · generated parts',
+    label: 'Bob · v2 rig pack',
     brief:
       'Diner teal foil character; enters from upstage with a readable lean-in.',
     source: 'generated',
     frameLayout: 'parts-sheet',
     detectedLayout: 'parts-sheet',
-    dataUrl: '/assets/bob-parts.png',
+    dataUrl: '/assets/bob-parts-v2.png',
     reviewStatus: 'approved',
     transparencyStatus: 'yes',
-    dimensions: { width: 1126, height: 1126 },
+    dimensions: { width: 1536, height: 1024 },
     provenance: {
-      prompt: 'Transparent teal paper-cutout Bob parts sheet generated for the Stagehand demo pack.',
+      prompt:
+        'Transparent teal paper-cutout Bob v2 rig-ready parts sheet with shoulder and hip overlap, generated for the Stagehand demo pack.',
       author: 'OpenAI ImageGen',
-      checksum: 'da35d40c4f5b583e99e2a5481031754ec7f8e623d947fcad6530c78ff4151898',
+      checksum:
+        '33cc8dfe886d1b318b6eb1921bd895ea292f2f2ce35ad9b2b768a2464041b85e',
     },
+    variantKind: 'base',
+    rigManifest: rigManifestForAsset('bob'),
     style: {
       ...defaultAssetStyle('rigged-character'),
       palette: ['diner teal', 'warm paper'],
     },
   },
+  ...(
+    [
+      [
+        'alice',
+        'embarrassed',
+        'Alice · embarrassed expression',
+        '/assets/alice-expression-embarrassed-v2.png',
+        'e2bdfcd69a54341214fad3a7927c65f0198783893fc408ff194ac4d1ea024a31',
+      ],
+      [
+        'alice',
+        'surprised',
+        'Alice · surprised expression',
+        '/assets/alice-expression-surprised-v2.png',
+        'e75cb92d3161fa0da5e0b2a801010ef7c476efa3bd4784ce5dd9d37fe5b50da0',
+      ],
+      [
+        'alice',
+        'pleased',
+        'Alice · pleased expression',
+        '/assets/alice-expression-pleased-v2.png',
+        '0cbf65b02192a178a9397b91fd299c2b10d64e1ddc14c8f6659f7a004daf5a84',
+      ],
+      [
+        'bob',
+        'embarrassed',
+        'Bob · embarrassed expression',
+        '/assets/bob-expression-embarrassed-v2.png',
+        'af0900ce609911b0563d5881dd2714bba4fdbee87e488a425eedbcc1813afd6d',
+      ],
+      [
+        'bob',
+        'surprised',
+        'Bob · surprised expression',
+        '/assets/bob-expression-surprised-v2.png',
+        '946784bc176938ae68a590a5004ce8a3a36b73bba50910fde91d9abd8ff798a6',
+      ],
+      [
+        'bob',
+        'pleased',
+        'Bob · pleased expression',
+        '/assets/bob-expression-pleased-v2.png',
+        '697d743ed4ffca287bebd1cc7d651d09fd3b420345eeba4bddef4c37b0210b24',
+      ],
+    ] as const
+  ).map(([parent, expression, label, dataUrl, checksum]) => ({
+    id: `${parent}-${expression}-v2`,
+    kind: 'rigged-character' as const,
+    label,
+    source: 'generated' as const,
+    frameLayout: 'single' as const,
+    dataUrl,
+    variantOf: parent,
+    variantKind: 'expression' as const,
+    expression: expression as Asset['expression'],
+    reviewStatus: 'approved' as const,
+    transparencyStatus: 'yes' as const,
+    dimensions: { width: 615, height: 639 },
+    provenance: { author: 'OpenAI ImageGen', checksum },
+    style: defaultAssetStyle('rigged-character'),
+  })),
+  ...(
+    [
+      [
+        'alice',
+        'Alice · three-quarter view',
+        '/assets/alice-view-three-quarter-v2.png',
+        '37e1113b7d5161504b7ea23fd1a26ac1d55b90b854d5c812c644bf0867a504b8',
+      ],
+      [
+        'bob',
+        'Bob · three-quarter view',
+        '/assets/bob-view-three-quarter-v2.png',
+        'cb3eaf61cced4fc086e07688c8de776a9f3171ed12a974072cc5a06a95850f71',
+      ],
+    ] as const
+  ).map(([parent, label, dataUrl, checksum]) => ({
+    id: `${parent}-three-quarter-v2`,
+    kind: 'rigged-character' as const,
+    label,
+    source: 'generated' as const,
+    frameLayout: 'single' as const,
+    dataUrl,
+    variantOf: parent,
+    variantKind: 'view' as const,
+    viewDirection: 'three-quarter' as const,
+    reviewStatus: 'approved' as const,
+    transparencyStatus: 'yes' as const,
+    dimensions: { width: 612, height: 642 },
+    provenance: { author: 'OpenAI ImageGen', checksum },
+    style: defaultAssetStyle('rigged-character'),
+  })),
   {
     id: 'diner-background',
     kind: 'background',
@@ -457,11 +758,13 @@ const starterAssets: Asset[] = [
     mediaDurationMs: 120000,
     loopable: true,
     provenance: {
-      sourceUrl: 'https://opengameart.org/content/simple-menubackground-music-loop',
+      sourceUrl:
+        'https://opengameart.org/content/simple-menubackground-music-loop',
       author: 'polosik',
       license: 'CC0',
       licenseUrl: 'https://creativecommons.org/public-domain/cc0',
-      checksum: '31ffea0b986eaba7f3f5c3ddf50dc2f68f51085a7a232cc346af6af722b72550',
+      checksum:
+        '31ffea0b986eaba7f3f5c3ddf50dc2f68f51085a7a232cc346af6af722b72550',
     },
     style: defaultAssetStyle('audio'),
   },
@@ -479,7 +782,8 @@ const starterAssets: Asset[] = [
       author: 'zesona / Chris Murphy',
       license: 'CC0',
       licenseUrl: 'https://creativecommons.org/public-domain/cc0',
-      checksum: '0301701eca84af4580d23007100254a87747c0fcef819ea97101ec8fd79b1c6b',
+      checksum:
+        '0301701eca84af4580d23007100254a87747c0fcef819ea97101ec8fd79b1c6b',
     },
     style: defaultAssetStyle('audio'),
   },
@@ -497,7 +801,8 @@ const starterAssets: Asset[] = [
       author: 'cogitollc',
       license: 'CC0',
       licenseUrl: 'https://creativecommons.org/public-domain/cc0',
-      checksum: 'a00ec6f278e2237d1b95dd0a53dfd2398ea44a7497794b38ab4b28602573d763',
+      checksum:
+        'a00ec6f278e2237d1b95dd0a53dfd2398ea44a7497794b38ab4b28602573d763',
     },
     style: defaultAssetStyle('audio'),
   },
@@ -515,7 +820,8 @@ const starterAssets: Asset[] = [
       author: 'cogitollc',
       license: 'CC0',
       licenseUrl: 'https://creativecommons.org/public-domain/cc0',
-      checksum: '6fb961237268cff437924e3ac48edc0a3da966a20b86b6c10d17e22d947ca2dd',
+      checksum:
+        '6fb961237268cff437924e3ac48edc0a3da966a20b86b6c10d17e22d947ca2dd',
     },
     style: defaultAssetStyle('audio'),
   },
@@ -737,14 +1043,181 @@ const starterAudioCues: AudioCue[] = [
     assetId: 'audio-pop-2',
   },
 ];
+const starterBoneIds = [
+  'bone-root-hip',
+  'bone-hip-chest',
+  'bone-chest-head',
+  'bone-chest-left-hand',
+  'bone-chest-right-hand',
+  'bone-hip-left-foot',
+  'bone-hip-right-foot',
+];
+function motionTransforms(
+  overrides: Partial<Record<string, Partial<BoneTransform>>> = {},
+): BoneTransform[] {
+  return starterBoneIds.map((boneId) => ({
+    boneId,
+    rotation: 0,
+    x: 0,
+    y: 0,
+    scale: 1,
+    ...overrides[boneId],
+  }));
+}
+const starterMotionClips: MotionClip[] = [
+  {
+    id: 'motion-walk-in',
+    label: 'Walk in',
+    kind: 'walk-in',
+    durationMs: 1550,
+    loop: false,
+    easing: 'ease-in-out',
+    description:
+      'A compact two-step entrance with alternating foot and arm swing.',
+    transforms: [
+      {
+        time: 0,
+        transforms: motionTransforms({
+          'bone-root-hip': { x: 58 },
+          'bone-hip-left-foot': { rotation: 14 },
+          'bone-hip-right-foot': { rotation: -14 },
+          'bone-chest-left-hand': { rotation: -10 },
+          'bone-chest-right-hand': { rotation: 10 },
+        }),
+      },
+      {
+        time: 775,
+        transforms: motionTransforms({
+          'bone-root-hip': { x: 26 },
+          'bone-hip-left-foot': { rotation: -14 },
+          'bone-hip-right-foot': { rotation: 14 },
+          'bone-chest-left-hand': { rotation: 10 },
+          'bone-chest-right-hand': { rotation: -10 },
+        }),
+      },
+      { time: 1550, transforms: motionTransforms() },
+    ],
+  },
+  {
+    id: 'motion-walk-cycle',
+    label: 'Walk cycle',
+    kind: 'walk-cycle',
+    durationMs: 900,
+    loop: true,
+    easing: 'linear',
+    description: 'A looping alternating stride for scene entrances and exits.',
+    transforms: [
+      {
+        time: 0,
+        transforms: motionTransforms({
+          'bone-hip-left-foot': { rotation: 16 },
+          'bone-hip-right-foot': { rotation: -16 },
+          'bone-chest-left-hand': { rotation: -10 },
+          'bone-chest-right-hand': { rotation: 10 },
+        }),
+      },
+      {
+        time: 450,
+        transforms: motionTransforms({
+          'bone-hip-left-foot': { rotation: -16 },
+          'bone-hip-right-foot': { rotation: 16 },
+          'bone-chest-left-hand': { rotation: 10 },
+          'bone-chest-right-hand': { rotation: -10 },
+        }),
+      },
+      {
+        time: 900,
+        transforms: motionTransforms({
+          'bone-hip-left-foot': { rotation: 16 },
+          'bone-hip-right-foot': { rotation: -16 },
+          'bone-chest-left-hand': { rotation: -10 },
+          'bone-chest-right-hand': { rotation: 10 },
+        }),
+      },
+    ],
+  },
+  {
+    id: 'motion-turn-three-quarter',
+    label: 'Turn to three-quarter',
+    kind: 'turn',
+    durationMs: 500,
+    loop: false,
+    easing: 'ease-in-out',
+    description:
+      'A small body and head turn that can switch to a three-quarter asset view.',
+    transforms: [
+      { time: 0, transforms: motionTransforms() },
+      {
+        time: 250,
+        transforms: motionTransforms({
+          'bone-hip-chest': { rotation: -8 },
+          'bone-chest-head': { rotation: 10 },
+        }),
+      },
+      {
+        time: 500,
+        transforms: motionTransforms({
+          'bone-hip-chest': { rotation: -14 },
+          'bone-chest-head': { rotation: 16 },
+        }),
+      },
+    ],
+  },
+  {
+    id: 'motion-embarrassed-reaction',
+    label: 'Embarrassed reaction',
+    kind: 'embarrassed',
+    durationMs: 700,
+    loop: false,
+    easing: 'ease-in-out',
+    description: 'A quick shoulder tuck and head dip for the coupon reveal.',
+    transforms: [
+      { time: 0, transforms: motionTransforms() },
+      {
+        time: 350,
+        transforms: motionTransforms({
+          'bone-hip-chest': { rotation: 5, y: 4 },
+          'bone-chest-head': { rotation: -9, y: 5 },
+          'bone-chest-left-hand': { rotation: 18 },
+          'bone-chest-right-hand': { rotation: -18 },
+        }),
+      },
+      { time: 700, transforms: motionTransforms() },
+    ],
+  },
+];
+function starterBoneKeyframes(): BoneKeyframe[] {
+  const clips = [
+    { skeletonId: 'skeleton-bob', clip: starterMotionClips[0], start: 0 },
+    {
+      skeletonId: 'skeleton-bob',
+      clip: starterMotionClips[2],
+      start: 3100,
+    },
+    {
+      skeletonId: 'skeleton-alice',
+      clip: starterMotionClips[3],
+      start: 10800,
+    },
+  ];
+  return clips.flatMap(({ skeletonId, clip, start }) =>
+    clip.transforms.map((frame) => ({
+      id: `bkf-${skeletonId}-${start + frame.time}`,
+      sceneId: 'scene-01',
+      skeletonId,
+      time: start + frame.time,
+      transforms: frame.transforms,
+    })),
+  );
+}
 const starterProject: Project = {
   name: 'Paper Cutout Comedy',
   revision: 7,
   duration: 15000,
   currentTime: 1800,
-  fps: 12,
-  renderWidth: 720,
-  renderHeight: 405,
+  fps: 24,
+  renderWidth: 1920,
+  renderHeight: 1080,
   selectedId: 'alice',
   lockedTrackIds: [],
   dirty: false,
@@ -797,6 +1270,7 @@ const starterProject: Project = {
       y: 62,
       rotation: -2,
       pose: 'wave',
+      variantId: 'alice-embarrassed-v2',
     },
     {
       id: 'kf-alice-5000',
@@ -815,6 +1289,7 @@ const starterProject: Project = {
       y: 62,
       rotation: -2,
       pose: 'point',
+      variantId: 'alice-surprised-v2',
     },
     {
       id: 'kf-alice-9800',
@@ -833,6 +1308,7 @@ const starterProject: Project = {
       y: 62,
       rotation: -2,
       pose: 'shrug',
+      variantId: 'alice-pleased-v2',
     },
     {
       id: 'kf-alice-15000',
@@ -869,6 +1345,7 @@ const starterProject: Project = {
       y: 57,
       rotation: 3,
       pose: 'lean-in',
+      variantId: 'bob-embarrassed-v2',
     },
     {
       id: 'kf-bob-5000',
@@ -896,6 +1373,7 @@ const starterProject: Project = {
       y: 57,
       rotation: 3,
       pose: 'point',
+      variantId: 'bob-surprised-v2',
     },
     {
       id: 'kf-bob-12000',
@@ -905,6 +1383,7 @@ const starterProject: Project = {
       y: 57,
       rotation: 3,
       pose: 'shrug',
+      variantId: 'bob-pleased-v2',
     },
     {
       id: 'kf-bob-15000',
@@ -959,10 +1438,22 @@ const starterProject: Project = {
   assets: starterAssets,
   assetRequests: [],
   skeletons: [
-    { ...defaultSkeletonForAsset('alice', 'Alice', 'segmented'), reviewStatus: 'approved' },
-    { ...defaultSkeletonForAsset('bob', 'Bob', 'segmented'), reviewStatus: 'approved' },
+    {
+      ...defaultSkeletonForAsset(
+        'alice',
+        'Alice',
+        'segmented',
+        starterAssets[0],
+      ),
+      reviewStatus: 'approved',
+    },
+    {
+      ...defaultSkeletonForAsset('bob', 'Bob', 'segmented', starterAssets[1]),
+      reviewStatus: 'approved',
+    },
   ],
-  boneKeyframes: [],
+  boneKeyframes: starterBoneKeyframes(),
+  motionClips: starterMotionClips,
   storyboardBeats,
   styleBible: starterStyleBible,
   scenes: starterScenes,
@@ -1240,13 +1731,40 @@ const isAudioCueKind = (value: unknown): value is AudioCueKind =>
   value === 'music' || value === 'footstep' || value === 'stinger';
 const isBindingMethod = (value: unknown): value is BindingMethod =>
   value === 'rigid' || value === 'segmented' || value === 'mesh';
+const isAssetVariantKind = (value: unknown): value is AssetVariantKind =>
+  value === 'base' ||
+  value === 'view' ||
+  value === 'pose' ||
+  value === 'expression' ||
+  value === 'motion';
+const isViewDirection = (value: unknown): value is ViewDirection =>
+  value === 'front' ||
+  value === 'three-quarter' ||
+  value === 'profile' ||
+  value === 'back';
+const isMotionClipKind = (value: unknown): value is MotionClipKind =>
+  value === 'idle' ||
+  value === 'walk-in' ||
+  value === 'walk-cycle' ||
+  value === 'stop' ||
+  value === 'turn' ||
+  value === 'lean' ||
+  value === 'wave' ||
+  value === 'point' ||
+  value === 'shrug' ||
+  value === 'surprise' ||
+  value === 'embarrassed' ||
+  value === 'pleased';
 const isReviewStatus = (value: unknown): value is ReviewStatus =>
   value === 'draft' ||
   value === 'pending-review' ||
   value === 'approved' ||
   value === 'rejected';
 
-function assetChecklist(kind: Exclude<AssetKind, 'audio'>, method?: BindingMethod) {
+function assetChecklist(
+  kind: Exclude<AssetKind, 'audio'>,
+  method?: BindingMethod,
+) {
   const common = [
     'Readable silhouette with no text or watermark.',
     'Matches the project style bible palette and construction notes.',
@@ -1256,7 +1774,9 @@ function assetChecklist(kind: Exclude<AssetKind, 'audio'>, method?: BindingMetho
     return [
       ...common,
       'Transparent parts sheet with separate head, torso, arms, and legs.',
-      'Parts do not overlap and each region has a clear silhouette.',
+      'Include a v2 rig manifest with named parts, pivots, parent and child seam anchors, draw order, and overlap margins.',
+      'Design the shoulder, hip, wrist, and ankle ends with hidden overlap so articulated pieces never expose a gap.',
+      'Provide front, three-quarter, profile, and back view coverage plus idle, walk, reaction, and expression variants.',
       'Use consistent scale and facing direction across every part.',
     ];
   }
@@ -1269,24 +1789,1151 @@ function assetChecklist(kind: Exclude<AssetKind, 'audio'>, method?: BindingMetho
     ];
   }
   if (kind === 'background') {
-    return [...common, 'Leave negative space for blocking and captions.', 'Use a 16:9 composition.'];
+    return [
+      ...common,
+      'Leave negative space for blocking and captions.',
+      'Use a 16:9 composition.',
+    ];
   }
-  return [...common, 'Keep one clear story silhouette.', 'Avoid detail that disappears at 720p.'];
+  return [
+    ...common,
+    'Keep one clear story silhouette.',
+    'Avoid detail that disappears at 720p.',
+  ];
 }
 
-function defaultSkeletonForAsset(assetId: string, label: string, method: BindingMethod = 'segmented'): Skeleton {
+function rigManifestForAsset(
+  assetId: string,
+  dimensions: { width: number; height: number } = {
+    width: 1536,
+    height: 1024,
+  },
+  provenance: Asset['provenance'] = {},
+): RigManifest {
+  const bob = assetId.toLowerCase().includes('bob');
+  const common = bob
+    ? [
+        {
+          id: 'head',
+          label: 'head',
+          boneId: 'bone-chest-head',
+          x: 0.02,
+          y: 0.02,
+          width: 0.27,
+          height: 0.4,
+          pivotX: 0.5,
+          pivotY: 0.92,
+          attachX: 0.5,
+          attachY: 0.94,
+          zIndex: 5,
+        },
+        {
+          id: 'torso',
+          label: 'torso',
+          boneId: 'bone-hip-chest',
+          x: 0.3,
+          y: 0.02,
+          width: 0.36,
+          height: 0.52,
+          pivotX: 0.5,
+          pivotY: 0.92,
+          attachX: 0.5,
+          attachY: 0.9,
+          zIndex: 3,
+        },
+        {
+          id: 'left-arm',
+          label: 'left arm',
+          boneId: 'bone-chest-left-hand',
+          x: 0.63,
+          y: 0.02,
+          width: 0.17,
+          height: 0.48,
+          pivotX: 0.5,
+          pivotY: 0.08,
+          attachX: 0.5,
+          attachY: 0.08,
+          zIndex: 2,
+        },
+        {
+          id: 'right-arm',
+          label: 'right arm',
+          boneId: 'bone-chest-right-hand',
+          x: 0.8,
+          y: 0.02,
+          width: 0.18,
+          height: 0.48,
+          pivotX: 0.5,
+          pivotY: 0.08,
+          attachX: 0.5,
+          attachY: 0.08,
+          zIndex: 4,
+        },
+        {
+          id: 'left-leg',
+          label: 'left leg',
+          boneId: 'bone-hip-left-foot',
+          x: 0.28,
+          y: 0.54,
+          width: 0.2,
+          height: 0.45,
+          pivotX: 0.5,
+          pivotY: 0.08,
+          attachX: 0.5,
+          attachY: 0.08,
+          zIndex: 1,
+        },
+        {
+          id: 'right-leg',
+          label: 'right leg',
+          boneId: 'bone-hip-right-foot',
+          x: 0.52,
+          y: 0.54,
+          width: 0.2,
+          height: 0.45,
+          pivotX: 0.5,
+          pivotY: 0.08,
+          attachX: 0.5,
+          attachY: 0.08,
+          zIndex: 1,
+        },
+      ]
+    : [
+        {
+          id: 'head',
+          label: 'head',
+          boneId: 'bone-chest-head',
+          x: 0.0,
+          y: 0.02,
+          width: 0.34,
+          height: 0.42,
+          pivotX: 0.5,
+          pivotY: 0.92,
+          attachX: 0.5,
+          attachY: 0.94,
+          zIndex: 5,
+        },
+        {
+          id: 'torso',
+          label: 'torso',
+          boneId: 'bone-hip-chest',
+          x: 0.35,
+          y: 0.02,
+          width: 0.34,
+          height: 0.52,
+          pivotX: 0.5,
+          pivotY: 0.92,
+          attachX: 0.5,
+          attachY: 0.9,
+          zIndex: 3,
+        },
+        {
+          id: 'left-arm',
+          label: 'left arm',
+          boneId: 'bone-chest-left-hand',
+          x: 0.64,
+          y: 0.02,
+          width: 0.17,
+          height: 0.48,
+          pivotX: 0.5,
+          pivotY: 0.08,
+          attachX: 0.5,
+          attachY: 0.08,
+          zIndex: 2,
+        },
+        {
+          id: 'right-arm',
+          label: 'right arm',
+          boneId: 'bone-chest-right-hand',
+          x: 0.81,
+          y: 0.02,
+          width: 0.17,
+          height: 0.48,
+          pivotX: 0.5,
+          pivotY: 0.08,
+          attachX: 0.5,
+          attachY: 0.08,
+          zIndex: 4,
+        },
+        {
+          id: 'left-leg',
+          label: 'left leg',
+          boneId: 'bone-hip-left-foot',
+          x: 0.35,
+          y: 0.56,
+          width: 0.17,
+          height: 0.42,
+          pivotX: 0.5,
+          pivotY: 0.08,
+          attachX: 0.5,
+          attachY: 0.08,
+          zIndex: 1,
+        },
+        {
+          id: 'right-leg',
+          label: 'right leg',
+          boneId: 'bone-hip-right-foot',
+          x: 0.53,
+          y: 0.56,
+          width: 0.17,
+          height: 0.42,
+          pivotX: 0.5,
+          pivotY: 0.08,
+          attachX: 0.5,
+          attachY: 0.08,
+          zIndex: 1,
+        },
+      ];
+  return {
+    version: 2,
+    atlasWidth: dimensions.width,
+    atlasHeight: dimensions.height,
+    source: 'manifest',
+    sourceAsset: {
+      assetId,
+      immutable: true,
+      provenance: { ...provenance },
+    },
+    image: {
+      width: dimensions.width,
+      height: dimensions.height,
+      colorspace: 'sRGB',
+      alpha: 'straight',
+    },
+    canvasAnchor: { x: 0.5, y: 0.82 },
+    parts: common.map((part) => ({
+      ...part,
+      confidence: 0.96,
+      overlapPx: part.id === 'head' || part.id === 'torso' ? 10 : 14,
+      mask: { kind: 'alpha' as const, threshold: 48 },
+      bounds: {
+        x: part.x,
+        y: part.y,
+        width: part.width,
+        height: part.height,
+      },
+      pivot: { x: part.pivotX, y: part.pivotY },
+      parentAnchor: { x: part.attachX, y: part.attachY },
+      attachmentMargins: {
+        top: part.id.includes('arm') || part.id.includes('leg') ? 14 : 10,
+        right: 8,
+        bottom: part.id === 'head' || part.id === 'torso' ? 10 : 8,
+        left: 8,
+      },
+    })),
+    views: {
+      front: assetId,
+      'three-quarter': assetId,
+      profile: assetId,
+      back: assetId,
+    },
+    expressions: {
+      neutral: `${assetId}-neutral`,
+      surprised: `${assetId}-surprised`,
+      embarrassed: `${assetId}-embarrassed`,
+      pleased: `${assetId}-pleased`,
+    },
+    variants: [
+      { id: `${assetId}-base`, kind: 'base', label: 'Front base', assetId },
+      {
+        id: `${assetId}-idle`,
+        kind: 'pose',
+        label: 'Idle',
+        assetId,
+        pose: 'idle',
+      },
+      {
+        id: `${assetId}-walk`,
+        kind: 'motion',
+        label: 'Walk cycle',
+        assetId,
+        pose: 'idle',
+      },
+      {
+        id: `${assetId}-surprised`,
+        kind: 'expression',
+        label: 'Surprised',
+        assetId,
+        expression: 'surprised',
+      },
+      {
+        id: `${assetId}-embarrassed`,
+        kind: 'expression',
+        label: 'Embarrassed',
+        assetId,
+        expression: 'embarrassed',
+      },
+      {
+        id: `${assetId}-pleased`,
+        kind: 'expression',
+        label: 'Pleased',
+        assetId,
+        expression: 'pleased',
+      },
+    ],
+    alignment: {
+      connected: true,
+      seamCount: 8,
+      minConfidence: 0.96,
+      warnings: [],
+    },
+    skeleton: {
+      confidence: 0.94,
+      minCriticalConfidence: 0.88,
+      criticalJointIds: ['root', 'hip', 'chest', 'head'],
+    },
+  };
+}
+
+function normalizeAssetPackage(
+  asset: Asset,
+): StagehandAssetPackageV2 | undefined {
+  const legacy = asset.assetPackage ?? asset.rigManifest;
+  if (!legacy) return undefined;
+  const dimensions = asset.dimensions ?? {
+    width: legacy.atlasWidth || 1536,
+    height: legacy.atlasHeight || 1024,
+  };
+  const fallback = rigManifestForAsset(
+    '__legacy-package__',
+    dimensions,
+    asset.provenance,
+  );
+  const parts = Array.isArray(legacy.parts)
+    ? legacy.parts.map((part) => {
+        const fallbackPart =
+          fallback.parts.find((candidate) => candidate.id === part.id) ??
+          fallback.parts[0];
+        return {
+          ...fallbackPart,
+          ...part,
+          mask: part.mask ?? { kind: 'alpha' as const, threshold: 48 },
+          bounds: part.bounds ?? {
+            x: part.x,
+            y: part.y,
+            width: part.width,
+            height: part.height,
+          },
+          pivot: part.pivot ?? { x: part.pivotX, y: part.pivotY },
+          parentAnchor: part.parentAnchor ?? {
+            x: part.attachX,
+            y: part.attachY,
+          },
+          attachmentMargins: part.attachmentMargins ?? {
+            top: part.overlapPx ?? 8,
+            right: 8,
+            bottom: part.overlapPx ?? 8,
+            left: 8,
+          },
+        };
+      })
+    : fallback.parts;
+  return {
+    ...fallback,
+    ...legacy,
+    sourceAsset: legacy.sourceAsset ?? {
+      assetId: asset.id,
+      immutable: true,
+      provenance: { ...asset.provenance },
+    },
+    image: legacy.image ?? {
+      width: dimensions.width,
+      height: dimensions.height,
+      colorspace: 'sRGB',
+      alpha: 'straight',
+    },
+    canvasAnchor: legacy.canvasAnchor ?? fallback.canvasAnchor,
+    parts,
+    skeleton: legacy.skeleton ?? fallback.skeleton,
+  };
+}
+
+type AlphaComponent = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  area: number;
+};
+
+function readAlphaComponents(dataUrl: string): Promise<AlphaComponent[]> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      const width = 96;
+      const height = Math.max(
+        48,
+        Math.round((image.naturalHeight / image.naturalWidth) * width),
+      );
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d');
+      if (!context) return resolve([]);
+      context.drawImage(image, 0, 0, width, height);
+      const pixels = context.getImageData(0, 0, width, height).data;
+      const visited = new Uint8Array(width * height);
+      const components: AlphaComponent[] = [];
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+          const index = y * width + x;
+          if (visited[index] || pixels[index * 4 + 3] < 48) continue;
+          const queue = [[x, y]];
+          visited[index] = 1;
+          let minX = x,
+            maxX = x,
+            minY = y,
+            maxY = y,
+            area = 0;
+          while (queue.length) {
+            const [currentX, currentY] = queue.pop()!;
+            area += 1;
+            minX = Math.min(minX, currentX);
+            maxX = Math.max(maxX, currentX);
+            minY = Math.min(minY, currentY);
+            maxY = Math.max(maxY, currentY);
+            for (const [nextX, nextY] of [
+              [currentX - 1, currentY],
+              [currentX + 1, currentY],
+              [currentX, currentY - 1],
+              [currentX, currentY + 1],
+            ]) {
+              if (nextX < 0 || nextX >= width || nextY < 0 || nextY >= height)
+                continue;
+              const nextIndex = nextY * width + nextX;
+              if (visited[nextIndex] || pixels[nextIndex * 4 + 3] < 48)
+                continue;
+              visited[nextIndex] = 1;
+              queue.push([nextX, nextY]);
+            }
+          }
+          if (area > 18)
+            components.push({
+              x: minX / width,
+              y: minY / height,
+              width: (maxX - minX + 1) / width,
+              height: (maxY - minY + 1) / height,
+              area,
+            });
+        }
+      }
+      resolve(components.sort((a, b) => b.area - a.area));
+    };
+    image.onerror = () => reject(new Error('Unable to decode asset alpha'));
+    image.src = dataUrl;
+  });
+}
+
+async function inferRigManifest(asset: Asset): Promise<RigManifest> {
+  const manifest = rigManifestForAsset(
+    '__inferred__',
+    asset.dimensions ?? { width: 1536, height: 1024 },
+    asset.provenance,
+  );
+  manifest.sourceAsset.assetId = asset.id;
+  manifest.views = {};
+  manifest.expressions = {};
+  if (!asset.dataUrl) {
+    return {
+      ...manifest,
+      source: 'alpha-inference',
+      alignment: {
+        connected: false,
+        seamCount: 0,
+        minConfidence: 0.35,
+        warnings: ['Asset payload is unavailable for alpha analysis.'],
+      },
+    };
+  }
+  try {
+    const components = await readAlphaComponents(asset.dataUrl);
+    const structuralComponents = components.filter(
+      (component) => component.area >= (components[0]?.area ?? 1) * 0.08,
+    );
+    if (structuralComponents.length < manifest.parts.length) {
+      return {
+        ...manifest,
+        source: 'hybrid',
+        alignment: {
+          connected: false,
+          seamCount: Math.max(0, structuralComponents.length - 1),
+          minConfidence: 0.42,
+          warnings: [
+            `Expected ${manifest.parts.length} structural components but found ${structuralComponents.length}.`,
+          ],
+        },
+      };
+    }
+    const remaining = [...structuralComponents];
+    const parts = manifest.parts.map((part) => {
+      const expectedX = part.x + part.width / 2;
+      const expectedY = part.y + part.height / 2;
+      let bestIndex = 0;
+      let bestDistance = Number.POSITIVE_INFINITY;
+      remaining.forEach((component, index) => {
+        const distance = Math.hypot(
+          component.x + component.width / 2 - expectedX,
+          component.y + component.height / 2 - expectedY,
+        );
+        if (distance < bestDistance) {
+          bestIndex = index;
+          bestDistance = distance;
+        }
+      });
+      const component = remaining.splice(bestIndex, 1)[0];
+      const confidence = clamp(0.98 - bestDistance * 1.8, 0.5, 0.98);
+      const x = clamp(component.x - 0.008, 0, 1);
+      const y = clamp(component.y - 0.008, 0, 1);
+      const width = clamp(component.width + 0.016, 0.02, 1 - x);
+      const height = clamp(component.height + 0.016, 0.02, 1 - y);
+      return {
+        ...part,
+        x,
+        y,
+        width,
+        height,
+        bounds: { x, y, width, height },
+        confidence,
+      };
+    });
+    const minConfidence = Math.min(...parts.map((part) => part.confidence));
+    const unmatchedSignificant = remaining.filter(
+      (component) => component.area >= (components[0]?.area ?? 1) * 0.08,
+    );
+    return {
+      ...manifest,
+      source: 'hybrid',
+      parts,
+      alignment: {
+        connected: minConfidence >= 0.72 && unmatchedSignificant.length === 0,
+        seamCount: 5,
+        minConfidence,
+        warnings:
+          minConfidence < 0.72 || unmatchedSignificant.length > 0
+            ? [
+                ...(minConfidence < 0.72
+                  ? ['One or more inferred part bounds need joint review.']
+                  : []),
+                ...(unmatchedSignificant.length > 0
+                  ? [
+                      `Found ${unmatchedSignificant.length} unmatched significant alpha islands.`,
+                    ]
+                  : []),
+              ]
+            : [],
+      },
+    };
+  } catch {
+    return {
+      ...manifest,
+      source: 'alpha-inference',
+      alignment: {
+        connected: false,
+        seamCount: 0,
+        minConfidence: 0.35,
+        warnings: [
+          'Alpha analysis failed; provide a rig manifest or review the inferred parts.',
+        ],
+      },
+    };
+  }
+}
+
+function decodeImage(dataUrl: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('Unable to decode image payload'));
+    image.src = dataUrl;
+  });
+}
+
+async function inspectImagePayload(dataUrl: string) {
+  const image = await decodeImage(dataUrl);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.min(192, Math.max(1, image.naturalWidth));
+  canvas.height = Math.min(
+    192,
+    Math.max(
+      1,
+      Math.round((image.naturalHeight / image.naturalWidth) * canvas.width),
+    ),
+  );
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  let hasTransparentPixels = false;
+  if (context) {
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    for (let index = 3; index < pixels.length; index += 4) {
+      if (pixels[index] < 250) {
+        hasTransparentPixels = true;
+        break;
+      }
+    }
+  }
+  return {
+    width: image.naturalWidth,
+    height: image.naturalHeight,
+    transparencyStatus: hasTransparentPixels
+      ? ('yes' as const)
+      : ('no' as const),
+  };
+}
+
+async function checksumDataUrl(dataUrl: string) {
+  const comma = dataUrl.indexOf(',');
+  const base64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+  const binary = window.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1)
+    bytes[index] = binary.charCodeAt(index);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), (value) =>
+    value.toString(16).padStart(2, '0'),
+  ).join('');
+}
+
+function assetPackageIssues(
+  value: unknown,
+  dimensions?: { width: number; height: number },
+) {
+  const issues: string[] = [];
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    return ['StagehandAssetPackageV2 is missing.'];
+  const packageData = value as Partial<StagehandAssetPackageV2>;
+  if (packageData.version !== 2) issues.push('Package version must be 2.');
+  if (
+    !packageData.sourceAsset ||
+    packageData.sourceAsset.immutable !== true ||
+    typeof packageData.sourceAsset.assetId !== 'string'
+  )
+    issues.push('Immutable source identity is missing.');
+  if (
+    !packageData.image ||
+    !Number.isFinite(packageData.image.width) ||
+    !Number.isFinite(packageData.image.height) ||
+    packageData.image.colorspace !== 'sRGB' ||
+    packageData.image.alpha !== 'straight'
+  )
+    issues.push('Decoded image metadata is invalid.');
+  if (
+    dimensions &&
+    packageData.image &&
+    (packageData.image.width !== dimensions.width ||
+      packageData.image.height !== dimensions.height)
+  )
+    issues.push('Package dimensions do not match decoded pixels.');
+  if (
+    !packageData.canvasAnchor ||
+    !Number.isFinite(packageData.canvasAnchor.x) ||
+    !Number.isFinite(packageData.canvasAnchor.y) ||
+    packageData.canvasAnchor.x < 0 ||
+    packageData.canvasAnchor.x > 1 ||
+    packageData.canvasAnchor.y < 0 ||
+    packageData.canvasAnchor.y > 1
+  )
+    issues.push('Canvas anchor must be normalized.');
+  if (!Array.isArray(packageData.parts) || packageData.parts.length < 6) {
+    issues.push('Package needs at least six named segmented parts.');
+  } else {
+    const ids = new Set<string>();
+    packageData.parts.forEach((part) => {
+      if (!part || typeof part !== 'object' || !part.id || ids.has(part.id)) {
+        issues.push('Part IDs must be present and unique.');
+        return;
+      }
+      ids.add(part.id);
+      if (
+        !part.bounds ||
+        part.bounds.x < 0 ||
+        part.bounds.y < 0 ||
+        part.bounds.width <= 0 ||
+        part.bounds.height <= 0 ||
+        part.bounds.x + part.bounds.width > 1.001 ||
+        part.bounds.y + part.bounds.height > 1.001
+      )
+        issues.push(`${part.id} has invalid normalized bounds.`);
+      if (
+        !part.pivot ||
+        !part.parentAnchor ||
+        !part.attachmentMargins ||
+        Object.values(part.attachmentMargins).some(
+          (margin) => !Number.isFinite(margin) || margin < 0,
+        )
+      )
+        issues.push(
+          `${part.id} is missing pivot, anchor, or attachment margins.`,
+        );
+      if (!Number.isFinite(part.zIndex))
+        issues.push(`${part.id} needs a finite z-order.`);
+    });
+  }
+  if (
+    !packageData.skeleton ||
+    !Number.isFinite(packageData.skeleton.confidence) ||
+    !Number.isFinite(packageData.skeleton.minCriticalConfidence) ||
+    !Array.isArray(packageData.skeleton.criticalJointIds)
+  )
+    issues.push('Package-level skeleton confidence is missing.');
+  if (
+    packageData.experimentalMesh &&
+    packageData.experimentalMesh.status !== 'experimental'
+  )
+    issues.push('Mesh data must be labeled experimental.');
+  return [...new Set(issues)];
+}
+
+function candidateApprovalChecks(
+  asset: Asset,
+  request?: AssetGenerationRequest,
+) {
+  const packageIssues = asset.packageIssues ?? [];
+  const needsTransparentPackage =
+    asset.kind === 'rigged-character' &&
+    (request?.bindingMethod === 'segmented' ||
+      asset.frameLayout === 'parts-sheet');
+  const checks = {
+    hasPayload: Boolean(asset.dataUrl),
+    hasBrief: Boolean(asset.brief?.trim()),
+    hasStyle: Boolean(asset.style),
+    hasDimensions: Boolean(asset.dimensions?.width && asset.dimensions?.height),
+    hasPackage: !needsTransparentPackage || Boolean(asset.assetPackage),
+    packageValid: packageIssues.length === 0,
+    transparencyStatus: asset.transparencyStatus ?? 'unknown',
+    layout: asset.frameLayout ?? 'single',
+    reviewStatus: asset.reviewStatus ?? 'approved',
+    source: asset.source,
+  };
+  const readyForApproval =
+    checks.hasPayload &&
+    checks.hasBrief &&
+    checks.hasStyle &&
+    checks.hasDimensions &&
+    checks.hasPackage &&
+    checks.packageValid &&
+    (!needsTransparentPackage || checks.transparencyStatus === 'yes');
+  return { checks, readyForApproval };
+}
+
+function inspectAlphaPixels(canvas: HTMLCanvasElement) {
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (!context)
+    return { alphaPixels: 0, significantComponents: 0, clippedEdges: 0 };
+  const { width, height } = canvas;
+  const pixels = context.getImageData(0, 0, width, height).data;
+  const active = new Uint8Array(width * height);
+  let alphaPixels = 0;
+  let clippedEdges = 0;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = y * width + x;
+      if (pixels[index * 4 + 3] < 32) continue;
+      active[index] = 1;
+      alphaPixels += 1;
+      if (x < 2 || y < 2 || x >= width - 2 || y >= height - 2)
+        clippedEdges += 1;
+    }
+  }
+  const componentAreas: number[] = [];
+  const queue = new Int32Array(width * height);
+  for (let start = 0; start < active.length; start += 1) {
+    if (active[start] !== 1) continue;
+    let head = 0;
+    let tail = 0;
+    let area = 0;
+    queue[tail++] = start;
+    active[start] = 2;
+    while (head < tail) {
+      const index = queue[head++];
+      area += 1;
+      const x = index % width;
+      const y = Math.floor(index / width);
+      for (let offsetY = -1; offsetY <= 1; offsetY += 1) {
+        for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
+          if (offsetX === 0 && offsetY === 0) continue;
+          const nextX = x + offsetX;
+          const nextY = y + offsetY;
+          if (nextX < 0 || nextX >= width || nextY < 0 || nextY >= height)
+            continue;
+          const next = nextY * width + nextX;
+          if (active[next] !== 1) continue;
+          active[next] = 2;
+          queue[tail++] = next;
+        }
+      }
+    }
+    componentAreas.push(area);
+  }
+  const significantFloor = Math.max(12, alphaPixels * 0.0025);
+  return {
+    alphaPixels,
+    significantComponents: componentAreas.filter(
+      (area) => area >= significantFloor,
+    ).length,
+    clippedEdges,
+  };
+}
+
+async function inspectRenderedRigPreview(
+  asset: Asset,
+  skeleton: Skeleton,
+): Promise<RigPreviewReport> {
+  if (!asset.dataUrl)
+    return {
+      passed: false,
+      renderer: 'canvas-alpha-v1',
+      poses: [],
+      blockedReasons: ['Asset payload is unavailable.'],
+    };
+  const image = await decodeImage(asset.dataUrl);
+  const packageData = asset.assetPackage ?? asset.rigManifest;
+  const coordinateMismatches: string[] = [];
+  if (
+    packageData &&
+    (packageData.image.width !== image.naturalWidth ||
+      packageData.image.height !== image.naturalHeight)
+  )
+    coordinateMismatches.push(
+      'Package dimensions do not match decoded pixels.',
+    );
+  if (
+    skeleton.binding.regions?.some(
+      (region) =>
+        region.x < 0 ||
+        region.y < 0 ||
+        region.width <= 0 ||
+        region.height <= 0 ||
+        (region.x <= 1 && region.x + region.width > 1.001) ||
+        (region.y <= 1 && region.y + region.height > 1.001),
+    )
+  )
+    coordinateMismatches.push('One or more source bounds leave the atlas.');
+  const regions = skeleton.binding.regions ?? [];
+  const invalidDrawOrder = [
+    ...new Set(
+      regions
+        .filter((region) => !Number.isFinite(region.zIndex))
+        .map((region) => region.id),
+    ),
+  ];
+  const leftArm = regions.find((region) => region.id === 'left-arm');
+  const rightArm = regions.find((region) => region.id === 'right-arm');
+  const invertedLimbs =
+    leftArm && rightArm && (leftArm.targetX ?? 0) >= (rightArm.targetX ?? 1)
+      ? ['left-arm/right-arm']
+      : [];
+  const poseInputs: Array<{
+    id: string;
+    label: string;
+    transforms: BoneTransform[];
+  }> = [
+    { id: 'rest', label: 'Rest pose', transforms: [] },
+    {
+      id: 'shoulders',
+      label: 'Shoulder rotation extremes',
+      transforms: [
+        { boneId: 'bone-chest-left-hand', rotation: -62, x: 0, y: 0, scale: 1 },
+        { boneId: 'bone-chest-right-hand', rotation: 62, x: 0, y: 0, scale: 1 },
+      ],
+    },
+    {
+      id: 'hips',
+      label: 'Hip rotation extremes',
+      transforms: [
+        { boneId: 'bone-hip-left-foot', rotation: -42, x: 0, y: 0, scale: 1 },
+        { boneId: 'bone-hip-right-foot', rotation: 42, x: 0, y: 0, scale: 1 },
+      ],
+    },
+    {
+      id: 'elbow-knee',
+      label: 'Elbow and knee bend stress',
+      transforms: [
+        { boneId: 'bone-chest-left-hand', rotation: -96, x: 0, y: 0, scale: 1 },
+        { boneId: 'bone-hip-right-foot', rotation: 72, x: 0, y: 0, scale: 1 },
+      ],
+    },
+    {
+      id: 'walk',
+      label: 'Walk stride',
+      transforms: [
+        { boneId: 'bone-hip-left-foot', rotation: 28, x: 0, y: 0, scale: 1 },
+        { boneId: 'bone-hip-right-foot', rotation: -28, x: 0, y: 0, scale: 1 },
+        { boneId: 'bone-chest-left-hand', rotation: -18, x: 0, y: 0, scale: 1 },
+        { boneId: 'bone-chest-right-hand', rotation: 18, x: 0, y: 0, scale: 1 },
+      ],
+    },
+    {
+      id: 'turn',
+      label: 'Turn anticipation',
+      transforms: [
+        { boneId: 'bone-root-hip', rotation: 14, x: 3, y: 0, scale: 1 },
+        { boneId: 'bone-chest-head', rotation: -24, x: 0, y: 0, scale: 1 },
+      ],
+    },
+    {
+      id: 'reaction',
+      label: 'Reaction pose',
+      transforms: [
+        { boneId: 'bone-hip-chest', rotation: -12, x: 0, y: -2, scale: 1 },
+        { boneId: 'bone-chest-left-hand', rotation: -55, x: 0, y: 0, scale: 1 },
+        { boneId: 'bone-chest-right-hand', rotation: 55, x: 0, y: 0, scale: 1 },
+      ],
+    },
+  ];
+  let restAlpha = 0;
+  let restComponents = 0;
+  const poses: RigPreviewPoseReport[] = [];
+  for (const pose of poseInputs) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const context = canvas.getContext('2d');
+    if (!context) continue;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    drawCharacter(
+      context,
+      {
+        id: 'rig-preview',
+        name: 'Rig preview',
+        color: '#f06c57',
+        assetId: asset.id,
+        x: 50,
+        y: 91,
+        rotation: 0,
+        pose: 'idle',
+      },
+      canvas.width,
+      canvas.height,
+      false,
+      image,
+      asset,
+      skeleton,
+      pose.transforms,
+    );
+    const pixels = inspectAlphaPixels(canvas);
+    if (pose.id === 'rest') {
+      restAlpha = pixels.alphaPixels;
+      restComponents = pixels.significantComponents;
+    }
+    const disconnectedAlphaIslands = Math.max(
+      0,
+      pixels.significantComponents - 1,
+    );
+    const visibleGaps =
+      pose.id === 'rest'
+        ? packageData?.alignment?.connected === false
+          ? 1
+          : 0
+        : Math.max(0, pixels.significantComponents - restComponents - 1);
+    const excessiveOverlaps =
+      restAlpha > 0 &&
+      pose.id !== 'rest' &&
+      pixels.alphaPixels < restAlpha * 0.58
+        ? 1
+        : 0;
+    const passed =
+      pixels.alphaPixels > 0 &&
+      visibleGaps === 0 &&
+      excessiveOverlaps === 0 &&
+      pixels.clippedEdges === 0 &&
+      invalidDrawOrder.length === 0 &&
+      invertedLimbs.length === 0 &&
+      coordinateMismatches.length === 0;
+    poses.push({
+      id: pose.id,
+      label: pose.label,
+      alphaPixels: pixels.alphaPixels,
+      significantComponents: pixels.significantComponents,
+      visibleGaps,
+      excessiveOverlaps,
+      clippedEdges: pixels.clippedEdges,
+      disconnectedAlphaIslands,
+      invertedLimbs,
+      invalidDrawOrder,
+      coordinateMismatches,
+      passed,
+    });
+  }
+  const blockedReasons = poses
+    .filter((pose) => !pose.passed)
+    .map((pose) => `${pose.label} failed rendered seam QA.`);
+  return {
+    passed: poses.length === poseInputs.length && blockedReasons.length === 0,
+    renderer: 'canvas-alpha-v1',
+    poses,
+    blockedReasons,
+  };
+}
+
+function skeletonModelIssues(skeleton: Skeleton, asset?: Asset) {
+  const issues: string[] = [];
+  const jointIds = new Set(skeleton.joints.map((joint) => joint.id));
+  if (!jointIds.has(skeleton.rootJointId))
+    issues.push('Root joint is missing.');
+  if (
+    skeleton.joints.some(
+      (joint) => joint.x < 0 || joint.x > 100 || joint.y < 0 || joint.y > 100,
+    )
+  )
+    issues.push('One or more joints are outside the character bounds.');
+  const reachable = new Set([skeleton.rootJointId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    skeleton.bones.forEach((bone) => {
+      if (
+        reachable.has(bone.parentJointId) &&
+        !reachable.has(bone.childJointId)
+      ) {
+        reachable.add(bone.childJointId);
+        changed = true;
+      }
+    });
+  }
+  if (reachable.size !== skeleton.joints.length)
+    issues.push('Bone graph is disconnected from the root.');
+  if (skeleton.binding.method === 'segmented') {
+    const manifest = asset?.assetPackage ?? asset?.rigManifest;
+    if (!manifest) issues.push('Segmented binding needs a rig manifest.');
+    if (manifest?.alignment && !manifest.alignment.connected)
+      issues.push(...manifest.alignment.warnings);
+    if (manifest) {
+      const criticalConfidence = Math.min(
+        ...skeleton.joints
+          .filter((joint) =>
+            manifest.skeleton.criticalJointIds.includes(joint.id),
+          )
+          .map((joint) => joint.confidence),
+      );
+      if (
+        !Number.isFinite(criticalConfidence) ||
+        criticalConfidence < manifest.skeleton.minCriticalConfidence
+      )
+        issues.push('One or more critical joints have low confidence.');
+    }
+    const boneIds = new Set(skeleton.bones.map((bone) => bone.id));
+    const regions = skeleton.binding.regions ?? [];
+    if (regions.length < 6)
+      issues.push(
+        'Segmented binding needs head, torso, two arms, and two legs.',
+      );
+    regions.forEach((region) => {
+      if (region.boneId && !boneIds.has(region.boneId))
+        issues.push(`${region.label} references a missing bone.`);
+      if (
+        region.attachX !== undefined &&
+        (region.attachX < 0 || region.attachX > 1)
+      )
+        issues.push(`${region.label} pivot X is outside its crop.`);
+      if (
+        region.attachY !== undefined &&
+        (region.attachY < 0 || region.attachY > 1)
+      )
+        issues.push(`${region.label} pivot Y is outside its crop.`);
+      if ((region.overlapPx ?? 0) < 8)
+        issues.push(
+          `${region.label} needs at least 8px of attachment overlap.`,
+        );
+      if ((region.confidence ?? 1) < 0.72)
+        issues.push(`${region.label} has low alignment confidence.`);
+    });
+  }
+  return [...new Set(issues)];
+}
+
+function defaultSkeletonForAsset(
+  assetId: string,
+  label: string,
+  method: BindingMethod = 'segmented',
+  asset?: Asset,
+): Skeleton {
   const joints: SkeletonJoint[] = [
-    { id: 'root', label: 'root', x: 50, y: 82, radius: 4, confidence: 0.96, locked: false },
-    { id: 'hip', parentId: 'root', label: 'hip', x: 50, y: 64, radius: 4, confidence: 0.9, locked: false },
-    { id: 'chest', parentId: 'hip', label: 'chest', x: 50, y: 43, radius: 4, confidence: 0.9, locked: false },
-    { id: 'head', parentId: 'chest', label: 'head', x: 50, y: 22, radius: 4, confidence: 0.88, locked: false },
-    { id: 'left-hand', parentId: 'chest', label: 'left hand', x: 33, y: 53, radius: 3, confidence: 0.75, locked: false },
-    { id: 'right-hand', parentId: 'chest', label: 'right hand', x: 67, y: 53, radius: 3, confidence: 0.75, locked: false },
-    { id: 'left-foot', parentId: 'hip', label: 'left foot', x: 42, y: 88, radius: 3, confidence: 0.78, locked: false },
-    { id: 'right-foot', parentId: 'hip', label: 'right foot', x: 58, y: 88, radius: 3, confidence: 0.78, locked: false },
+    {
+      id: 'root',
+      label: 'root',
+      x: 50,
+      y: 82,
+      radius: 4,
+      confidence: 0.96,
+      locked: false,
+    },
+    {
+      id: 'hip',
+      parentId: 'root',
+      label: 'hip',
+      x: 50,
+      y: 64,
+      radius: 4,
+      confidence: 0.9,
+      locked: false,
+    },
+    {
+      id: 'chest',
+      parentId: 'hip',
+      label: 'chest',
+      x: 50,
+      y: 43,
+      radius: 4,
+      confidence: 0.9,
+      locked: false,
+    },
+    {
+      id: 'head',
+      parentId: 'chest',
+      label: 'head',
+      x: 50,
+      y: 22,
+      radius: 4,
+      confidence: 0.88,
+      locked: false,
+    },
+    {
+      id: 'left-hand',
+      parentId: 'chest',
+      label: 'left hand',
+      x: 33,
+      y: 53,
+      radius: 3,
+      confidence: 0.75,
+      locked: false,
+    },
+    {
+      id: 'right-hand',
+      parentId: 'chest',
+      label: 'right hand',
+      x: 67,
+      y: 53,
+      radius: 3,
+      confidence: 0.75,
+      locked: false,
+    },
+    {
+      id: 'left-foot',
+      parentId: 'hip',
+      label: 'left foot',
+      x: 42,
+      y: 88,
+      radius: 3,
+      confidence: 0.78,
+      locked: false,
+    },
+    {
+      id: 'right-foot',
+      parentId: 'hip',
+      label: 'right foot',
+      x: 58,
+      y: 88,
+      radius: 3,
+      confidence: 0.78,
+      locked: false,
+    },
   ];
   const joint = (id: string) => joints.find((item) => item.id === id)!;
-  const bone = (id: string, parentJointId: string, childJointId: string): SkeletonBone => {
+  const bone = (
+    id: string,
+    parentJointId: string,
+    childJointId: string,
+  ): SkeletonBone => {
     const parent = joint(parentJointId);
     const child = joint(childJointId);
     return {
@@ -1298,35 +2945,92 @@ function defaultSkeletonForAsset(assetId: string, label: string, method: Binding
       angleMax: 180,
     };
   };
-  const bobSheet = assetId.toLowerCase().includes('bob');
+  const manifest = asset?.assetPackage ?? asset?.rigManifest;
   const targetRegions = [
-    { id: 'head', label: 'head', targetX: 0.34, targetY: 0.02, targetWidth: 0.32, targetHeight: 0.25 },
-    { id: 'torso', label: 'torso', targetX: 0.3, targetY: 0.28, targetWidth: 0.4, targetHeight: 0.34 },
-    { id: 'left-arm', label: 'left arm', targetX: 0.04, targetY: 0.28, targetWidth: 0.24, targetHeight: 0.38 },
-    { id: 'right-arm', label: 'right arm', targetX: 0.72, targetY: 0.28, targetWidth: 0.24, targetHeight: 0.38 },
-    { id: 'left-leg', label: 'left leg', targetX: 0.25, targetY: 0.62, targetWidth: 0.22, targetHeight: 0.36 },
-    { id: 'right-leg', label: 'right leg', targetX: 0.53, targetY: 0.62, targetWidth: 0.22, targetHeight: 0.36 },
+    {
+      id: 'head',
+      label: 'head',
+      targetX: 0.34,
+      targetY: 0.02,
+      targetWidth: 0.32,
+      targetHeight: 0.25,
+    },
+    {
+      id: 'torso',
+      label: 'torso',
+      targetX: 0.3,
+      targetY: 0.28,
+      targetWidth: 0.4,
+      targetHeight: 0.34,
+    },
+    {
+      id: 'left-arm',
+      label: 'left arm',
+      targetX: 0.16,
+      targetY: 0.28,
+      targetWidth: 0.24,
+      targetHeight: 0.38,
+    },
+    {
+      id: 'right-arm',
+      label: 'right arm',
+      targetX: 0.62,
+      targetY: 0.28,
+      targetWidth: 0.24,
+      targetHeight: 0.38,
+    },
+    {
+      id: 'left-leg',
+      label: 'left leg',
+      targetX: 0.25,
+      targetY: 0.62,
+      targetWidth: 0.22,
+      targetHeight: 0.36,
+    },
+    {
+      id: 'right-leg',
+      label: 'right leg',
+      targetX: 0.53,
+      targetY: 0.62,
+      targetWidth: 0.22,
+      targetHeight: 0.36,
+    },
   ];
-  const sourceRegions = bobSheet
-    ? [
-        { id: 'head', label: 'head', x: 0.01, y: 0.03, width: 0.34, height: 0.38 },
-        { id: 'torso', label: 'torso', x: 0.35, y: 0.05, width: 0.44, height: 0.4 },
-        { id: 'left-arm', label: 'left arm', x: 0.05, y: 0.49, width: 0.22, height: 0.46 },
-        { id: 'right-arm', label: 'right arm', x: 0.79, y: 0.05, width: 0.21, height: 0.45 },
-        { id: 'left-leg', label: 'left leg', x: 0.3, y: 0.51, width: 0.24, height: 0.46 },
-        { id: 'right-leg', label: 'right leg', x: 0.59, y: 0.51, width: 0.24, height: 0.46 },
-      ]
-    : [
-        { id: 'head', label: 'head', x: 0.02, y: 0.03, width: 0.36, height: 0.34 },
-        { id: 'torso', label: 'torso', x: 0.36, y: 0.17, width: 0.35, height: 0.42 },
-        { id: 'left-arm', label: 'left arm', x: 0.04, y: 0.35, width: 0.24, height: 0.28 },
-        { id: 'right-arm', label: 'right arm', x: 0.77, y: 0.35, width: 0.23, height: 0.3 },
-        { id: 'left-leg', label: 'left leg', x: 0.24, y: 0.64, width: 0.24, height: 0.34 },
-        { id: 'right-leg', label: 'right leg', x: 0.56, y: 0.64, width: 0.24, height: 0.34 },
-      ];
+  const sourceRegions = rigManifestForAsset('__fallback__').parts.map(
+    (part) => ({
+      id: part.id,
+      label: part.label,
+      x: part.x,
+      y: part.y,
+      width: part.width,
+      height: part.height,
+    }),
+  );
   const regions = sourceRegions.map((region) => ({
     ...region,
     ...targetRegions.find((target) => target.id === region.id),
+  }));
+  const manifestRegions = manifest?.parts.map((part) => ({
+    id: part.id,
+    label: part.label,
+    boneId: part.boneId,
+    x: part.x,
+    y: part.y,
+    width: part.width,
+    height: part.height,
+    targetX: targetRegions.find((target) => target.id === part.id)?.targetX,
+    targetY: targetRegions.find((target) => target.id === part.id)?.targetY,
+    targetWidth: targetRegions.find((target) => target.id === part.id)
+      ?.targetWidth,
+    targetHeight: targetRegions.find((target) => target.id === part.id)
+      ?.targetHeight,
+    pivotX: part.pivotX,
+    pivotY: part.pivotY,
+    attachX: part.attachX,
+    attachY: part.attachY,
+    confidence: part.confidence,
+    zIndex: part.zIndex,
+    overlapPx: part.overlapPx,
   }));
   return {
     id: `skeleton-${assetId}`,
@@ -1346,9 +3050,10 @@ function defaultSkeletonForAsset(assetId: string, label: string, method: Binding
     binding: {
       assetId,
       method,
-      sourceWidth: 100,
-      sourceHeight: 220,
-      regions: method === 'segmented' ? regions : undefined,
+      sourceWidth: manifest?.image.width ?? asset?.dimensions?.width ?? 100,
+      sourceHeight: manifest?.image.height ?? asset?.dimensions?.height ?? 220,
+      regions:
+        method === 'segmented' ? (manifestRegions ?? regions) : undefined,
       vertices: method === 'mesh' ? [] : undefined,
       weights: method === 'mesh' ? [] : undefined,
     },
@@ -1573,16 +3278,25 @@ function validateProjectState(project: Project): ValidationIssue[] {
       });
   });
   project.keyframes.forEach((frame) => {
-    if (
-      !project.characters.some(
-        (character) => character.id === frame.characterId,
-      )
-    )
+    const character = project.characters.find(
+      (candidate) => candidate.id === frame.characterId,
+    );
+    if (!character)
       issues.push({
         code: 'ORPHAN_KEYFRAME',
         severity: 'error',
         path: `keyframes.${frame.id}`,
         message: `${frame.id} points to a missing character.`,
+      });
+    else if (
+      frame.variantId &&
+      variantCompatibilityIssues(project, character, frame.variantId).length
+    )
+      issues.push({
+        code: 'VARIANT_TOPOLOGY_DRIFT',
+        severity: 'error',
+        path: `keyframes.${frame.id}.variantId`,
+        message: `${frame.id} references an incompatible or missing variant.`,
       });
   });
   project.propKeyframes.forEach((frame) => {
@@ -1702,6 +3416,21 @@ function validateProjectState(project: Project): ValidationIssue[] {
         path: `assets.${asset.id}.style`,
         message: `${asset.id} needs a complete visual style direction.`,
       });
+    if (
+      asset.reviewStatus === 'approved' &&
+      asset.kind === 'rigged-character' &&
+      asset.frameLayout === 'parts-sheet'
+    ) {
+      const packageData = asset.assetPackage ?? asset.rigManifest;
+      assetPackageIssues(packageData, asset.dimensions).forEach((message) =>
+        issues.push({
+          code: 'INVALID_ASSET_PACKAGE',
+          severity: 'error',
+          path: `assets.${asset.id}.assetPackage`,
+          message: `${asset.id}: ${message}`,
+        }),
+      );
+    }
   });
   project.skeletons.forEach((skeleton) => {
     const asset = project.assets.find((item) => item.id === skeleton.assetId);
@@ -1712,7 +3441,10 @@ function validateProjectState(project: Project): ValidationIssue[] {
         path: `skeletons.${skeleton.id}.assetId`,
         message: `${skeleton.id} must reference a rigged-character asset.`,
       });
-    if (!isReviewStatus(skeleton.reviewStatus) || !isBindingMethod(skeleton.binding.method))
+    if (
+      !isReviewStatus(skeleton.reviewStatus) ||
+      !isBindingMethod(skeleton.binding.method)
+    )
       issues.push({
         code: 'SKELETON_INVALID_STATUS',
         severity: 'error',
@@ -1736,9 +3468,20 @@ function validateProjectState(project: Project): ValidationIssue[] {
           message: `${bone.id} points to a missing joint.`,
         });
     });
+    const rigIssues = skeletonModelIssues(skeleton, asset);
+    rigIssues.forEach((message) =>
+      issues.push({
+        code: 'SKELETON_ALIGNMENT_REVIEW',
+        severity: skeleton.reviewStatus === 'approved' ? 'error' : 'warning',
+        path: `skeletons.${skeleton.id}.binding`,
+        message: `${skeleton.id}: ${message}`,
+      }),
+    );
   });
   project.boneKeyframes.forEach((frame) => {
-    const skeleton = project.skeletons.find((item) => item.id === frame.skeletonId);
+    const skeleton = project.skeletons.find(
+      (item) => item.id === frame.skeletonId,
+    );
     if (
       !skeleton ||
       skeleton.reviewStatus !== 'approved' ||
@@ -1837,7 +3580,7 @@ const hydrateProject = (value: Partial<Project>): Project => {
           ? rawAssetStyle.notes
           : baseAssetStyle.notes,
     };
-    return {
+    const hydratedAsset: Asset = {
       ...asset,
       brief:
         typeof asset.brief === 'string' && asset.brief.trim()
@@ -1846,6 +3589,12 @@ const hydrateProject = (value: Partial<Project>): Project => {
       frameLayout,
       style,
     };
+    const assetPackage = normalizeAssetPackage(hydratedAsset);
+    if (assetPackage) {
+      hydratedAsset.assetPackage = assetPackage;
+      hydratedAsset.rigManifest = assetPackage;
+    }
+    return hydratedAsset;
   });
   const rawScenes =
     Array.isArray(value.scenes) && value.scenes.length > 0
@@ -1886,6 +3635,45 @@ const hydrateProject = (value: Partial<Project>): Project => {
   }));
   const activeScene =
     scenes.find((scene) => scene.id === requestedActiveId) ?? scenes[0];
+  const rawSkeletons = Array.isArray(value.skeletons)
+    ? value.skeletons
+    : base.skeletons;
+  const hydratedSkeletons = rawSkeletons.map((skeleton) => {
+    const asset = fallbackAssets.find((item) => item.id === skeleton.assetId);
+    const fallback = defaultSkeletonForAsset(
+      skeleton.assetId,
+      skeleton.label || asset?.label || skeleton.assetId,
+      isBindingMethod(skeleton.binding?.method)
+        ? skeleton.binding.method
+        : 'segmented',
+      asset,
+    );
+    return {
+      ...fallback,
+      ...skeleton,
+      rootJointId:
+        typeof skeleton.rootJointId === 'string'
+          ? skeleton.rootJointId
+          : fallback.rootJointId,
+      joints:
+        Array.isArray(skeleton.joints) && skeleton.joints.length
+          ? skeleton.joints
+          : fallback.joints,
+      bones:
+        Array.isArray(skeleton.bones) && skeleton.bones.length
+          ? skeleton.bones
+          : fallback.bones,
+      binding: {
+        ...fallback.binding,
+        ...skeleton.binding,
+        regions:
+          Array.isArray(skeleton.binding?.regions) &&
+          skeleton.binding.regions.length
+            ? skeleton.binding.regions
+            : fallback.binding.regions,
+      },
+    } satisfies Skeleton;
+  });
   return {
     ...base,
     ...value,
@@ -1932,10 +3720,11 @@ const hydrateProject = (value: Partial<Project>): Project => {
     assetRequests: Array.isArray(value.assetRequests)
       ? copy(value.assetRequests)
       : copy(base.assetRequests),
-    skeletons: Array.isArray(value.skeletons)
-      ? copy(value.skeletons)
-      : copy(base.skeletons),
+    skeletons: copy(hydratedSkeletons),
     boneKeyframes: copy(activeScene.boneKeyframes ?? value.boneKeyframes ?? []),
+    motionClips: Array.isArray(value.motionClips)
+      ? copy(value.motionClips)
+      : copy(base.motionClips),
     lockedTrackIds: copy(activeScene.lockedTrackIds ?? []),
     assets: copy(fallbackAssets),
   };
@@ -2043,6 +3832,7 @@ function evaluateCharacters(project: Project, time: number) {
         y: first.y,
         rotation: first.rotation,
         pose: first.pose,
+        variantId: first.variantId ?? character.variantId,
       };
     const last = frames.at(-1);
     if (!last || time >= last.time)
@@ -2053,6 +3843,7 @@ function evaluateCharacters(project: Project, time: number) {
             y: last.y,
             rotation: last.rotation,
             pose: last.pose,
+            variantId: last.variantId ?? character.variantId,
           }
         : character;
     const nextIndex = frames.findIndex((frame) => frame.time > time);
@@ -2065,8 +3856,67 @@ function evaluateCharacters(project: Project, time: number) {
       y: left.y + (right.y - left.y) * amount,
       rotation: left.rotation + (right.rotation - left.rotation) * amount,
       pose: amount < 0.5 ? left.pose : right.pose,
+      variantId:
+        (amount < 0.5 ? left.variantId : right.variantId) ??
+        character.variantId,
     };
   });
+}
+
+function characterAssetFor(project: Project, character: Character) {
+  const variant = character.variantId
+    ? project.assets.find((asset) => asset.id === character.variantId)
+    : undefined;
+  if (variant?.dataUrl) return variant;
+  return character.assetId
+    ? project.assets.find((asset) => asset.id === character.assetId)
+    : undefined;
+}
+
+function variantCompatibilityIssues(
+  project: Project,
+  character: Character,
+  variantId: string,
+) {
+  const issues: string[] = [];
+  const base = character.assetId
+    ? project.assets.find((asset) => asset.id === character.assetId)
+    : undefined;
+  const variant = project.assets.find((asset) => asset.id === variantId);
+  if (!base || !variant) return ['Variant or base asset is missing.'];
+  if (
+    variant.kind !== 'rigged-character' ||
+    variant.variantOf !== base.id ||
+    variant.reviewStatus !== 'approved' ||
+    !variant.dataUrl
+  )
+    issues.push(
+      'Variant is not an approved child of the character base asset.',
+    );
+  const basePackage = base.assetPackage ?? base.rigManifest;
+  const variantPackage = variant.assetPackage ?? variant.rigManifest;
+  if (basePackage && variantPackage) {
+    const baseTopology = basePackage.parts
+      .map((part) => `${part.id}:${part.boneId}`)
+      .sort()
+      .join('|');
+    const variantTopology = variantPackage.parts
+      .map((part) => `${part.id}:${part.boneId}`)
+      .sort()
+      .join('|');
+    if (baseTopology !== variantTopology)
+      issues.push('Variant topology differs from the approved base package.');
+  }
+  return issues;
+}
+
+function characterSkeletonFor(project: Project, character: Character) {
+  const asset = characterAssetFor(project, character);
+  const baseAssetId = asset?.variantOf ?? character.assetId;
+  return project.skeletons.find(
+    (skeleton) =>
+      skeleton.assetId === baseAssetId && skeleton.reviewStatus === 'approved',
+  );
 }
 
 function defaultBoneTransforms(skeleton: Skeleton): BoneTransform[] {
@@ -2092,7 +3942,11 @@ function evaluateBoneKeyframes(
     )
     .sort((a, b) => a.time - b.time);
   if (frames.length === 0) return defaultBoneTransforms(skeleton);
-  const interpolate = (left: BoneTransform, right: BoneTransform, amount: number) => ({
+  const interpolate = (
+    left: BoneTransform,
+    right: BoneTransform,
+    amount: number,
+  ) => ({
     boneId: left.boneId,
     rotation: left.rotation + (right.rotation - left.rotation) * amount,
     x: left.x + (right.x - left.x) * amount,
@@ -2106,11 +3960,87 @@ function evaluateBoneKeyframes(
   const leftFrame = frames[nextIndex - 1];
   const rightFrame = frames[nextIndex];
   const amount = (time - leftFrame.time) / (rightFrame.time - leftFrame.time);
-  const rightById = new Map(rightFrame.transforms.map((item) => [item.boneId, item]));
+  const rightById = new Map(
+    rightFrame.transforms.map((item) => [item.boneId, item]),
+  );
   return leftFrame.transforms.map((left) => {
     const right = rightById.get(left.boneId) ?? left;
     return interpolate(left, right, amount);
   });
+}
+
+function easeMotionAmount(amount: number, easing: MotionClip['easing']) {
+  if (easing === 'hold') return amount < 1 ? 0 : 1;
+  if (easing === 'ease-in-out') return amount * amount * (3 - 2 * amount);
+  return amount;
+}
+
+function evaluateMotionClip(clip: MotionClip, timeMs: number) {
+  const time = clip.loop
+    ? ((Math.max(0, timeMs) % clip.durationMs) + clip.durationMs) %
+      clip.durationMs
+    : clamp(timeMs, 0, clip.durationMs);
+  const frames = clip.transforms.slice().sort((a, b) => a.time - b.time);
+  if (frames.length === 0) return { transforms: [], variantId: undefined };
+  if (time <= frames[0].time) return frames[0];
+  const last = frames.at(-1);
+  if (!last || time >= last.time) return last;
+  const nextIndex = frames.findIndex((frame) => frame.time > time);
+  const left = frames[nextIndex - 1];
+  const right = frames[nextIndex];
+  const amount = easeMotionAmount(
+    (time - left.time) / Math.max(1, right.time - left.time),
+    clip.easing,
+  );
+  const rightById = new Map(
+    right.transforms.map((item) => [item.boneId, item]),
+  );
+  return {
+    variantId: amount < 0.5 ? left.variantId : right.variantId,
+    transforms: left.transforms.map((item) => {
+      const other = rightById.get(item.boneId) ?? item;
+      return {
+        boneId: item.boneId,
+        rotation: item.rotation + (other.rotation - item.rotation) * amount,
+        x: item.x + (other.x - item.x) * amount,
+        y: item.y + (other.y - item.y) * amount,
+        scale: item.scale + (other.scale - item.scale) * amount,
+      };
+    }),
+  };
+}
+
+function upsertBoneKeyframeInProject(
+  project: Project,
+  skeletonId: string,
+  time: number,
+  transforms: BoneTransform[],
+) {
+  const safeTime = Math.max(0, Math.min(project.duration, Math.round(time)));
+  const normalized = transforms.map((transform) => ({
+    boneId: transform.boneId,
+    rotation: clamp(Number(transform.rotation) || 0, -180, 180),
+    x: clamp(Number(transform.x) || 0, -160, 160),
+    y: clamp(Number(transform.y) || 0, -160, 160),
+    scale: clamp(Number(transform.scale) || 1, 0.25, 2.5),
+  }));
+  const existing = project.boneKeyframes.find(
+    (frame) =>
+      frame.sceneId === project.activeSceneId &&
+      frame.skeletonId === skeletonId &&
+      frame.time === safeTime,
+  );
+  if (existing) existing.transforms = normalized;
+  else
+    project.boneKeyframes.push({
+      id: `bkf-${skeletonId}-${safeTime}`,
+      sceneId: project.activeSceneId,
+      skeletonId,
+      time: safeTime,
+      transforms: normalized,
+    });
+  project.boneKeyframes.sort((a, b) => a.time - b.time);
+  return safeTime;
 }
 
 function defaultPropKeyframe(assetId: string, index: number): PropKeyframe {
@@ -2381,7 +4311,9 @@ function scheduleAudioCues(
       const source = context.createBufferSource();
       const gain = context.createGain();
       source.buffer = audioBuffer;
-      source.loop = Boolean(cue.loop || (cue.kind === 'music' && audioAsset?.loopable));
+      source.loop = Boolean(
+        cue.loop || (cue.kind === 'music' && audioAsset?.loopable),
+      );
       const attackEnd = Math.max(
         start + 0.001,
         Math.min(start + 0.08, end - 0.001),
@@ -2445,7 +4377,9 @@ function upsertCharacterKeyframe(
   project: Project,
   characterId: string,
   time: number,
-  changes: Partial<Pick<Keyframe, 'x' | 'y' | 'rotation' | 'pose'>>,
+  changes: Partial<
+    Pick<Keyframe, 'x' | 'y' | 'rotation' | 'pose' | 'variantId'>
+  >,
 ) {
   const character = evaluateCharacters(project, time).find(
     (item) => item.id === characterId,
@@ -2463,6 +4397,7 @@ function upsertCharacterKeyframe(
     y: clamp(changes.y ?? character.y, 0, 100),
     rotation: clamp(changes.rotation ?? character.rotation, -180, 180),
     pose: changes.pose ?? character.pose,
+    variantId: changes.variantId ?? character.variantId,
   };
   if (existing) Object.assign(existing, frame);
   else project.keyframes.push(frame);
@@ -2470,6 +4405,80 @@ function upsertCharacterKeyframe(
     (a, b) => a.time - b.time || a.characterId.localeCompare(b.characterId),
   );
   return frame;
+}
+
+type BoneWorldPose = {
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  angle: number;
+  scale: number;
+};
+
+function buildBoneWorldPoses(
+  skeleton: Skeleton,
+  transforms: BoneTransform[],
+  imageWidth: number,
+  imageHeight: number,
+) {
+  const joints = new Map(skeleton.joints.map((joint) => [joint.id, joint]));
+  const transformById = new Map(
+    transforms.map((transform) => [transform.boneId, transform]),
+  );
+  const world = new Map<string, BoneWorldPose>();
+  const baseAngles = new Map<string, number>();
+  const baseLengths = new Map<string, number>();
+  const basePoint = (jointId: string) => {
+    const joint = joints.get(jointId);
+    return {
+      x: ((joint?.x ?? 50) / 100 - 0.5) * imageWidth,
+      y: ((joint?.y ?? 82) / 100 - 1) * imageHeight,
+    };
+  };
+  skeleton.bones.forEach((bone) => {
+    const parent = basePoint(bone.parentJointId);
+    const child = basePoint(bone.childJointId);
+    baseAngles.set(bone.id, Math.atan2(child.y - parent.y, child.x - parent.x));
+    baseLengths.set(
+      bone.id,
+      Math.hypot(child.x - parent.x, child.y - parent.y),
+    );
+  });
+  const visit = (bone: SkeletonBone): BoneWorldPose => {
+    const cached = world.get(bone.id);
+    if (cached) return cached;
+    const parent = basePoint(bone.parentJointId);
+    const baseAngle = baseAngles.get(bone.id) ?? 0;
+    const isRootBone = bone.parentJointId === skeleton.rootJointId;
+    const transform = isRootBone ? undefined : transformById.get(bone.id);
+    const parentBone = skeleton.bones.find(
+      (candidate) => candidate.childJointId === bone.parentJointId,
+    );
+    const parentPose = parentBone ? visit(parentBone) : undefined;
+    const parentBaseAngle = parentBone
+      ? (baseAngles.get(parentBone.id) ?? 0)
+      : 0;
+    const angle =
+      baseAngle +
+      (parentPose ? parentPose.angle - parentBaseAngle : 0) +
+      ((transform?.rotation ?? 0) * Math.PI) / 180;
+    const startX = (parentPose?.endX ?? parent.x) + (transform?.x ?? 0) * 0.8;
+    const startY = (parentPose?.endY ?? parent.y) + (transform?.y ?? 0) * 0.8;
+    const length = (baseLengths.get(bone.id) ?? 0) * (transform?.scale ?? 1);
+    const pose = {
+      startX,
+      startY,
+      endX: startX + Math.cos(angle) * length,
+      endY: startY + Math.sin(angle) * length,
+      angle,
+      scale: (parentPose?.scale ?? 1) * (transform?.scale ?? 1),
+    };
+    world.set(bone.id, pose);
+    return pose;
+  };
+  skeleton.bones.forEach(visit);
+  return world;
 }
 
 function drawCharacter(
@@ -2482,6 +4491,8 @@ function drawCharacter(
   characterAsset?: Asset,
   skeleton?: Skeleton,
   boneTransforms: BoneTransform[] = [],
+  isolatedPartId?: string | null,
+  showAlphaMask = false,
 ) {
   const x = (c.x / 100) * width,
     ground = (c.y / 100) * height,
@@ -2519,50 +4530,77 @@ function drawCharacter(
       skeleton?.binding.method === 'segmented' &&
       skeleton.binding.regions?.length
     ) {
-      const transformsByBone = new Map(
-        boneTransforms.map((transform) => [transform.boneId, transform]),
+      const poses = buildBoneWorldPoses(
+        skeleton,
+        boneTransforms,
+        imageWidth,
+        imageHeight,
       );
-      const boneForRegion: Record<string, string> = {
-        head: 'bone-chest-head',
-        torso: 'bone-hip-chest',
-        'left-arm': 'bone-chest-left-hand',
-        'right-arm': 'bone-chest-right-hand',
-        'left-leg': 'bone-hip-left-foot',
-        'right-leg': 'bone-hip-right-foot',
-      };
-      skeleton.binding.regions.forEach((region) => {
-        const sourceX = region.x <= 1 ? region.x * sourceWidth : region.x;
-        const sourceY = region.y <= 1 ? region.y * sourceHeight : region.y;
-        const sourceRegionWidth =
-          region.width <= 1 ? region.width * sourceWidth : region.width;
-        const sourceRegionHeight =
-          region.height <= 1 ? region.height * sourceHeight : region.height;
-        const targetRegionWidth = region.targetWidth ?? region.width;
-        const targetRegionHeight = region.targetHeight ?? region.height;
-        const targetWidth = targetRegionWidth * imageWidth;
-        const targetHeight = targetRegionHeight * imageHeight;
-        const targetX =
-          -imageWidth / 2 + (region.targetX ?? region.x) * imageWidth;
-        const targetY =
-          -imageHeight + (region.targetY ?? region.y) * imageHeight;
-        const transform = transformsByBone.get(boneForRegion[region.id]);
-        ctx.save();
-        ctx.translate(targetX + targetWidth / 2, targetY + targetHeight / 2);
-        ctx.rotate(((transform?.rotation ?? 0) * Math.PI) / 180);
-        ctx.scale(transform?.scale ?? 1, transform?.scale ?? 1);
-        ctx.drawImage(
-          characterImage,
-          sourceX,
-          sourceY,
-          sourceRegionWidth,
-          sourceRegionHeight,
-          -targetWidth / 2 + (transform?.x ?? 0) * imageScale,
-          -targetHeight / 2 + (transform?.y ?? 0) * imageScale,
-          targetWidth,
-          targetHeight,
-        );
-        ctx.restore();
-      });
+      skeleton.binding.regions
+        .slice()
+        .filter((region) => !isolatedPartId || region.id === isolatedPartId)
+        .sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
+        .forEach((region) => {
+          const sourceX = region.x <= 1 ? region.x * sourceWidth : region.x;
+          const sourceY = region.y <= 1 ? region.y * sourceHeight : region.y;
+          const sourceRegionWidth =
+            region.width <= 1 ? region.width * sourceWidth : region.width;
+          const sourceRegionHeight =
+            region.height <= 1 ? region.height * sourceHeight : region.height;
+          const layoutWidth =
+            (region.targetWidth ?? sourceRegionWidth / sourceWidth) *
+            imageWidth;
+          const layoutHeight =
+            (region.targetHeight ?? sourceRegionHeight / sourceHeight) *
+            imageHeight;
+          const offsetX =
+            ((region.targetX ?? 0.5) +
+              (region.targetWidth ?? region.width) / 2 -
+              0.5) *
+            imageWidth;
+          const boneId =
+            region.boneId ??
+            (
+              {
+                head: 'bone-chest-head',
+                torso: 'bone-hip-chest',
+                'left-arm': 'bone-chest-left-hand',
+                'right-arm': 'bone-chest-right-hand',
+                'left-leg': 'bone-hip-left-foot',
+                'right-leg': 'bone-hip-right-foot',
+              } as Record<string, string>
+            )[region.id];
+          const pose = boneId ? poses.get(boneId) : undefined;
+          if (!pose) return;
+          const attachX = (region.attachX ?? 0.5) * layoutWidth;
+          const attachY = (region.attachY ?? 0.5) * layoutHeight;
+          const canonicalAngle =
+            region.id === 'head' || region.id === 'torso'
+              ? -Math.PI / 2
+              : Math.PI / 2;
+          ctx.save();
+          ctx.translate(pose.startX + offsetX, pose.startY);
+          ctx.rotate(pose.angle - canonicalAngle);
+          ctx.scale(pose.scale, pose.scale);
+          ctx.drawImage(
+            characterImage,
+            sourceX,
+            sourceY,
+            sourceRegionWidth,
+            sourceRegionHeight,
+            -attachX,
+            -attachY,
+            layoutWidth,
+            layoutHeight,
+          );
+          if (showAlphaMask) {
+            ctx.globalCompositeOperation = 'source-atop';
+            ctx.globalAlpha = 0.32;
+            ctx.fillStyle = '#18c6d8';
+            ctx.fillRect(-attachX, -attachY, layoutWidth, layoutHeight);
+          }
+          ctx.restore();
+        });
       ctx.filter = 'none';
       ctx.restore();
       return;
@@ -2665,20 +4703,21 @@ function applyBoneRootTransform(
   project: Project,
   time: number,
 ): Character {
-  const skeleton = project.skeletons.find(
-    (item) =>
-      item.assetId === character.assetId && item.reviewStatus === 'approved',
-  );
+  const skeleton = characterSkeletonFor(project, character);
   if (!skeleton) return character;
-  const root = evaluateBoneKeyframes(project, skeleton, time).find(
-    (transform) => transform.boneId === 'bone-root-hip',
+  const rootBone = skeleton.bones.find(
+    (bone) => bone.parentJointId === skeleton.rootJointId,
   );
-  if (!root) return character;
+  if (!rootBone) return character;
+  const rootTransform = evaluateBoneKeyframes(project, skeleton, time).find(
+    (transform) => transform.boneId === rootBone.id,
+  );
+  if (!rootTransform) return character;
   return {
     ...character,
-    x: clamp(character.x + root.x * 0.12, 0, 100),
-    y: clamp(character.y + root.y * 0.12, 0, 100),
-    rotation: clamp(character.rotation + root.rotation, -180, 180),
+    x: clamp(character.x + rootTransform.x * 0.15, 0, 100),
+    y: clamp(character.y + rootTransform.y * 0.15, 0, 100),
+    rotation: clamp(character.rotation + rootTransform.rotation, -180, 180),
   };
 }
 
@@ -2712,8 +4751,16 @@ function drawSkeletonOverlay(
     const dx = base.x - start.x;
     const dy = base.y - start.y;
     const end = {
-      x: start.x + dx * Math.cos(radians) - dy * Math.sin(radians) + (transform?.x ?? 0) * 0.5,
-      y: start.y + dx * Math.sin(radians) + dy * Math.cos(radians) + (transform?.y ?? 0) * 0.5,
+      x:
+        start.x +
+        dx * Math.cos(radians) -
+        dy * Math.sin(radians) +
+        (transform?.x ?? 0) * 0.5,
+      y:
+        start.y +
+        dx * Math.sin(radians) +
+        dy * Math.cos(radians) +
+        (transform?.y ?? 0) * 0.5,
     };
     ctx.strokeStyle = '#f2b84b';
     ctx.beginPath();
@@ -2758,22 +4805,20 @@ function drawRenderFrame(
     backgroundImage,
   );
   evaluateCharacters(project, project.currentTime).forEach((character) => {
-    const skeleton = project.skeletons.find(
-      (item) =>
-        item.assetId === character.assetId && item.reviewStatus === 'approved',
-    );
+    const skeleton = characterSkeletonFor(project, character);
+    const asset = characterAssetFor(project, character);
     drawCharacter(
       ctx,
       applyBoneRootTransform(character, project, project.currentTime),
       width,
       height,
       false,
-      character.assetId ? imageMap?.get(character.assetId) : undefined,
-      character.assetId
-        ? project.assets.find((asset) => asset.id === character.assetId)
-        : undefined,
+      asset ? imageMap?.get(asset.id) : undefined,
+      asset,
       skeleton,
-      skeleton ? evaluateBoneKeyframes(project, skeleton, project.currentTime) : [],
+      skeleton
+        ? evaluateBoneKeyframes(project, skeleton, project.currentTime)
+        : [],
     );
   });
   drawImportedProps(ctx, project, project.currentTime, width, height, imageMap);
@@ -2876,11 +4921,15 @@ function StageCanvas({
   project,
   onSelect,
   showSkeleton,
+  isolatedPartId,
+  showAlphaMask,
   interactionMode,
 }: {
   project: Project;
   onSelect: (id: string) => void;
   showSkeleton: boolean;
+  isolatedPartId?: string | null;
+  showAlphaMask?: boolean;
   interactionMode: 'select' | 'pan' | 'preview';
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -2945,10 +4994,8 @@ function StageCanvas({
       backgroundAsset,
     );
     evaluateCharacters(project, project.currentTime).forEach((c) => {
-      const skeleton = project.skeletons.find(
-        (item) =>
-          item.assetId === c.assetId && item.reviewStatus === 'approved',
-      );
+      const skeleton = characterSkeletonFor(project, c);
+      const asset = characterAssetFor(project, c);
       const boneTransforms = skeleton
         ? evaluateBoneKeyframes(project, skeleton, project.currentTime)
         : [];
@@ -2958,12 +5005,12 @@ function StageCanvas({
         width,
         height,
         interactionMode !== 'preview' && c.id === project.selectedId,
-        c.assetId ? imageCacheRef.current.get(c.assetId) : undefined,
-        c.assetId
-          ? project.assets.find((asset) => asset.id === c.assetId)
-          : undefined,
+        asset ? imageCacheRef.current.get(asset.id) : undefined,
+        asset,
         skeleton,
         boneTransforms,
+        isolatedPartId,
+        showAlphaMask,
       );
       if (showSkeleton && skeleton && c.id === project.selectedId)
         drawSkeletonOverlay(ctx, c, skeleton, boneTransforms, width, height);
@@ -2977,7 +5024,7 @@ function StageCanvas({
       imageCacheRef.current,
     );
     ctx.restore();
-  }, [interactionMode, project, showSkeleton]);
+  }, [interactionMode, isolatedPartId, project, showAlphaMask, showSkeleton]);
   useEffect(() => {
     redrawRef.current = draw;
     draw();
@@ -3103,6 +5150,13 @@ export default function Home() {
   const [topMenuOpen, setTopMenuOpen] = useState(false);
   const [showTimelineDetails, setShowTimelineDetails] = useState(false);
   const [showSkeleton, setShowSkeleton] = useState(true);
+  const [showAlphaMask, setShowAlphaMask] = useState(false);
+  const [isolatedPartId, setIsolatedPartId] = useState<string | null>(null);
+  const [rigPreviewReport, setRigPreviewReport] =
+    useState<RigPreviewReport | null>(null);
+  const [rigPreviewLoading, setRigPreviewLoading] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [saveError, setSaveError] = useState('');
   const [mobileDrawer, setMobileDrawer] = useState<'rail' | 'inspector' | null>(
     null,
   );
@@ -3157,7 +5211,9 @@ export default function Home() {
     ratio = project.currentTime / project.duration,
     camera = evaluateCamera(project, project.currentTime),
     selectedSkeleton = project.skeletons.find(
-      (skeleton) => skeleton.assetId === selected.assetId,
+      (skeleton) =>
+        skeleton.assetId ===
+        (characterAssetFor(project, selected)?.variantOf ?? selected.assetId),
     );
   const commit = useCallback(
     (mutate: (next: Project) => void, label: string, agent = false) => {
@@ -3303,7 +5359,8 @@ export default function Home() {
     undoRef = useRef(undo),
     redoRef = useRef(redo);
   useEffect(() => {
-    projectRef.current = project;
+    if (project.revision >= projectRef.current.revision)
+      projectRef.current = project;
     commitRef.current = commit;
     undoRef.current = undo;
     redoRef.current = redo;
@@ -3338,8 +5395,15 @@ export default function Home() {
   }, [notice]);
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
-      setSaved(true);
+      try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
+        setSaved(true);
+        setLastSavedAt(new Date());
+        setSaveError('');
+      } catch {
+        setSaved(false);
+        setSaveError('Local autosave failed');
+      }
     }, 450);
     return () => window.clearTimeout(timer);
   }, [project]);
@@ -3418,6 +5482,7 @@ export default function Home() {
       (navigator as Navigator & { modelContext?: ModelContext }).modelContext;
     if (!modelContext?.registerTool) return;
     const lifecycle = new AbortController();
+    const internalTools = new Map<string, ModelTool>();
     const register = (
       name: string,
       title: string,
@@ -3474,7 +5539,7 @@ export default function Home() {
                     ? expectedRevision
                     : null,
                 actualRevision,
-                retryFrom: 'get_project_summary',
+                retryFrom: 'inspect_project',
               };
             }
             const commandInput = { ...input };
@@ -3514,19 +5579,17 @@ export default function Home() {
               ? output.then(cacheSuccessful)
               : cacheSuccessful(output);
           };
-      void Promise.resolve(
-        modelContext.registerTool(
-          {
-            name,
-            title,
-            description,
-            inputSchema: schema,
-            annotations: { readOnlyHint, untrustedContentHint: false },
-            execute: replayableExecute,
-          },
-          { signal: lifecycle.signal },
-        ),
-      ).catch(() => setNotice('WebMCP registration unavailable'));
+      internalTools.set(name, {
+        name,
+        title,
+        description,
+        inputSchema: {
+          ...(schema as Record<string, unknown>),
+          $id: `https://stagehand.tools/${name}/input`,
+        },
+        annotations: { readOnlyHint, untrustedContentHint: false },
+        execute: replayableExecute,
+      });
     };
     register(
       'get_project_summary',
@@ -3534,8 +5597,8 @@ export default function Home() {
       'Inspect the active Stagehand project summary.',
       { type: 'object', properties: {}, additionalProperties: false },
       () => {
-          const current = projectRef.current;
-          return {
+        const current = projectRef.current;
+        return {
           ok: true,
           revision: current.revision,
           name: current.name,
@@ -3559,7 +5622,10 @@ export default function Home() {
           assetCount: current.assets.length,
           assetRequestCount: current.assetRequests.length,
           skeletonCount: current.skeletons.length,
-          approvedSkeletonCount: current.skeletons.filter((skeleton) => skeleton.reviewStatus === 'approved').length,
+          approvedSkeletonCount: current.skeletons.filter(
+            (skeleton) => skeleton.reviewStatus === 'approved',
+          ).length,
+          motionClipCount: current.motionClips.length,
           boneKeyframeCount: current.boneKeyframes.length,
           storyboardBeatCount: current.storyboardBeats.length,
           canUndo: historyRef.current.length > 0,
@@ -3578,7 +5644,7 @@ export default function Home() {
         additionalProperties: false,
         properties: { name: { type: 'string', minLength: 1, maxLength: 80 } },
       },
-      (input) => {
+      async (input) => {
         const current = projectRef.current;
         const name = typeof input.name === 'string' ? input.name.trim() : '';
         if (!name || name.length > 80)
@@ -4343,9 +6409,10 @@ export default function Home() {
       },
       (input) => {
         const current = projectRef.current;
-        const kind = isAssetKind(input.kind) && input.kind !== 'audio'
-          ? input.kind
-          : 'rigged-character';
+        const kind =
+          isAssetKind(input.kind) && input.kind !== 'audio'
+            ? input.kind
+            : 'rigged-character';
         const target = current.characters.find(
           (character) => character.id === input.targetCharacterId,
         );
@@ -4377,6 +6444,119 @@ export default function Home() {
       true,
     );
     register(
+      'analyze_scene_asset_needs',
+      'Analyze scene asset needs',
+      'Inspect the active scene and return the pose, expression, view, and motion variants missing from its character packages.',
+      { type: 'object', properties: {}, additionalProperties: false },
+      () => {
+        const current = projectRef.current;
+        const needs: Array<Record<string, unknown>> = [];
+        current.characters.forEach((character) => {
+          const baseAsset = current.assets.find(
+            (asset) => asset.id === character.assetId,
+          );
+          if (!baseAsset) return;
+          const characterFrames = current.keyframes
+            .filter((frame) => frame.characterId === character.id)
+            .sort((a, b) => a.time - b.time);
+          const moved = characterFrames.some(
+            (frame, index) =>
+              index > 0 && Math.abs(frame.x - characterFrames[index - 1].x) > 3,
+          );
+          const turned = characterFrames.some(
+            (frame, index) =>
+              index > 0 &&
+              Math.abs(frame.rotation - characterFrames[index - 1].rotation) >
+                8,
+          );
+          const text = current.captions
+            .filter((caption) => caption.speaker === character.name)
+            .map((caption) => caption.text.toLowerCase())
+            .join(' ');
+          const requested: Array<{
+            variantKind: AssetVariantKind;
+            label: string;
+            expression?: string;
+            viewDirection?: ViewDirection;
+            pose?: Pose;
+          }> = [
+            ...(moved
+              ? [
+                  {
+                    variantKind: 'motion' as const,
+                    label: 'Walk cycle',
+                    pose: 'idle' as Pose,
+                  },
+                ]
+              : []),
+            ...(turned
+              ? [
+                  {
+                    variantKind: 'view' as const,
+                    label: 'Three-quarter turn',
+                    viewDirection: 'three-quarter' as ViewDirection,
+                  },
+                ]
+              : []),
+            ...(text.includes('actually') || text.includes('came')
+              ? [
+                  {
+                    variantKind: 'expression' as const,
+                    label: 'Embarrassed',
+                    expression: 'embarrassed',
+                  },
+                ]
+              : []),
+            ...(text.includes('spill') || text.includes('mug')
+              ? [
+                  {
+                    variantKind: 'expression' as const,
+                    label: 'Surprised',
+                    expression: 'surprised',
+                  },
+                ]
+              : []),
+            {
+              variantKind: 'expression' as const,
+              label: 'Pleased',
+              expression: 'pleased',
+            },
+          ];
+          requested.forEach((requirement) => {
+            const available = current.assets.some(
+              (asset) =>
+                asset.variantOf === baseAsset.id &&
+                asset.variantKind === requirement.variantKind &&
+                (requirement.expression === undefined ||
+                  asset.expression === requirement.expression) &&
+                (requirement.viewDirection === undefined ||
+                  asset.viewDirection === requirement.viewDirection),
+            );
+            if (!available)
+              needs.push({
+                characterId: character.id,
+                character: character.name,
+                sourceAssetId: baseAsset.id,
+                ...requirement,
+                bindingMethod: 'segmented',
+                reason: 'Scene timing and dialogue call for this coverage.',
+              });
+          });
+        });
+        return {
+          ok: true,
+          revision: current.revision,
+          sceneId: current.activeSceneId,
+          needs,
+          requestCount: needs.length,
+          nextStep: needs.length
+            ? 'create_asset_request for each need, then generate and attach the reviewed package.'
+            : 'All requested variants are available.',
+        };
+      },
+      true,
+    );
+    register(
       'create_asset_request',
       'Create asset request',
       'Persist a reviewable request that an agent can use to generate a compatible visual asset.',
@@ -4395,6 +6575,16 @@ export default function Home() {
             type: 'string',
             enum: ['rigid', 'segmented', 'mesh'],
           },
+          variantKind: {
+            type: 'string',
+            enum: ['base', 'view', 'pose', 'expression', 'motion'],
+          },
+          viewDirection: {
+            type: 'string',
+            enum: ['front', 'three-quarter', 'profile', 'back'],
+          },
+          pose: { type: 'string' },
+          expression: { type: 'string' },
           prompt: { type: 'string', maxLength: 2400 },
         },
       },
@@ -4413,6 +6603,20 @@ export default function Home() {
             ? 'segmented'
             : 'rigid';
         const checklist = assetChecklist(kind, bindingMethod);
+        const variantBrief = [
+          isAssetVariantKind(input.variantKind)
+            ? `${input.variantKind} variant`
+            : '',
+          isViewDirection(input.viewDirection)
+            ? `view: ${input.viewDirection}`
+            : '',
+          isPose(input.pose) ? `pose: ${input.pose}` : '',
+          typeof input.expression === 'string'
+            ? `expression: ${input.expression.trim()}`
+            : '',
+        ]
+          .filter(Boolean)
+          .join(', ');
         const prompt =
           typeof input.prompt === 'string' && input.prompt.trim()
             ? input.prompt.trim()
@@ -4420,6 +6624,7 @@ export default function Home() {
                 `Create ${label} for Stagehand.`,
                 current.styleBible.construction,
                 current.styleBible.palette.join(', '),
+                variantBrief,
                 checklist.join(' '),
               ].join(' · ');
         const request: AssetGenerationRequest = {
@@ -4428,6 +6633,20 @@ export default function Home() {
           label,
           targetCharacterId: target?.id,
           bindingMethod,
+          variantKind: isAssetVariantKind(input.variantKind)
+            ? input.variantKind
+            : 'base',
+          viewDirection: isViewDirection(input.viewDirection)
+            ? input.viewDirection
+            : undefined,
+          pose: isPose(input.pose) ? input.pose : undefined,
+          expression:
+            typeof input.expression === 'string' &&
+            ['neutral', 'surprised', 'embarrassed', 'pleased'].includes(
+              input.expression.trim(),
+            )
+              ? (input.expression.trim() as Asset['expression'])
+              : undefined,
           prompt,
           checklist,
           status: 'pending',
@@ -4459,7 +6678,8 @@ export default function Home() {
             type: 'string',
             minLength: 24,
             maxLength: 5600000,
-            description: 'A bounded data:image payload produced by the agent or browser upload path.',
+            description:
+              'A bounded data:image payload produced by the agent or browser upload path.',
           },
           mimeType: { type: 'string' },
           frameLayout: {
@@ -4470,17 +6690,45 @@ export default function Home() {
           sourceUrl: { type: 'string', maxLength: 500 },
           width: { type: 'number', minimum: 1, maximum: 8192 },
           height: { type: 'number', minimum: 1, maximum: 8192 },
-          transparencyStatus: { type: 'string', enum: ['yes', 'no', 'unknown'] },
+          transparencyStatus: {
+            type: 'string',
+            enum: ['yes', 'no', 'unknown'],
+          },
+          variantKind: {
+            type: 'string',
+            enum: ['base', 'view', 'pose', 'expression', 'motion'],
+          },
+          viewDirection: {
+            type: 'string',
+            enum: ['front', 'three-quarter', 'profile', 'back'],
+          },
+          poseVariant: { type: 'string' },
+          expression: { type: 'string' },
+          assetPackage: { type: 'object' },
+          rigManifest: { type: 'object' },
         },
       },
-      (input) => {
+      async (input) => {
         const current = projectRef.current;
-        const requestId = typeof input.requestId === 'string' ? input.requestId : '';
+        const requestId =
+          typeof input.requestId === 'string' ? input.requestId : '';
         const dataUrl = typeof input.dataUrl === 'string' ? input.dataUrl : '';
-        const request = current.assetRequests.find((item) => item.id === requestId);
+        const request = current.assetRequests.find(
+          (item) => item.id === requestId,
+        );
         if (!request) return { ok: false, code: 'NOT_FOUND' };
-        if (!/^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(dataUrl) || dataUrl.length > 5600000)
+        if (
+          !/^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(dataUrl) ||
+          dataUrl.length > 5600000
+        )
           return { ok: false, code: 'INVALID_ASSET_PAYLOAD' };
+        let payload: Awaited<ReturnType<typeof inspectImagePayload>>;
+        try {
+          payload = await inspectImagePayload(dataUrl);
+        } catch {
+          return { ok: false, code: 'INVALID_ASSET_PAYLOAD' };
+        }
+        const checksum = await checksumDataUrl(dataUrl);
         const frameLayout: AssetFrameLayout =
           input.frameLayout === 'parts-sheet' ||
           input.frameLayout === 'four-column'
@@ -4488,6 +6736,15 @@ export default function Home() {
             : request.bindingMethod === 'segmented'
               ? 'parts-sheet'
               : 'single';
+        const provenance: NonNullable<Asset['provenance']> = {
+          prompt:
+            typeof input.prompt === 'string' && input.prompt.trim()
+              ? input.prompt.trim()
+              : request.prompt,
+          sourceUrl:
+            typeof input.sourceUrl === 'string' ? input.sourceUrl : undefined,
+          checksum,
+        };
         const asset: Asset = {
           id: nextAssetId(current.assets, request.kind),
           kind: request.kind,
@@ -4501,28 +6758,91 @@ export default function Home() {
             typeof input.mimeType === 'string' ? input.mimeType : 'image/png',
           dataUrl,
           reviewStatus: 'pending-review',
-          transparencyStatus:
-            input.transparencyStatus === 'yes' || input.transparencyStatus === 'no'
-              ? input.transparencyStatus
-              : 'unknown',
-          ...(typeof input.width === 'number' && typeof input.height === 'number'
-            ? { dimensions: { width: input.width, height: input.height } }
-            : {}),
+          transparencyStatus: payload.transparencyStatus,
+          dimensions: { width: payload.width, height: payload.height },
           generationRequestId: request.id,
-          provenance: {
-            prompt:
-              typeof input.prompt === 'string' && input.prompt.trim()
-                ? input.prompt.trim()
-                : request.prompt,
-            sourceUrl:
-              typeof input.sourceUrl === 'string' ? input.sourceUrl : undefined,
-          },
+          variantOf: request.targetCharacterId
+            ? current.characters.find(
+                (character) => character.id === request.targetCharacterId,
+              )?.assetId
+            : undefined,
+          variantKind: isAssetVariantKind(input.variantKind)
+            ? input.variantKind
+            : 'base',
+          viewDirection: isViewDirection(input.viewDirection)
+            ? input.viewDirection
+            : undefined,
+          poseVariant: isPose(input.poseVariant)
+            ? input.poseVariant
+            : undefined,
+          expression:
+            typeof input.expression === 'string' &&
+            ['neutral', 'surprised', 'embarrassed', 'pleased'].includes(
+              input.expression.trim(),
+            )
+              ? (input.expression.trim() as Asset['expression'])
+              : undefined,
+          provenance,
           style: defaultAssetStyle(request.kind),
         };
+        const declaredDimensionsMismatch =
+          (typeof input.width === 'number' && input.width !== payload.width) ||
+          (typeof input.height === 'number' && input.height !== payload.height);
+        const providedPackage =
+          input.assetPackage && typeof input.assetPackage === 'object'
+            ? input.assetPackage
+            : input.rigManifest && typeof input.rigManifest === 'object'
+              ? input.rigManifest
+              : undefined;
+        if (
+          request.kind === 'rigged-character' &&
+          frameLayout === 'parts-sheet'
+        ) {
+          if (providedPackage) {
+            const issues = assetPackageIssues(providedPackage, payload);
+            asset.packageIssues = [
+              ...(declaredDimensionsMismatch
+                ? ['Declared dimensions do not match decoded pixels.']
+                : []),
+              ...issues,
+            ];
+            if (issues.length === 0) {
+              asset.assetPackage = providedPackage as StagehandAssetPackageV2;
+              asset.rigManifest = asset.assetPackage;
+            }
+          } else {
+            const inferred = await inferRigManifest(asset);
+            inferred.sourceAsset = {
+              assetId: asset.id,
+              immutable: true,
+              provenance,
+            };
+            inferred.image = {
+              width: payload.width,
+              height: payload.height,
+              colorspace: 'sRGB',
+              alpha: 'straight',
+            };
+            asset.assetPackage = inferred;
+            asset.rigManifest = inferred;
+            asset.packageIssues = [
+              ...(declaredDimensionsMismatch
+                ? ['Declared dimensions do not match decoded pixels.']
+                : []),
+              ...assetPackageIssues(inferred, payload),
+            ];
+          }
+        } else if (declaredDimensionsMismatch) {
+          asset.packageIssues = [
+            'Declared dimensions do not match decoded pixels.',
+          ];
+        }
         commitRef.current(
           (next) => {
             next.assets.push(asset);
-            const nextRequest = next.assetRequests.find((item) => item.id === request.id);
+            const nextRequest = next.assetRequests.find(
+              (item) => item.id === request.id,
+            );
             if (nextRequest) nextRequest.status = 'attached';
           },
           `Attach generated ${asset.label}`,
@@ -4531,9 +6851,10 @@ export default function Home() {
         return {
           ok: true,
           revision: current.revision + 1,
-          asset,
+          asset: { ...asset, dataUrl: undefined, hasPayload: true },
           reviewStatus: asset.reviewStatus,
-          nextStep: 'inspect_asset_candidate, then approve_asset and bind_character_asset',
+          nextStep:
+            'inspect_asset_candidate, then approve_asset and bind_character_asset',
         };
       },
     );
@@ -4553,26 +6874,29 @@ export default function Home() {
         const asset = current.assets.find((item) => item.id === assetId);
         if (!asset) return { ok: false, code: 'NOT_FOUND' };
         const request = asset.generationRequestId
-          ? current.assetRequests.find((item) => item.id === asset.generationRequestId)
+          ? current.assetRequests.find(
+              (item) => item.id === asset.generationRequestId,
+            )
           : undefined;
-        const checks = {
-          hasPayload: Boolean(asset.dataUrl),
-          hasBrief: Boolean(asset.brief?.trim()),
-          hasStyle: Boolean(asset.style),
-          hasDimensions: Boolean(asset.dimensions?.width && asset.dimensions?.height),
-          transparencyStatus: asset.transparencyStatus ?? 'unknown',
-          layout: asset.frameLayout ?? 'single',
-          reviewStatus: asset.reviewStatus ?? 'approved',
-          source: asset.source,
-        };
+        const { checks, readyForApproval } = candidateApprovalChecks(
+          asset,
+          request,
+        );
         return {
           ok: true,
           revision: current.revision,
-          asset,
+          asset: {
+            ...asset,
+            dataUrl: undefined,
+            hasPayload: Boolean(asset.dataUrl),
+          },
           request,
           checks,
-          checklist: request?.checklist ?? assetChecklist(asset.kind === 'audio' ? 'prop' : asset.kind),
-          readyForApproval: checks.hasPayload && checks.hasBrief && checks.hasStyle,
+          packageIssues: asset.packageIssues ?? [],
+          checklist:
+            request?.checklist ??
+            assetChecklist(asset.kind === 'audio' ? 'prop' : asset.kind),
+          readyForApproval,
         };
       },
       true,
@@ -4596,9 +6920,25 @@ export default function Home() {
         const asset = current.assets.find((item) => item.id === assetId);
         if (!asset) return { ok: false, code: 'NOT_FOUND' };
         const approved = input.approved === true;
+        const request = asset.generationRequestId
+          ? current.assetRequests.find(
+              (item) => item.id === asset.generationRequestId,
+            )
+          : undefined;
+        const { readyForApproval } = candidateApprovalChecks(asset, request);
+        if (approved && !readyForApproval)
+          return {
+            ok: false,
+            code: 'ASSET_REVIEW_REQUIRED',
+            issues: asset.packageIssues ?? [],
+            message:
+              'Inspect the candidate and correct its payload, transparency, dimensions, or package before approval.',
+          };
         commitRef.current(
           (next) => {
-            const item = next.assets.find((candidate) => candidate.id === assetId);
+            const item = next.assets.find(
+              (candidate) => candidate.id === assetId,
+            );
             if (item) item.reviewStatus = approved ? 'approved' : 'rejected';
             if (item?.generationRequestId) {
               const request = next.assetRequests.find(
@@ -4904,7 +7244,8 @@ export default function Home() {
           return {
             ok: false,
             code: 'ASSET_NOT_APPROVED',
-            message: 'Approve the generated candidate before binding it to a character.',
+            message:
+              'Approve the generated candidate before binding it to a character.',
           };
         }
         commitRef.current(
@@ -4941,14 +7282,14 @@ export default function Home() {
             type: 'string',
             enum: ['rigid', 'segmented', 'mesh'],
           },
-          joints: { type: 'array' },
-          bones: { type: 'array' },
-          regions: { type: 'array' },
-          vertices: { type: 'array' },
-          weights: { type: 'array' },
+          joints: { type: 'array', maxItems: 64 },
+          bones: { type: 'array', maxItems: 64 },
+          regions: { type: 'array', maxItems: 32 },
+          vertices: { type: 'array', maxItems: 512 },
+          weights: { type: 'array', maxItems: 2048 },
         },
       },
-      (input) => {
+      async (input) => {
         const current = projectRef.current;
         const assetId = typeof input.assetId === 'string' ? input.assetId : '';
         const asset = current.assets.find((item) => item.id === assetId);
@@ -4959,12 +7300,22 @@ export default function Home() {
           : asset.frameLayout === 'parts-sheet'
             ? 'segmented'
             : 'rigid';
+        const rigManifest =
+          asset.assetPackage ??
+          asset.rigManifest ??
+          (await inferRigManifest(asset));
+        const analyzedAsset = {
+          ...asset,
+          rigManifest,
+          assetPackage: rigManifest,
+        };
         const base = defaultSkeletonForAsset(
           assetId,
           typeof input.label === 'string' && input.label.trim()
             ? input.label.trim()
             : asset.label,
           method,
+          analyzedAsset,
         );
         const skeletonId = `${base.id}-${current.skeletons.length + 1}`;
         base.id = skeletonId;
@@ -4990,11 +7341,20 @@ export default function Home() {
         base.binding = {
           ...base.binding,
           ...(Array.isArray(input.regions) ? { regions: input.regions } : {}),
-          ...(Array.isArray(input.vertices) ? { vertices: input.vertices } : {}),
+          ...(Array.isArray(input.vertices)
+            ? { vertices: input.vertices }
+            : {}),
           ...(Array.isArray(input.weights) ? { weights: input.weights } : {}),
         } as SkeletonBinding;
         commitRef.current(
-          (next) => next.skeletons.push(base),
+          (next) => {
+            const targetAsset = next.assets.find((item) => item.id === assetId);
+            if (targetAsset) {
+              targetAsset.rigManifest = rigManifest;
+              targetAsset.assetPackage = rigManifest;
+            }
+            next.skeletons.push(base);
+          },
           `Propose ${base.label}`,
           true,
         );
@@ -5003,7 +7363,8 @@ export default function Home() {
           revision: current.revision + 1,
           skeleton: base,
           reviewStatus: 'pending-review',
-          nextStep: 'get_skeleton, update_skeleton_joint, then approve_skeleton',
+          nextStep:
+            'get_skeleton, update_skeleton_joint, then approve_skeleton',
         };
       },
     );
@@ -5013,15 +7374,20 @@ export default function Home() {
       'Inspect a pending or approved skeleton proposal, its binding, confidence, and approval state.',
       {
         type: 'object',
-        properties: { skeletonId: { type: 'string' }, assetId: { type: 'string' } },
+        properties: {
+          skeletonId: { type: 'string' },
+          assetId: { type: 'string' },
+        },
         additionalProperties: false,
       },
       (input) => {
         const current = projectRef.current;
         const skeleton = current.skeletons.find(
           (item) =>
-            (typeof input.skeletonId !== 'string' || item.id === input.skeletonId) &&
-            (typeof input.assetId !== 'string' || item.assetId === input.assetId),
+            (typeof input.skeletonId !== 'string' ||
+              item.id === input.skeletonId) &&
+            (typeof input.assetId !== 'string' ||
+              item.assetId === input.assetId),
         );
         if (!skeleton) return { ok: false, code: 'NOT_FOUND' };
         return {
@@ -5055,22 +7421,27 @@ export default function Home() {
       },
       (input) => {
         const current = projectRef.current;
-        const skeletonId = typeof input.skeletonId === 'string' ? input.skeletonId : '';
+        const skeletonId =
+          typeof input.skeletonId === 'string' ? input.skeletonId : '';
         const jointId = typeof input.jointId === 'string' ? input.jointId : '';
-        const skeleton = current.skeletons.find((item) => item.id === skeletonId);
+        const skeleton = current.skeletons.find(
+          (item) => item.id === skeletonId,
+        );
         const joint = skeleton?.joints.find((item) => item.id === jointId);
         if (!skeleton || !joint) return { ok: false, code: 'NOT_FOUND' };
         const updates = {
           x: input.x === undefined ? joint.x : Number(input.x),
           y: input.y === undefined ? joint.y : Number(input.y),
-          radius: input.radius === undefined ? joint.radius : Number(input.radius),
+          radius:
+            input.radius === undefined ? joint.radius : Number(input.radius),
           label:
             input.label === undefined
               ? joint.label
               : typeof input.label === 'string'
                 ? input.label.trim()
                 : '',
-          locked: input.locked === undefined ? joint.locked : input.locked === true,
+          locked:
+            input.locked === undefined ? joint.locked : input.locked === true,
         };
         if (
           !Number.isFinite(updates.x) ||
@@ -5085,13 +7456,21 @@ export default function Home() {
               .find((item) => item.id === skeletonId)
               ?.joints.find((item) => item.id === jointId);
             if (target) Object.assign(target, updates);
-            const edited = next.skeletons.find((item) => item.id === skeletonId);
-            if (edited && edited.reviewStatus === 'approved') edited.reviewStatus = 'pending-review';
+            const edited = next.skeletons.find(
+              (item) => item.id === skeletonId,
+            );
+            if (edited && edited.reviewStatus === 'approved')
+              edited.reviewStatus = 'pending-review';
           },
           `Update ${joint.label}`,
           true,
         );
-        return { ok: true, revision: current.revision + 1, skeletonId, joint: { ...joint, ...updates } };
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          skeletonId,
+          joint: { ...joint, ...updates },
+        };
       },
     );
     register(
@@ -5113,24 +7492,45 @@ export default function Home() {
       },
       (input) => {
         const current = projectRef.current;
-        const skeletonId = typeof input.skeletonId === 'string' ? input.skeletonId : '';
+        const skeletonId =
+          typeof input.skeletonId === 'string' ? input.skeletonId : '';
         const assetId = typeof input.assetId === 'string' ? input.assetId : '';
-        const skeleton = current.skeletons.find((item) => item.id === skeletonId);
+        const skeleton = current.skeletons.find(
+          (item) => item.id === skeletonId,
+        );
         const asset = current.assets.find((item) => item.id === assetId);
-        if (!skeleton || !asset || asset.kind !== 'rigged-character') return { ok: false, code: 'NOT_FOUND' };
-        const method = isBindingMethod(input.method) ? input.method : skeleton.binding.method;
+        if (!skeleton || !asset || asset.kind !== 'rigged-character')
+          return { ok: false, code: 'NOT_FOUND' };
+        if (!asset.dataUrl || asset.reviewStatus !== 'approved')
+          return { ok: false, code: 'ASSET_NOT_APPROVED' };
+        const method = isBindingMethod(input.method)
+          ? input.method
+          : skeleton.binding.method;
+        if (
+          method === 'segmented' &&
+          (!asset.assetPackage || assetPackageIssues(asset.assetPackage).length)
+        )
+          return { ok: false, code: 'INVALID_ASSET_PACKAGE' };
         commitRef.current(
           (next) => {
-            const target = next.skeletons.find((item) => item.id === skeletonId);
+            const target = next.skeletons.find(
+              (item) => item.id === skeletonId,
+            );
             if (!target) return;
             target.assetId = assetId;
             target.binding = {
               ...target.binding,
               assetId,
               method,
-              ...(Array.isArray(input.regions) ? { regions: input.regions } : {}),
-              ...(Array.isArray(input.vertices) ? { vertices: input.vertices } : {}),
-              ...(Array.isArray(input.weights) ? { weights: input.weights } : {}),
+              ...(Array.isArray(input.regions)
+                ? { regions: input.regions }
+                : {}),
+              ...(Array.isArray(input.vertices)
+                ? { vertices: input.vertices }
+                : {}),
+              ...(Array.isArray(input.weights)
+                ? { weights: input.weights }
+                : {}),
             } as SkeletonBinding;
             target.reviewStatus = 'pending-review';
             target.version += 1;
@@ -5138,7 +7538,14 @@ export default function Home() {
           `Bind skeleton to ${asset.label}`,
           true,
         );
-        return { ok: true, revision: current.revision + 1, skeletonId, assetId, method, reviewStatus: 'pending-review' };
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          skeletonId,
+          assetId,
+          method,
+          reviewStatus: 'pending-review',
+        };
       },
     );
     register(
@@ -5149,25 +7556,59 @@ export default function Home() {
         type: 'object',
         required: ['skeletonId', 'approved'],
         additionalProperties: false,
-        properties: { skeletonId: { type: 'string' }, approved: { type: 'boolean' } },
+        properties: {
+          skeletonId: { type: 'string' },
+          approved: { type: 'boolean' },
+        },
       },
-      (input) => {
+      async (input) => {
         const current = projectRef.current;
-        const skeletonId = typeof input.skeletonId === 'string' ? input.skeletonId : '';
-        const skeleton = current.skeletons.find((item) => item.id === skeletonId);
+        const skeletonId =
+          typeof input.skeletonId === 'string' ? input.skeletonId : '';
+        const skeleton = current.skeletons.find(
+          (item) => item.id === skeletonId,
+        );
         if (!skeleton) return { ok: false, code: 'NOT_FOUND' };
         const approved = input.approved === true;
-        if (approved && (skeleton.joints.length < 2 || skeleton.bones.length < 1 || skeleton.joints.some((joint) => joint.confidence < 0.55)))
-          return { ok: false, code: 'SKELETON_REVIEW_REQUIRED', message: 'Correct low-confidence joints before approval.' };
+        const asset = current.assets.find(
+          (item) => item.id === skeleton.assetId,
+        );
+        const modelIssues = skeletonModelIssues(skeleton, asset);
+        const rendered =
+          approved && asset?.dataUrl
+            ? await inspectRenderedRigPreview(asset, skeleton)
+            : undefined;
+        if (approved && modelIssues.length > 0)
+          return {
+            ok: false,
+            code: 'SKELETON_REVIEW_REQUIRED',
+            message: modelIssues.join(' '),
+          };
+        if (approved && rendered && !rendered.passed)
+          return {
+            ok: false,
+            code: 'RIG_PREVIEW_FAILED',
+            message: rendered.blockedReasons.join(' '),
+            preview: rendered,
+          };
         commitRef.current(
           (next) => {
-            const target = next.skeletons.find((item) => item.id === skeletonId);
-            if (target) target.reviewStatus = approved ? 'approved' : 'rejected';
+            const target = next.skeletons.find(
+              (item) => item.id === skeletonId,
+            );
+            if (target)
+              target.reviewStatus = approved ? 'approved' : 'rejected';
           },
           `${approved ? 'Approve' : 'Reject'} ${skeleton.label}`,
           true,
         );
-        return { ok: true, revision: current.revision + 1, skeletonId, reviewStatus: approved ? 'approved' : 'rejected' };
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          skeletonId,
+          reviewStatus: approved ? 'approved' : 'rejected',
+          preview: rendered,
+        };
       },
     );
     register(
@@ -5181,18 +7622,29 @@ export default function Home() {
         properties: {
           skeletonId: { type: 'string' },
           timeMs: { type: 'number', minimum: 0 },
-          transforms: { type: 'array', minItems: 1 },
+          transforms: { type: 'array', minItems: 1, maxItems: 64 },
         },
       },
-      (input) => {
+      async (input) => {
         const current = projectRef.current;
-        const skeletonId = typeof input.skeletonId === 'string' ? input.skeletonId : '';
-        const skeleton = current.skeletons.find((item) => item.id === skeletonId);
+        const skeletonId =
+          typeof input.skeletonId === 'string' ? input.skeletonId : '';
+        const skeleton = current.skeletons.find(
+          (item) => item.id === skeletonId,
+        );
         const timeMs = typeof input.timeMs === 'number' ? input.timeMs : NaN;
-        const transforms = Array.isArray(input.transforms) ? input.transforms : [];
+        const transforms = Array.isArray(input.transforms)
+          ? input.transforms
+          : [];
         if (!skeleton) return { ok: false, code: 'NOT_FOUND' };
-        if (skeleton.reviewStatus !== 'approved') return { ok: false, code: 'SKELETON_NOT_APPROVED' };
-        if (!Number.isFinite(timeMs) || timeMs < 0 || timeMs > current.duration || transforms.length === 0)
+        if (skeleton.reviewStatus !== 'approved')
+          return { ok: false, code: 'SKELETON_NOT_APPROVED' };
+        if (
+          !Number.isFinite(timeMs) ||
+          timeMs < 0 ||
+          timeMs > current.duration ||
+          transforms.length === 0
+        )
           return { ok: false, code: 'INVALID_INPUT' };
         const boneIds = new Set(skeleton.bones.map((bone) => bone.id));
         const normalized = transforms.map((value) => {
@@ -5205,23 +7657,355 @@ export default function Home() {
             scale: Number(item.scale ?? 1),
           };
         });
-        if (normalized.some((item) => !boneIds.has(item.boneId) || !Number.isFinite(item.rotation) || !Number.isFinite(item.x) || !Number.isFinite(item.y) || !Number.isFinite(item.scale) || item.scale <= 0))
+        if (
+          normalized.some(
+            (item) =>
+              !boneIds.has(item.boneId) ||
+              !Number.isFinite(item.rotation) ||
+              !Number.isFinite(item.x) ||
+              !Number.isFinite(item.y) ||
+              !Number.isFinite(item.scale) ||
+              item.scale <= 0,
+          )
+        )
           return { ok: false, code: 'INVALID_BONE_TRANSFORM' };
         const safeTime = Math.round(timeMs);
         commitRef.current(
           (next) => {
             const existing = next.boneKeyframes.find(
-              (frame) => frame.sceneId === next.activeSceneId && frame.skeletonId === skeletonId && frame.time === safeTime,
+              (frame) =>
+                frame.sceneId === next.activeSceneId &&
+                frame.skeletonId === skeletonId &&
+                frame.time === safeTime,
             );
             if (existing) existing.transforms = normalized;
-            else next.boneKeyframes.push({ id: `bkf-${skeletonId}-${safeTime}`, sceneId: next.activeSceneId, skeletonId, time: safeTime, transforms: normalized });
+            else
+              next.boneKeyframes.push({
+                id: `bkf-${skeletonId}-${safeTime}`,
+                sceneId: next.activeSceneId,
+                skeletonId,
+                time: safeTime,
+                transforms: normalized,
+              });
             next.boneKeyframes.sort((a, b) => a.time - b.time);
           },
           `Set ${skeleton.label} bone keyframe`,
           true,
         );
-        return { ok: true, revision: current.revision + 1, skeletonId, sceneId: current.activeSceneId, timeMs: safeTime, transforms: normalized };
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          skeletonId,
+          sceneId: current.activeSceneId,
+          timeMs: safeTime,
+          transforms: normalized,
+        };
       },
+    );
+    register(
+      'get_motion_library',
+      'Get motion library',
+      'List reusable semantic motion clips available to the active project.',
+      { type: 'object', properties: {}, additionalProperties: false },
+      () => ({
+        ok: true,
+        revision: projectRef.current.revision,
+        motionClips: projectRef.current.motionClips,
+      }),
+      true,
+    );
+    register(
+      'preview_motion_clip',
+      'Preview motion clip',
+      'Evaluate a motion clip at a time without mutating the project.',
+      {
+        type: 'object',
+        required: ['clipId'],
+        properties: {
+          clipId: { type: 'string' },
+          timeMs: { type: 'number', minimum: 0 },
+        },
+        additionalProperties: false,
+      },
+      (input) => {
+        const current = projectRef.current;
+        const clip = current.motionClips.find(
+          (item) => item.id === input.clipId,
+        );
+        if (!clip) return { ok: false, code: 'NOT_FOUND' };
+        const timeMs = typeof input.timeMs === 'number' ? input.timeMs : 0;
+        return {
+          ok: true,
+          revision: current.revision,
+          clip,
+          timeMs,
+          evaluation: evaluateMotionClip(clip, timeMs),
+        };
+      },
+      true,
+    );
+    register(
+      'set_motion_clip',
+      'Set motion clip',
+      'Add or replace a reusable semantic motion clip in the project motion library.',
+      {
+        type: 'object',
+        required: ['id', 'label', 'kind', 'durationMs', 'transforms'],
+        properties: {
+          id: { type: 'string', minLength: 1 },
+          label: { type: 'string', minLength: 1 },
+          kind: { type: 'string' },
+          durationMs: { type: 'number', minimum: 100, maximum: 10000 },
+          loop: { type: 'boolean' },
+          easing: { type: 'string', enum: ['hold', 'linear', 'ease-in-out'] },
+          transforms: { type: 'array', minItems: 1, maxItems: 120 },
+          description: { type: 'string' },
+        },
+        additionalProperties: false,
+      },
+      (input) => {
+        const current = projectRef.current;
+        const id = typeof input.id === 'string' ? input.id.trim() : '';
+        const label = typeof input.label === 'string' ? input.label.trim() : '';
+        const kind = typeof input.kind === 'string' ? input.kind : '';
+        const durationMs = Number(input.durationMs);
+        const rawTransforms = Array.isArray(input.transforms)
+          ? input.transforms
+          : [];
+        if (
+          !id ||
+          !label ||
+          !isMotionClipKind(kind) ||
+          !Number.isFinite(durationMs) ||
+          rawTransforms.length === 0
+        )
+          return { ok: false, code: 'INVALID_INPUT' };
+        const clip: MotionClip = {
+          id,
+          label,
+          kind,
+          durationMs: Math.round(durationMs),
+          loop: input.loop === true,
+          easing:
+            input.easing === 'hold' || input.easing === 'linear'
+              ? input.easing
+              : 'ease-in-out',
+          description:
+            typeof input.description === 'string'
+              ? input.description.trim()
+              : 'Agent-authored motion clip.',
+          transforms: rawTransforms
+            .filter(
+              (frame) =>
+                frame &&
+                typeof frame === 'object' &&
+                Number.isFinite(Number((frame as { time?: unknown }).time)),
+            )
+            .map((frame) => ({
+              time: clamp(
+                Math.round(Number((frame as { time: unknown }).time)),
+                0,
+                Math.round(durationMs),
+              ),
+              variantId:
+                typeof (frame as { variantId?: unknown }).variantId === 'string'
+                  ? (frame as { variantId: string }).variantId
+                  : undefined,
+              transforms: Array.isArray(
+                (frame as { transforms?: unknown }).transforms,
+              )
+                ? (frame as { transforms: unknown[] }).transforms
+                    .filter((value) => value && typeof value === 'object')
+                    .map((value) => {
+                      const item = value as Partial<BoneTransform>;
+                      return {
+                        boneId: String(item.boneId ?? ''),
+                        rotation: Number(item.rotation ?? 0),
+                        x: Number(item.x ?? 0),
+                        y: Number(item.y ?? 0),
+                        scale: Number(item.scale ?? 1),
+                      };
+                    })
+                : [],
+            })),
+        };
+        if (
+          !clip.transforms.length ||
+          clip.transforms.length > 120 ||
+          clip.transforms.some((frame) =>
+            frame.transforms.some(
+              (item) =>
+                !item.boneId ||
+                !Number.isFinite(item.rotation) ||
+                !Number.isFinite(item.x) ||
+                !Number.isFinite(item.y) ||
+                !Number.isFinite(item.scale) ||
+                item.scale <= 0,
+            ),
+          )
+        )
+          return { ok: false, code: 'INVALID_MOTION_CLIP' };
+        const knownBoneIds = new Set(
+          current.skeletons.flatMap((skeleton) =>
+            skeleton.bones.map((bone) => bone.id),
+          ),
+        );
+        if (
+          clip.transforms.some((frame) =>
+            frame.transforms.some((item) => !knownBoneIds.has(item.boneId)),
+          )
+        )
+          return { ok: false, code: 'UNKNOWN_MOTION_BONE' };
+        commitRef.current(
+          (next) => {
+            const existing = next.motionClips.findIndex(
+              (item) => item.id === id,
+            );
+            if (existing >= 0) next.motionClips[existing] = clip;
+            else next.motionClips.push(clip);
+          },
+          `Set motion clip ${label}`,
+          true,
+        );
+        return { ok: true, revision: current.revision + 1, clip };
+      },
+    );
+    register(
+      'apply_motion_clip',
+      'Apply motion clip',
+      'Apply a reusable motion clip to an approved character skeleton as ordinary revisioned bone keyframes.',
+      {
+        type: 'object',
+        required: ['characterId', 'clipId'],
+        properties: {
+          characterId: { type: 'string' },
+          clipId: { type: 'string' },
+          startTimeMs: { type: 'number', minimum: 0 },
+        },
+        additionalProperties: false,
+      },
+      (input) => {
+        const current = projectRef.current;
+        const character = current.characters.find(
+          (item) => item.id === input.characterId,
+        );
+        const clip = current.motionClips.find(
+          (item) => item.id === input.clipId,
+        );
+        const skeleton = current.skeletons.find(
+          (item) =>
+            item.assetId === character?.assetId &&
+            item.reviewStatus === 'approved',
+        );
+        if (!character || !clip || !skeleton)
+          return { ok: false, code: 'NOT_FOUND' };
+        if (skeleton.reviewStatus !== 'approved')
+          return { ok: false, code: 'SKELETON_NOT_APPROVED' };
+        const startTimeMs =
+          typeof input.startTimeMs === 'number'
+            ? Math.max(0, input.startTimeMs)
+            : current.currentTime;
+        const incompatibleVariant = clip.transforms
+          .map((frame) => frame.variantId)
+          .filter((variantId): variantId is string => Boolean(variantId))
+          .find(
+            (variantId) =>
+              variantCompatibilityIssues(current, character, variantId).length >
+              0,
+          );
+        if (incompatibleVariant)
+          return {
+            ok: false,
+            code: 'INVALID_VARIANT_TOPOLOGY',
+            variantId: incompatibleVariant,
+          };
+        const applied: number[] = [];
+        commitRef.current(
+          (next) => {
+            clip.transforms.forEach((frame) => {
+              const time = startTimeMs + frame.time;
+              if (time <= next.duration) {
+                applied.push(
+                  upsertBoneKeyframeInProject(
+                    next,
+                    skeleton.id,
+                    time,
+                    frame.transforms,
+                  ),
+                );
+                if (frame.variantId)
+                  upsertCharacterKeyframe(next, character.id, time, {
+                    variantId: frame.variantId,
+                  });
+              }
+            });
+          },
+          `Apply ${clip.label} to ${character.name}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          characterId: character.id,
+          skeletonId: skeleton.id,
+          clipId: clip.id,
+          appliedTimes: applied,
+        };
+      },
+    );
+    register(
+      'analyze_scene_motion',
+      'Analyze scene motion',
+      'Return proposed motion clips and timing for the active scene based on movement, turns, captions, and beats.',
+      { type: 'object', properties: {}, additionalProperties: false },
+      () => {
+        const current = projectRef.current;
+        const proposals = current.characters.flatMap((character) => {
+          const frames = current.keyframes
+            .filter((frame) => frame.characterId === character.id)
+            .sort((a, b) => a.time - b.time);
+          const moved = frames.find(
+            (frame, index) =>
+              index > 0 && Math.abs(frame.x - frames[index - 1].x) > 3,
+          );
+          const turned = frames.find(
+            (frame, index) =>
+              index > 0 &&
+              Math.abs(frame.rotation - frames[index - 1].rotation) > 8,
+          );
+          const output: Array<Record<string, unknown>> = [];
+          if (moved)
+            output.push({
+              characterId: character.id,
+              clipId: 'motion-walk-in',
+              startTimeMs: Math.max(0, moved.time - 1550),
+              reason: 'Position changes indicate an entrance or exit.',
+            });
+          if (turned)
+            output.push({
+              characterId: character.id,
+              clipId: 'motion-turn-three-quarter',
+              startTimeMs: turned.time,
+              reason: 'Rotation changes indicate a view turn.',
+            });
+          output.push({
+            characterId: character.id,
+            clipId: 'motion-embarrassed-reaction',
+            startTimeMs: Math.min(current.duration - 700, 9800),
+            reason: 'The coupon beat needs a readable reaction.',
+          });
+          return output;
+        });
+        return {
+          ok: true,
+          revision: current.revision,
+          sceneId: current.activeSceneId,
+          proposals,
+          nextStep:
+            'Review proposals, then apply_motion_clip for approved character skeletons.',
+        };
+      },
+      true,
     );
     register(
       'get_bone_keyframes',
@@ -5235,8 +8019,18 @@ export default function Home() {
       },
       (input) => {
         const current = projectRef.current;
-        const skeletonId = typeof input.skeletonId === 'string' ? input.skeletonId : '';
-        return { ok: true, revision: current.revision, skeletonId, boneKeyframes: current.boneKeyframes.filter((frame) => frame.sceneId === current.activeSceneId && frame.skeletonId === skeletonId) };
+        const skeletonId =
+          typeof input.skeletonId === 'string' ? input.skeletonId : '';
+        return {
+          ok: true,
+          revision: current.revision,
+          skeletonId,
+          boneKeyframes: current.boneKeyframes.filter(
+            (frame) =>
+              frame.sceneId === current.activeSceneId &&
+              frame.skeletonId === skeletonId,
+          ),
+        };
       },
       true,
     );
@@ -5250,17 +8044,32 @@ export default function Home() {
         additionalProperties: false,
         properties: { skeletonId: { type: 'string' } },
       },
-      (input) => {
+      async (input) => {
         const current = projectRef.current;
-        const skeletonId = typeof input.skeletonId === 'string' ? input.skeletonId : '';
-        const skeleton = current.skeletons.find((item) => item.id === skeletonId);
+        const skeletonId =
+          typeof input.skeletonId === 'string' ? input.skeletonId : '';
+        const skeleton = current.skeletons.find(
+          (item) => item.id === skeletonId,
+        );
         if (!skeleton) return { ok: false, code: 'NOT_FOUND' };
-        const issues: string[] = [];
-        if (skeleton.joints.length < 2) issues.push('Add at least two joints.');
-        if (skeleton.bones.length < 1) issues.push('Add at least one bone.');
-        if (skeleton.joints.some((joint) => joint.confidence < 0.55)) issues.push('Review low-confidence joints.');
-        if (skeleton.reviewStatus !== 'approved') issues.push('Approve the skeleton before animation.');
-        return { ok: true, revision: current.revision, skeletonId, valid: issues.length === 0, issues, reviewStatus: skeleton.reviewStatus, binding: skeleton.binding };
+        const asset = current.assets.find(
+          (candidate) => candidate.id === skeleton.assetId,
+        );
+        const issues: string[] = skeletonModelIssues(skeleton, asset);
+        const preview = asset?.dataUrl
+          ? await inspectRenderedRigPreview(copy(asset), copy(skeleton))
+          : undefined;
+        if (preview && !preview.passed) issues.push(...preview.blockedReasons);
+        return {
+          ok: true,
+          revision: current.revision,
+          skeletonId,
+          valid: issues.length === 0,
+          issues,
+          reviewStatus: skeleton.reviewStatus,
+          binding: skeleton.binding,
+          preview,
+        };
       },
       true,
     );
@@ -5841,9 +8650,12 @@ export default function Home() {
             sourceUrl:
               typeof input.sourceUrl === 'string' ? input.sourceUrl : undefined,
             author: typeof input.author === 'string' ? input.author : undefined,
-            license: typeof input.license === 'string' ? input.license : undefined,
+            license:
+              typeof input.license === 'string' ? input.license : undefined,
             licenseUrl:
-              typeof input.licenseUrl === 'string' ? input.licenseUrl : undefined,
+              typeof input.licenseUrl === 'string'
+                ? input.licenseUrl
+                : undefined,
           },
           style: defaultAssetStyle('audio'),
         };
@@ -5852,7 +8664,11 @@ export default function Home() {
           `Add audio asset ${label}`,
           true,
         );
-        return { ok: true, revision: current.revision + 1, asset };
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          asset: { ...asset, dataUrl: undefined, hasPayload: false },
+        };
       },
     );
     register(
@@ -5896,9 +8712,12 @@ export default function Home() {
             sourceUrl:
               typeof input.sourceUrl === 'string' ? input.sourceUrl : undefined,
             author: typeof input.author === 'string' ? input.author : undefined,
-            license: typeof input.license === 'string' ? input.license : undefined,
+            license:
+              typeof input.license === 'string' ? input.license : undefined,
             licenseUrl:
-              typeof input.licenseUrl === 'string' ? input.licenseUrl : undefined,
+              typeof input.licenseUrl === 'string'
+                ? input.licenseUrl
+                : undefined,
           },
           style: defaultAssetStyle('audio'),
         };
@@ -5907,7 +8726,11 @@ export default function Home() {
           `Import audio asset ${label}`,
           true,
         );
-        return { ok: true, revision: current.revision + 1, asset };
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          asset: { ...asset, dataUrl: undefined, hasPayload: true },
+        };
       },
     );
     register(
@@ -5933,7 +8756,11 @@ export default function Home() {
         if (!cue || !asset) return { ok: false, code: 'NOT_FOUND' };
         if (asset.kind !== 'audio' || !asset.dataUrl)
           return { ok: false, code: 'AUDIO_PAYLOAD_MISSING' };
-        const updated = { ...cue, assetId, ...(input.loop !== undefined ? { loop: input.loop === true } : {}) };
+        const updated = {
+          ...cue,
+          assetId,
+          ...(input.loop !== undefined ? { loop: input.loop === true } : {}),
+        };
         commitRef.current(
           (next) => {
             const target = next.audioCues.find((item) => item.id === cueId);
@@ -6055,14 +8882,17 @@ export default function Home() {
             type: 'string',
             enum: ['idle', 'nervous', 'wave', 'lean-in', 'point', 'shrug'],
           },
+          variantId: { type: 'string' },
         },
       },
       (input) => {
         const current = projectRef.current;
         if (typeof input.characterId !== 'string')
           return { ok: false, code: 'INVALID_INPUT' };
-        if (!current.characters.some((c) => c.id === input.characterId))
-          return { ok: false, code: 'NOT_FOUND' };
+        const character = current.characters.find(
+          (candidate) => candidate.id === input.characterId,
+        );
+        if (!character) return { ok: false, code: 'NOT_FOUND' };
         if (isTrackLocked(current, input.characterId))
           return { ok: false, code: 'TRACK_LOCKED' };
         if (
@@ -6073,9 +8903,15 @@ export default function Home() {
           (input.rotation !== undefined &&
             (typeof input.rotation !== 'number' ||
               !Number.isFinite(input.rotation))) ||
-          (input.pose !== undefined && !isPose(input.pose))
+          (input.pose !== undefined && !isPose(input.pose)) ||
+          (input.variantId !== undefined && typeof input.variantId !== 'string')
         )
           return { ok: false, code: 'INVALID_INPUT' };
+        if (
+          typeof input.variantId === 'string' &&
+          variantCompatibilityIssues(current, character, input.variantId).length
+        )
+          return { ok: false, code: 'INVALID_VARIANT' };
         const frameTime = current.currentTime;
         commitRef.current(
           (next) => {
@@ -6091,6 +8927,10 @@ export default function Home() {
                     ? input.rotation
                     : undefined,
                 pose: isPose(input.pose) ? input.pose : undefined,
+                variantId:
+                  typeof input.variantId === 'string'
+                    ? input.variantId
+                    : undefined,
               },
             );
           },
@@ -6125,19 +8965,28 @@ export default function Home() {
             type: 'string',
             enum: ['idle', 'nervous', 'wave', 'lean-in', 'point', 'shrug'],
           },
+          variantId: { type: 'string' },
         },
       },
       (input) => {
         const current = projectRef.current;
+        const character = current.characters.find(
+          (candidate) => candidate.id === input.characterId,
+        );
         if (
           typeof input.characterId !== 'string' ||
-          !current.characters.some((item) => item.id === input.characterId) ||
+          !character ||
           typeof input.timeMs !== 'number' ||
           !Number.isFinite(input.timeMs) ||
           input.timeMs < 0 ||
           input.timeMs > current.duration
         )
           return { ok: false, code: 'INVALID_INPUT' };
+        if (
+          typeof input.variantId === 'string' &&
+          variantCompatibilityIssues(current, character, input.variantId).length
+        )
+          return { ok: false, code: 'INVALID_VARIANT' };
         if (isTrackLocked(current, input.characterId))
           return { ok: false, code: 'TRACK_LOCKED' };
         if (
@@ -6149,7 +8998,8 @@ export default function Home() {
             (typeof input.rotation !== 'number' ||
               input.rotation < -180 ||
               input.rotation > 180)) ||
-          (input.pose !== undefined && !isPose(input.pose))
+          (input.pose !== undefined && !isPose(input.pose)) ||
+          (input.variantId !== undefined && typeof input.variantId !== 'string')
         )
           return { ok: false, code: 'INVALID_INPUT' };
         let keyframe: Keyframe | null = null;
@@ -6167,6 +9017,10 @@ export default function Home() {
                     ? input.rotation
                     : undefined,
                 pose: isPose(input.pose) ? input.pose : undefined,
+                variantId:
+                  typeof input.variantId === 'string'
+                    ? input.variantId
+                    : undefined,
               },
             );
           },
@@ -6178,6 +9032,59 @@ export default function Home() {
           revision: current.revision + 1,
           keyframe,
           changedEntityIds: [input.characterId],
+        };
+      },
+    );
+    register(
+      'set_character_variant',
+      'Set character asset variant',
+      'Bind an approved generated view, pose, or expression variant at the current playhead without changing the character rig or base asset.',
+      {
+        type: 'object',
+        required: ['characterId', 'variantId'],
+        additionalProperties: false,
+        properties: {
+          characterId: { type: 'string' },
+          variantId: { type: 'string' },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const characterId =
+          typeof input.characterId === 'string' ? input.characterId : '';
+        const variantId =
+          typeof input.variantId === 'string' ? input.variantId : '';
+        const character = current.characters.find(
+          (item) => item.id === characterId,
+        );
+        const variant = current.assets.find((asset) => asset.id === variantId);
+        if (!character || !variant) return { ok: false, code: 'NOT_FOUND' };
+        const variantIssues = variantCompatibilityIssues(
+          current,
+          character,
+          variantId,
+        );
+        if (variantIssues.length)
+          return { ok: false, code: 'INVALID_VARIANT', issues: variantIssues };
+        if (isTrackLocked(current, characterId))
+          return { ok: false, code: 'TRACK_LOCKED' };
+        const frameTime = current.currentTime;
+        let keyframe: Keyframe | null = null;
+        commitRef.current(
+          (next) => {
+            keyframe = upsertCharacterKeyframe(next, characterId, frameTime, {
+              variantId,
+            });
+          },
+          `Set ${variant.label}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          characterId,
+          variantId,
+          keyframe,
         };
       },
     );
@@ -6614,9 +9521,25 @@ export default function Home() {
       'Validate project',
       'Run deterministic readiness checks.',
       { type: 'object', properties: {}, additionalProperties: false },
-      () => {
+      async () => {
         const current = projectRef.current;
         const issues = validateProjectState(current);
+        for (const skeleton of current.skeletons.filter(
+          (candidate) => candidate.reviewStatus === 'approved',
+        )) {
+          const asset = current.assets.find(
+            (candidate) => candidate.id === skeleton.assetId,
+          );
+          if (!asset?.dataUrl) continue;
+          const preview = await inspectRenderedRigPreview(asset, skeleton);
+          if (!preview.passed)
+            issues.push({
+              code: 'RIG_RENDER_QA_FAILED',
+              severity: 'error',
+              path: `skeletons.${skeleton.id}.preview`,
+              message: preview.blockedReasons.join(' '),
+            });
+        }
         return {
           ok: issues.every((issue) => issue.severity !== 'error'),
           revision: current.revision,
@@ -6625,6 +9548,449 @@ export default function Home() {
         };
       },
       true,
+    );
+    const callInternal = (
+      name: string,
+      input: Record<string, unknown> = {},
+    ) => {
+      const tool = internalTools.get(name);
+      return tool
+        ? tool.execute(input)
+        : { ok: false, code: 'LEGACY_HANDLER_UNAVAILABLE', handler: name };
+    };
+    register(
+      'inspect_project',
+      'Inspect project',
+      'Inspect the active project, approval gates, render settings, and recovery state.',
+      { type: 'object', properties: {}, additionalProperties: false },
+      () => callInternal('get_project_summary'),
+      true,
+    );
+    register(
+      'edit_history',
+      'Edit history',
+      'Undo or redo one conflict-free project command.',
+      {
+        type: 'object',
+        required: ['operation'],
+        additionalProperties: false,
+        properties: {
+          operation: { type: 'string', enum: ['undo', 'redo'] },
+        },
+      },
+      (input) =>
+        input.operation === 'undo'
+          ? callInternal('undo_command')
+          : input.operation === 'redo'
+            ? callInternal('redo_command')
+            : { ok: false, code: 'INVALID_INPUT' },
+    );
+    register(
+      'edit_project',
+      'Edit project',
+      'Rename, resize, or retime the active project through one discriminated command.',
+      {
+        type: 'object',
+        required: ['operation'],
+        additionalProperties: false,
+        properties: {
+          operation: {
+            type: 'string',
+            enum: ['rename', 'set-duration', 'retime'],
+          },
+          name: { type: 'string', minLength: 1, maxLength: 80 },
+          durationMs: { type: 'number', minimum: 500, maximum: 60000 },
+          speed: { type: 'number', minimum: 0.5, maximum: 2 },
+        },
+      },
+      (input) => {
+        if (input.operation === 'rename')
+          return callInternal('set_project_name', { name: input.name });
+        if (input.operation === 'set-duration')
+          return callInternal('set_scene_duration', {
+            durationMs: input.durationMs,
+          });
+        if (input.operation === 'retime')
+          return callInternal('retime_scene', { speed: input.speed });
+        return { ok: false, code: 'INVALID_INPUT' };
+      },
+    );
+    register(
+      'edit_storyboard',
+      'Edit storyboard',
+      'Add, update, remove, or promote a storyboard beat.',
+      {
+        type: 'object',
+        required: ['operation'],
+        additionalProperties: false,
+        properties: {
+          operation: {
+            type: 'string',
+            enum: ['add', 'update', 'remove', 'promote'],
+          },
+          beatId: { type: 'string' },
+          title: { type: 'string', minLength: 1 },
+          description: { type: 'string' },
+          startMs: { type: 'number', minimum: 0 },
+          endMs: { type: 'number', minimum: 0 },
+        },
+      },
+      (input) => {
+        const payload = {
+          beatId: input.beatId,
+          title: input.title,
+          description: input.description,
+          startMs: input.startMs,
+          endMs: input.endMs,
+        };
+        if (input.operation === 'add')
+          return callInternal('add_storyboard_beat', payload);
+        if (input.operation === 'update')
+          return callInternal('update_storyboard_beat', payload);
+        if (input.operation === 'remove')
+          return callInternal('remove_storyboard_beat', payload);
+        if (input.operation === 'promote')
+          return callInternal('promote_storyboard_beat', payload);
+        return { ok: false, code: 'INVALID_INPUT' };
+      },
+    );
+    register(
+      'edit_scene',
+      'Edit scene',
+      'Split, add, rename, duplicate, delete, or reorder a scene.',
+      {
+        type: 'object',
+        required: ['operation'],
+        additionalProperties: false,
+        properties: {
+          operation: {
+            type: 'string',
+            enum: ['split', 'add', 'rename', 'duplicate', 'delete', 'move'],
+          },
+          sceneId: { type: 'string' },
+          title: { type: 'string', minLength: 1 },
+          description: { type: 'string' },
+          timeMs: { type: 'number', minimum: 0 },
+          direction: { type: 'string', enum: ['up', 'down'] },
+        },
+      },
+      (input) => {
+        const payload = {
+          sceneId: input.sceneId,
+          title: input.title,
+          description: input.description,
+          timeMs: input.timeMs,
+          direction: input.direction,
+        };
+        const handler =
+          input.operation === 'split'
+            ? 'split_scene'
+            : input.operation === 'add'
+              ? 'add_scene'
+              : input.operation === 'rename'
+                ? 'rename_scene'
+                : input.operation === 'duplicate'
+                  ? 'duplicate_scene'
+                  : input.operation === 'delete'
+                    ? 'delete_scene'
+                    : input.operation === 'move'
+                      ? 'move_scene'
+                      : '';
+        return handler
+          ? callInternal(handler, payload)
+          : { ok: false, code: 'INVALID_INPUT' };
+      },
+    );
+    register(
+      'set_current_scene',
+      'Set current scene',
+      'Load one existing scene as the active editable scene.',
+      {
+        type: 'object',
+        required: ['sceneId'],
+        additionalProperties: false,
+        properties: { sceneId: { type: 'string' } },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const sceneId = typeof input.sceneId === 'string' ? input.sceneId : '';
+        if (!current.scenes.some((scene) => scene.id === sceneId))
+          return { ok: false, code: 'NOT_FOUND' };
+        commitRef.current(
+          (next) => loadSceneContent(next, sceneId),
+          `Set current scene ${sceneId}`,
+          true,
+        );
+        return { ok: true, revision: current.revision + 1, sceneId };
+      },
+    );
+    register(
+      'delete_keyframe',
+      'Delete keyframe',
+      'Delete one character, bone, prop, or camera keyframe by stable ID.',
+      {
+        type: 'object',
+        required: ['keyframeId'],
+        additionalProperties: false,
+        properties: { keyframeId: { type: 'string' } },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const keyframeId =
+          typeof input.keyframeId === 'string' ? input.keyframeId : '';
+        const exists = [
+          ...current.keyframes,
+          ...current.boneKeyframes,
+          ...current.propKeyframes,
+          ...current.cameraKeyframes,
+        ].some((frame) => frame.id === keyframeId);
+        if (!exists) return { ok: false, code: 'NOT_FOUND' };
+        commitRef.current(
+          (next) => {
+            next.keyframes = next.keyframes.filter(
+              (frame) => frame.id !== keyframeId,
+            );
+            next.boneKeyframes = next.boneKeyframes.filter(
+              (frame) => frame.id !== keyframeId,
+            );
+            next.propKeyframes = next.propKeyframes.filter(
+              (frame) => frame.id !== keyframeId,
+            );
+            next.cameraKeyframes = next.cameraKeyframes.filter(
+              (frame) => frame.id !== keyframeId,
+            );
+          },
+          `Delete keyframe ${keyframeId}`,
+          true,
+        );
+        return { ok: true, revision: current.revision + 1, keyframeId };
+      },
+    );
+    register(
+      'undo',
+      'Undo',
+      'Undo the latest conflict-free command.',
+      { type: 'object', properties: {}, additionalProperties: false },
+      () => callInternal('undo_command'),
+    );
+    register(
+      'redo',
+      'Redo',
+      'Redo the latest undone conflict-free command.',
+      { type: 'object', properties: {}, additionalProperties: false },
+      () => callInternal('redo_command'),
+    );
+    register(
+      'list_assets',
+      'List assets',
+      'List project assets, placement, review status, and provenance without binary payloads.',
+      { type: 'object', properties: {}, additionalProperties: false },
+      () => callInternal('get_asset_manifest'),
+      true,
+    );
+    register(
+      'list_asset_audio',
+      'List asset audio',
+      'List playable and pending audio assets with provenance but no binary payloads.',
+      { type: 'object', properties: {}, additionalProperties: false },
+      () => callInternal('get_audio_library'),
+      true,
+    );
+    register(
+      'import_asset_audio',
+      'Import asset audio metadata',
+      'Create a provenance-first audio entry before attaching bounded bytes.',
+      {
+        type: 'object',
+        required: ['label'],
+        additionalProperties: false,
+        properties: {
+          label: { type: 'string', minLength: 1, maxLength: 100 },
+          sourceUrl: { type: 'string', maxLength: 500 },
+          author: { type: 'string', maxLength: 120 },
+          license: { type: 'string', maxLength: 80 },
+          licenseUrl: { type: 'string', maxLength: 500 },
+          durationMs: { type: 'number', minimum: 1 },
+          loopable: { type: 'boolean' },
+          mimeType: { type: 'string', maxLength: 80 },
+        },
+      },
+      (input) => callInternal('add_audio_asset', input),
+    );
+    register(
+      'attach_imported_audio',
+      'Attach imported audio',
+      'Attach bounded audio bytes to an existing provenance-first audio entry.',
+      {
+        type: 'object',
+        required: ['assetId', 'dataUrl'],
+        additionalProperties: false,
+        properties: {
+          assetId: { type: 'string' },
+          dataUrl: { type: 'string', minLength: 24, maxLength: 5600000 },
+          mimeType: { type: 'string', maxLength: 80 },
+          durationMs: { type: 'number', minimum: 1 },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const assetId = typeof input.assetId === 'string' ? input.assetId : '';
+        const dataUrl = typeof input.dataUrl === 'string' ? input.dataUrl : '';
+        const asset = current.assets.find((item) => item.id === assetId);
+        if (!asset || asset.kind !== 'audio')
+          return { ok: false, code: 'NOT_FOUND' };
+        if (!/^data:audio\/[a-z0-9.+-]+;base64,/i.test(dataUrl))
+          return { ok: false, code: 'INVALID_AUDIO_PAYLOAD' };
+        commitRef.current(
+          (next) => {
+            const target = next.assets.find((item) => item.id === assetId);
+            if (!target) return;
+            target.dataUrl = dataUrl;
+            if (typeof input.mimeType === 'string')
+              target.mimeType = input.mimeType;
+            if (typeof input.durationMs === 'number')
+              target.mediaDurationMs = input.durationMs;
+          },
+          `Attach audio ${asset.label}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          asset: { ...asset, dataUrl: undefined, hasPayload: true },
+        };
+      },
+    );
+    register(
+      'add_audio_clip',
+      'Add audio clip',
+      'Add a bounded non-voice audio clip to the active scene.',
+      {
+        type: 'object',
+        required: ['kind', 'label'],
+        additionalProperties: false,
+        properties: {
+          kind: { type: 'string', enum: ['music', 'footstep', 'stinger'] },
+          label: { type: 'string', minLength: 1 },
+          startMs: { type: 'number', minimum: 0 },
+          endMs: { type: 'number', minimum: 0 },
+          volume: { type: 'number', minimum: 0, maximum: 1 },
+          assetId: { type: 'string' },
+          loop: { type: 'boolean' },
+        },
+      },
+      (input) => callInternal('add_audio_cue', input),
+    );
+    register(
+      'set_audio_clip',
+      'Set audio clip',
+      'Update timing, volume, label, routing, or loop state for one audio clip.',
+      {
+        type: 'object',
+        required: ['clipId'],
+        additionalProperties: false,
+        properties: {
+          clipId: { type: 'string' },
+          label: { type: 'string', minLength: 1 },
+          startMs: { type: 'number', minimum: 0 },
+          endMs: { type: 'number', minimum: 0 },
+          volume: { type: 'number', minimum: 0, maximum: 1 },
+          assetId: { type: 'string' },
+          loop: { type: 'boolean' },
+        },
+      },
+      (input) => {
+        const cueId = input.clipId;
+        if (input.assetId)
+          return callInternal('set_audio_cue_asset', {
+            cueId,
+            assetId: input.assetId,
+            loop: input.loop,
+          });
+        return callInternal('update_audio_cue', { ...input, cueId });
+      },
+    );
+    register(
+      'inspect_audio_clip',
+      'Inspect audio clip',
+      'Inspect one audio clip and its payload and provenance readiness.',
+      {
+        type: 'object',
+        required: ['clipId'],
+        additionalProperties: false,
+        properties: { clipId: { type: 'string' } },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const cue = current.audioCues.find((item) => item.id === input.clipId);
+        if (!cue) return { ok: false, code: 'NOT_FOUND' };
+        const asset = cue.assetId
+          ? current.assets.find((item) => item.id === cue.assetId)
+          : undefined;
+        return {
+          ok: true,
+          revision: current.revision,
+          clip: cue,
+          asset: asset
+            ? {
+                ...asset,
+                dataUrl: undefined,
+                hasPayload: Boolean(asset.dataUrl),
+              }
+            : null,
+        };
+      },
+      true,
+    );
+    register(
+      'inspect_rig_preview',
+      'Inspect rig preview',
+      'Render and inspect the rest pose plus representative joint extremes before rig approval.',
+      {
+        type: 'object',
+        required: ['skeletonId'],
+        additionalProperties: false,
+        properties: { skeletonId: { type: 'string' } },
+      },
+      async (input) => {
+        const current = projectRef.current;
+        const skeleton = current.skeletons.find(
+          (item) => item.id === input.skeletonId,
+        );
+        if (!skeleton) return { ok: false, code: 'NOT_FOUND' };
+        const asset = current.assets.find(
+          (item) => item.id === skeleton.assetId,
+        );
+        if (!asset?.dataUrl)
+          return { ok: false, code: 'ASSET_PAYLOAD_MISSING' };
+        const report = await inspectRenderedRigPreview(asset, skeleton);
+        return {
+          ok: true,
+          revision: current.revision,
+          skeletonId: skeleton.id,
+          assetId: asset.id,
+          ...report,
+        };
+      },
+      true,
+    );
+    (
+      window as Window & {
+        __stagehandLegacyTools?: Map<string, ModelTool>;
+      }
+    ).__stagehandLegacyTools = internalTools;
+    const registrations = PUBLIC_WEBMCP_TOOL_NAMES.map((name) => {
+      const tool = internalTools.get(name);
+      if (!tool || !PUBLIC_WEBMCP_TOOL_SET.has(name)) {
+        setNotice(`WebMCP tool missing · ${name}`);
+        return Promise.resolve();
+      }
+      return Promise.resolve(
+        modelContext.registerTool(tool, { signal: lifecycle.signal }),
+      );
+    });
+    void Promise.all(registrations).catch(() =>
+      setNotice('WebMCP registration unavailable'),
     );
     return () => lifecycle.abort();
   }, []);
@@ -6699,6 +10065,39 @@ export default function Home() {
       );
     }, 'Apply walk-in motion');
   };
+  const applyMotionClipHuman = (clipId: string) => {
+    if (isTrackLocked(project, project.selectedId)) {
+      setNotice(`${selected.name} track is locked`);
+      return;
+    }
+    const clip = project.motionClips.find((item) => item.id === clipId);
+    if (!clip || !selectedSkeleton) {
+      setNotice('Approve a skeleton before applying motion clips');
+      return;
+    }
+    if (selectedSkeleton.reviewStatus !== 'approved') {
+      setNotice('Approve the skeleton before applying motion clips');
+      return;
+    }
+    const start = project.currentTime;
+    commit((next) => {
+      clip.transforms.forEach((frame) => {
+        const time = start + frame.time;
+        if (time <= next.duration) {
+          upsertBoneKeyframeInProject(
+            next,
+            selectedSkeleton.id,
+            time,
+            frame.transforms,
+          );
+          if (frame.variantId)
+            upsertCharacterKeyframe(next, selected.id, time, {
+              variantId: frame.variantId,
+            });
+        }
+      });
+    }, `Apply ${clip.label}`);
+  };
   const setSelectedPose = (pose: Pose) => {
     if (isTrackLocked(project, project.selectedId)) {
       setNotice(`${selected.name} track is locked`);
@@ -6725,6 +10124,7 @@ export default function Home() {
       asset.id,
       selected.name,
       asset.frameLayout === 'parts-sheet' ? 'segmented' : 'rigid',
+      asset,
     );
     commit(
       (next) => next.skeletons.push(skeleton),
@@ -6739,21 +10139,71 @@ export default function Home() {
     if (!selectedSkeleton) return;
     const joint = selectedSkeleton.joints.find((item) => item.id === jointId);
     if (!joint || !Number.isFinite(value)) return;
-    commit(
-      (next) => {
-        const target = next.skeletons
-          .find((item) => item.id === selectedSkeleton.id)
-          ?.joints.find((item) => item.id === jointId);
-        if (target) target[key] = clamp(value, 0, 100);
-        const skeleton = next.skeletons.find(
-          (item) => item.id === selectedSkeleton.id,
-        );
-        if (skeleton) skeleton.reviewStatus = 'pending-review';
-      },
-      `Move ${joint.label}`,
-    );
+    commit((next) => {
+      const target = next.skeletons
+        .find((item) => item.id === selectedSkeleton.id)
+        ?.joints.find((item) => item.id === jointId);
+      if (target) target[key] = clamp(value, 0, 100);
+      const skeleton = next.skeletons.find(
+        (item) => item.id === selectedSkeleton.id,
+      );
+      if (skeleton) skeleton.reviewStatus = 'pending-review';
+    }, `Move ${joint.label}`);
   };
-  const approveSelectedSkeleton = (approved: boolean) => {
+  const updateSelectedBindingRegion = (
+    regionId: string,
+    key: 'pivotX' | 'pivotY' | 'overlapPx' | 'zIndex' | 'boneId',
+    value: number | string,
+  ) => {
+    if (!selectedSkeleton) return;
+    commit((next) => {
+      const skeleton = next.skeletons.find(
+        (item) => item.id === selectedSkeleton.id,
+      );
+      const region = skeleton?.binding.regions?.find(
+        (item) => item.id === regionId,
+      );
+      if (!skeleton || !region) return;
+      if (key === 'boneId') region.boneId = String(value);
+      else if (Number.isFinite(Number(value))) region[key] = Number(value);
+      skeleton.reviewStatus = 'pending-review';
+    }, `Correct ${regionId} ${key}`);
+  };
+  const setSelectedBindingMethod = (method: BindingMethod) => {
+    if (!selectedSkeleton) return;
+    commit((next) => {
+      const skeleton = next.skeletons.find(
+        (item) => item.id === selectedSkeleton.id,
+      );
+      if (!skeleton) return;
+      skeleton.binding.method = method;
+      skeleton.reviewStatus = 'pending-review';
+    }, `Set ${method} binding`);
+  };
+  const runRigPreview = async () => {
+    if (!selectedSkeleton) return null;
+    const asset = project.assets.find(
+      (item) => item.id === selectedSkeleton.assetId,
+    );
+    if (!asset?.dataUrl) {
+      setNotice('Attach character pixels before rendered rig review');
+      return null;
+    }
+    setRigPreviewLoading(true);
+    try {
+      const report = await inspectRenderedRigPreview(asset, selectedSkeleton);
+      setRigPreviewReport(report);
+      setNotice(
+        report.passed
+          ? 'Rendered rig passed all stress poses'
+          : 'Rendered rig needs correction before approval',
+      );
+      return report;
+    } finally {
+      setRigPreviewLoading(false);
+    }
+  };
+  const approveSelectedSkeleton = async (approved: boolean) => {
     if (!selectedSkeleton) return;
     if (
       approved &&
@@ -6762,14 +10212,35 @@ export default function Home() {
       setNotice('Review low-confidence joints before approval');
       return;
     }
+    if (approved) {
+      const report = await runRigPreview();
+      if (!report?.passed) return;
+    }
     commit(
       (next) => {
         const skeleton = next.skeletons.find(
           (item) => item.id === selectedSkeleton.id,
         );
-        if (skeleton) skeleton.reviewStatus = approved ? 'approved' : 'rejected';
+        if (skeleton)
+          skeleton.reviewStatus = approved ? 'approved' : 'rejected';
       },
       `${approved ? 'Approve' : 'Reject'} ${selectedSkeleton.label}`,
+    );
+  };
+  const reviewAsset = (asset: Asset, approved: boolean) => {
+    if (approved) {
+      const readiness = candidateApprovalChecks(asset);
+      if (!readiness.readyForApproval) {
+        setNotice('Complete the asset checklist before approval');
+        return;
+      }
+    }
+    commit(
+      (next) => {
+        const target = next.assets.find((item) => item.id === asset.id);
+        if (target) target.reviewStatus = approved ? 'approved' : 'rejected';
+      },
+      `${approved ? 'Approve' : 'Reject'} ${asset.label}`,
     );
   };
   const updateCamera = (
@@ -7006,7 +10477,9 @@ export default function Home() {
       return;
     }
     if (asset.source === 'generated' && asset.reviewStatus !== 'approved') {
-      setNotice('Approve the generated candidate before binding it to a character');
+      setNotice(
+        'Approve the generated candidate before binding it to a character',
+      );
       return;
     }
     const character = project.characters.find(
@@ -7018,7 +10491,13 @@ export default function Home() {
         if (item.assetId === asset.id) item.assetId = undefined;
       });
       const target = next.characters.find((item) => item.id === characterId);
-      if (target) target.assetId = asset.id;
+      if (target) {
+        target.assetId = asset.id;
+        target.variantId = undefined;
+        next.keyframes.forEach((frame) => {
+          if (frame.characterId === target.id) frame.variantId = undefined;
+        });
+      }
     }, `Bind ${asset.label} to ${character.name}`);
   };
   const addAudioCue = (kind: Exclude<AudioCueKind, 'music'>) => {
@@ -7248,7 +10727,14 @@ export default function Home() {
               const character = next.characters.find(
                 (item) => item.id === next.selectedId,
               );
-              if (character) character.assetId = assetId;
+              if (character) {
+                character.assetId = assetId;
+                character.variantId = undefined;
+                next.keyframes.forEach((frame) => {
+                  if (frame.characterId === character.id)
+                    frame.variantId = undefined;
+                });
+              }
             }
           },
           assetImportKind === 'rigged-character'
@@ -7287,27 +10773,24 @@ export default function Home() {
       const assetId = nextAssetId(project.assets, 'audio');
       const probe = new Audio(reader.result);
       const commitAudio = () => {
-        commit(
-          (next) => {
-            next.assets.push({
-              id: assetId,
-              kind: 'audio',
-              label,
-              source: 'imported',
-              mimeType: file.type,
-              dataUrl: reader.result as string,
-              mediaDurationMs:
-                Number.isFinite(probe.duration) && probe.duration > 0
-                  ? Math.round(probe.duration * 1000)
-                  : undefined,
-              loopable: false,
-              reviewStatus: 'approved',
-              provenance: { author: 'User import' },
-              style: defaultAssetStyle('audio'),
-            });
-          },
-          `Import audio ${label}`,
-        );
+        commit((next) => {
+          next.assets.push({
+            id: assetId,
+            kind: 'audio',
+            label,
+            source: 'imported',
+            mimeType: file.type,
+            dataUrl: reader.result as string,
+            mediaDurationMs:
+              Number.isFinite(probe.duration) && probe.duration > 0
+                ? Math.round(probe.duration * 1000)
+                : undefined,
+            loopable: false,
+            reviewStatus: 'approved',
+            provenance: { author: 'User import' },
+            style: defaultAssetStyle('audio'),
+          });
+        }, `Import audio ${label}`);
       };
       probe.addEventListener('loadedmetadata', commitAudio, { once: true });
       probe.addEventListener('error', commitAudio, { once: true });
@@ -7323,9 +10806,17 @@ export default function Home() {
     audioPreviewRef.current?.pause();
     const audio = new Audio(asset.dataUrl);
     audioPreviewRef.current = audio;
-    void audio.play().catch(() => setNotice('Audio preview was blocked by the browser'));
+    void audio
+      .play()
+      .catch(() => setNotice('Audio preview was blocked by the browser'));
   };
   const resetStarterProject = () => {
+    if (
+      !window.confirm(
+        'Reset this browser project to the starter? Export first if you need a recoverable copy. This cannot be undone.',
+      )
+    )
+      return;
     const starter = copy(starterProject);
     projectRef.current = starter;
     commandResultsRef.current.clear();
@@ -7661,7 +11152,10 @@ export default function Home() {
     let stream = canvasStream;
     let audioStream: MediaStream | null = null;
     if (audioContext && sequenceAudioCues.length > 0) {
-      const audioBuffers = await loadAudioBuffers(audioContext, currentProject.assets);
+      const audioBuffers = await loadAudioBuffers(
+        audioContext,
+        currentProject.assets,
+      );
       const destination = audioContext.createMediaStreamDestination();
       audioStream = destination.stream;
       stream = new MediaStream([
@@ -8032,7 +11526,11 @@ export default function Home() {
         <div className="top-actions">
           <div className={`save-state ${saved ? '' : 'unsaved'}`}>
             <span className="status-dot" />
-            {saved ? 'Saved' : 'Saving…'}
+            {saveError
+              ? 'Save failed'
+              : saved
+                ? `Saved${lastSavedAt ? ` ${lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}`
+                : 'Saving…'}
           </div>
           <button
             className="preview-button"
@@ -8572,9 +12070,49 @@ export default function Home() {
                       <span className="asset-copy">
                         <strong>{asset.label}</strong>
                         {asset.reviewStatus && asset.source === 'generated' && (
-                          <em className={`asset-review-status ${asset.reviewStatus}`}>
+                          <em
+                            className={`asset-review-status ${asset.reviewStatus}`}
+                          >
                             {asset.reviewStatus.replace('-', ' ')}
                           </em>
+                        )}
+                        {asset.kind === 'rigged-character' && asset.dataUrl && (
+                          <div className="asset-review-card">
+                            <span>
+                              {asset.assetPackage
+                                ? `Package v${asset.assetPackage.version} · ${asset.assetPackage.parts.length} parts`
+                                : 'Package not attached'}
+                            </span>
+                            <small>
+                              {asset.dimensions
+                                ? `${asset.dimensions.width}×${asset.dimensions.height}`
+                                : 'dimensions pending'}{' '}
+                              · alpha {asset.transparencyStatus ?? 'unknown'} ·{' '}
+                              {asset.provenance?.license ??
+                                'license not recorded'}
+                            </small>
+                            {asset.packageIssues?.map((issue) => (
+                              <small className="review-warning" key={issue}>
+                                {issue}
+                              </small>
+                            ))}
+                            {asset.reviewStatus !== 'approved' && (
+                              <span className="asset-review-actions">
+                                <button
+                                  type="button"
+                                  onClick={() => reviewAsset(asset, true)}
+                                >
+                                  Approve asset
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => reviewAsset(asset, false)}
+                                >
+                                  Reject
+                                </button>
+                              </span>
+                            )}
+                          </div>
                         )}
                         <small>
                           {asset.frameLayout === 'four-column' ||
@@ -8947,7 +12485,11 @@ export default function Home() {
               <button
                 className="compact-panel-trigger mobile-only"
                 type="button"
-                aria-label={mobileDrawer === 'rail' ? 'Close project panels' : 'Open project panels'}
+                aria-label={
+                  mobileDrawer === 'rail'
+                    ? 'Close project panels'
+                    : 'Open project panels'
+                }
                 onClick={() =>
                   setMobileDrawer((value) => (value === 'rail' ? null : 'rail'))
                 }
@@ -9100,6 +12642,8 @@ export default function Home() {
                   <StageCanvas
                     project={project}
                     showSkeleton={showSkeleton}
+                    showAlphaMask={showAlphaMask}
+                    isolatedPartId={isolatedPartId}
                     interactionMode={
                       viewMode === 'preview' ? 'preview' : stageTool
                     }
@@ -9887,6 +13431,28 @@ export default function Home() {
                 </button>
               ))}
             </div>
+            <div className="pose-label motion-clip-label">MOTION CLIPS</div>
+            <div className="motion-clip-grid">
+              {project.motionClips
+                .filter((clip) =>
+                  ['walk-in', 'turn', 'embarrassed'].includes(clip.kind),
+                )
+                .map((clip) => (
+                  <button
+                    type="button"
+                    key={clip.id}
+                    onClick={() => applyMotionClipHuman(clip.id)}
+                    disabled={
+                      isTrackLocked(project, selected.id) ||
+                      selectedSkeleton?.reviewStatus !== 'approved'
+                    }
+                    title={clip.description}
+                  >
+                    {clip.label}
+                    <small>{clip.durationMs} ms</small>
+                  </button>
+                ))}
+            </div>
           </div>
           <details className="inspector-section skeleton-editor" open>
             <summary className="inspector-label">
@@ -9900,15 +13466,122 @@ export default function Home() {
             {selectedSkeleton ? (
               <>
                 <div className="skeleton-status-row">
-                  <span>{selectedSkeleton.binding.method} binding</span>
+                  <label>
+                    Binding
+                    <select
+                      aria-label="Rig binding method"
+                      value={selectedSkeleton.binding.method}
+                      onChange={(event) =>
+                        setSelectedBindingMethod(
+                          event.target.value as BindingMethod,
+                        )
+                      }
+                    >
+                      <option value="segmented">Segmented · production</option>
+                      <option value="rigid">Rigid fallback</option>
+                      <option value="mesh">Mesh · experimental</option>
+                    </select>
+                  </label>
                   <span>{selectedSkeleton.joints.length} joints</span>
                   <span>{selectedSkeleton.bones.length} bones</span>
+                </div>
+                {(() => {
+                  const manifest = project.assets.find(
+                    (asset) => asset.id === selectedSkeleton.assetId,
+                  )?.rigManifest;
+                  const alignment = manifest?.alignment;
+                  return (
+                    <div className="rig-quality-summary">
+                      <span>
+                        {alignment?.connected
+                          ? 'Connected seams'
+                          : 'Needs seam review'}
+                      </span>
+                      <span>
+                        {alignment?.seamCount ?? 0} seams ·{' '}
+                        {Math.round((alignment?.minConfidence ?? 0) * 100)}%
+                        confidence
+                      </span>
+                    </div>
+                  );
+                })()}
+                <div className="rig-part-list">
+                  {selectedSkeleton.binding.regions?.map((region) => (
+                    <div className="rig-part-row" key={region.id}>
+                      <button
+                        type="button"
+                        className={isolatedPartId === region.id ? 'active' : ''}
+                        onClick={() =>
+                          setIsolatedPartId((current) =>
+                            current === region.id ? null : region.id,
+                          )
+                        }
+                      >
+                        {region.label}
+                      </button>
+                      <small>
+                        {Math.round((region.confidence ?? 0) * 100)}%
+                      </small>
+                      <label>
+                        Bone
+                        <select
+                          value={region.boneId ?? ''}
+                          onChange={(event) =>
+                            updateSelectedBindingRegion(
+                              region.id,
+                              'boneId',
+                              event.target.value,
+                            )
+                          }
+                        >
+                          {selectedSkeleton.bones.map((bone) => (
+                            <option key={bone.id} value={bone.id}>
+                              {bone.id.replace('bone-', '')}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      {(
+                        ['pivotX', 'pivotY', 'overlapPx', 'zIndex'] as const
+                      ).map((key) => (
+                        <label key={key}>
+                          {key === 'pivotX'
+                            ? 'Pivot X'
+                            : key === 'pivotY'
+                              ? 'Pivot Y'
+                              : key === 'overlapPx'
+                                ? 'Overlap'
+                                : 'Z'}
+                          <input
+                            type="number"
+                            step={key.startsWith('pivot') ? '0.05' : '1'}
+                            min={key.startsWith('pivot') ? '0' : '-20'}
+                            max={key.startsWith('pivot') ? '1' : '40'}
+                            value={
+                              region[key] ?? (key.startsWith('pivot') ? 0.5 : 0)
+                            }
+                            onChange={(event) =>
+                              updateSelectedBindingRegion(
+                                region.id,
+                                key,
+                                Number(event.target.value),
+                              )
+                            }
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  ))}
                 </div>
                 <div className="skeleton-joint-list">
                   {selectedSkeleton.joints.slice(0, 8).map((joint) => (
                     <div className="skeleton-joint-row" key={joint.id}>
                       <span>
-                        <i className={joint.confidence < 0.55 ? 'low-confidence' : ''} />
+                        <i
+                          className={
+                            joint.confidence < 0.55 ? 'low-confidence' : ''
+                          }
+                        />
                         {joint.label}
                       </span>
                       <label>
@@ -9960,12 +13633,52 @@ export default function Home() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => approveSelectedSkeleton(true)}
+                    onClick={() => setShowAlphaMask((value) => !value)}
+                    aria-pressed={showAlphaMask}
+                  >
+                    {showAlphaMask ? 'Hide alpha mask' : 'Show alpha mask'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void runRigPreview()}
+                    disabled={rigPreviewLoading}
+                  >
+                    {rigPreviewLoading ? 'Inspecting…' : 'Run stress poses'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void approveSelectedSkeleton(true)}
                     disabled={selectedSkeleton.reviewStatus === 'approved'}
                   >
                     Approve rig
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => void approveSelectedSkeleton(false)}
+                    disabled={selectedSkeleton.reviewStatus === 'rejected'}
+                  >
+                    Reject
+                  </button>
                 </div>
+                {rigPreviewReport && (
+                  <div
+                    className={`rig-preview-report ${rigPreviewReport.passed ? 'passed' : 'failed'}`}
+                  >
+                    <strong>
+                      {rigPreviewReport.passed
+                        ? 'Rendered QA passed'
+                        : 'Rendered QA needs correction'}
+                    </strong>
+                    <span>
+                      {rigPreviewReport.poses
+                        .map(
+                          (pose) =>
+                            `${pose.label}: ${pose.passed ? 'pass' : 'review'}`,
+                        )
+                        .join(' · ')}
+                    </span>
+                  </div>
+                )}
                 <small className="transform-help">
                   Approval unlocks bone keyframes. Mesh binding is experimental;
                   pose animation remains available as a fallback.
@@ -10215,17 +13928,25 @@ export default function Home() {
               type="button"
               className="save-button"
               onClick={() => {
-                const savedProject = copy(project);
-                savedProject.dirty = false;
-                syncActiveScene(savedProject);
-                window.localStorage.setItem(
-                  STORAGE_KEY,
-                  JSON.stringify(savedProject),
-                );
-                projectRef.current = savedProject;
-                setProject(savedProject);
-                setSaved(true);
-                setNotice('Project saved locally');
+                try {
+                  const savedProject = copy(project);
+                  savedProject.dirty = false;
+                  syncActiveScene(savedProject);
+                  window.localStorage.setItem(
+                    STORAGE_KEY,
+                    JSON.stringify(savedProject),
+                  );
+                  projectRef.current = savedProject;
+                  setProject(savedProject);
+                  setSaved(true);
+                  setLastSavedAt(new Date());
+                  setSaveError('');
+                  setNotice('Project saved locally');
+                } catch {
+                  setSaved(false);
+                  setSaveError('Local save failed');
+                  setNotice('Local save failed · export a project copy');
+                }
               }}
             >
               <Save size={14} /> Save
@@ -10264,6 +13985,21 @@ export default function Home() {
             {dialog === 'help' ? (
               <div className="dialog-copy">
                 <p>Build the awkward moment in beats, then refine the pose.</p>
+                <div className="skill-download-card">
+                  <span>
+                    <strong>Stagehand asset-rigging skill</strong>
+                    <small>
+                      Install into <code>$CODEX_HOME/skills</code> for the
+                      guided asset-to-rig workflow.
+                    </small>
+                  </span>
+                  <a
+                    href="/downloads/stagehand-asset-rigging-v1.0.0.zip"
+                    download
+                  >
+                    Download v1.0.0
+                  </a>
+                </div>
                 <dl>
                   <div>
                     <dt>Space</dt>

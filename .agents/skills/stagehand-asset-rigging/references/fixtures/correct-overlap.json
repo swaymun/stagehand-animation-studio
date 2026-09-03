@@ -1,0 +1,5 @@
+{
+  "case": "correct-overlap",
+  "preview": { "visibleGaps": 0, "excessiveOverlaps": 0, "clippedEdges": 0 },
+  "expected": []
+}

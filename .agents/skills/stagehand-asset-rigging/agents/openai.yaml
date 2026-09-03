@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Stagehand Asset Rigging'
+  short_description: 'Review-gated 2D asset-to-rig production'
+  default_prompt: 'Use $stagehand-asset-rigging to prepare, review, rig, animate, and verify this Stagehand character asset.'

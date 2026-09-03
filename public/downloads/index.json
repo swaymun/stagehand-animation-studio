@@ -1,0 +1,12 @@
+{
+  "skills": [
+    {
+      "name": "stagehand-asset-rigging",
+      "version": "1.0.0",
+      "archive": "/downloads/stagehand-asset-rigging-v1.0.0.zip",
+      "sha256": "eb5c6cf8f79846a5020b88b0889c00217b5add9af42bf123d18a47e0f9acf12e",
+      "format": "codex-skill",
+      "publicToolCount": 38
+    }
+  ]
+}

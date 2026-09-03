@@ -6,10 +6,10 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement â
 
 - Date: 2026-09-03
 - Private source: [github.com/swaymun/stagehand-animation-studio](https://github.com/swaymun/stagehand-animation-studio)
-- Verified source commit: `d0d8844976393160a24937364ad78d7b60e7845b`
-- Deployed runtime commit: `d0d8844976393160a24937364ad78d7b60e7845b`
+- Candidate source commit: this document ships with the final sprint commit; verify with `git rev-parse HEAD`
+- Last deployed baseline commit: `fe9ce017dc8dabf0ef4dc7e7c910e9940fe08821`
 - Public Site: [stagehand-animation-studio.saimun-h-shahee.chatgpt.site](https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site)
-- Sites version: `101`
+- Last deployed Sites version: `103`
 - Scope at this checkpoint: the complete polished finish-line pipeline: generated asset requests and provenance handoff, approved segmented character parts sheets, editable skeleton hierarchies and joint corrections, guarded bone keyframes, experimental mesh-capable binding metadata, bundled CC0/public-domain audio with import parity, shared skeletal evaluation across Preview/PNG/WebM, compact split-pane/mobile Inspector drawers, and the prior 15-second six-beat Alice/Bob coupon-comedy workflow.
 
 ## Implement
@@ -47,6 +47,11 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement â
 - At split-browser widths up to 1200px, the Inspector is closed by default and opens as an overlay drawer from a visible mode-bar action or More actions, while the scene rail and stage keep the available width focused on editing.
 - The stage now preserves the 16:9 export frame at every editor width, removes permanent canvas debug labels, and pillarboxes the artwork when the split pane is wider than the composition.
 - Compact timeline controls wrap into a second row below 900px, while scene kebab actions overlay the card so two-line scene titles remain readable.
+- Public WebMCP registration is now an exact ordered 38-tool contract with unique schema IDs; 93 granular handlers remain available only through the explicit legacy adapter.
+- Generated character candidates carry `StagehandAssetPackageV2` package data, decoded dimensions, straight-alpha status, checksums, provenance, semantic parts, masks/bounds, pivots, anchors, attachment margins, confidence, and stable topology.
+- Skeleton approval now runs rendered rest, shoulder, hip, elbow/knee, walk, turn, and reaction stress poses and blocks visible gaps, excessive overlaps, clipping, inverted limbs, bad draw order, or coordinate mismatches.
+- The Inspector exposes asset approval, production/experimental binding selection, part isolation, alpha overlay, bone assignment, pivot, overlap, z-order, joint correction, stress-pose results, and separate rig approval/rejection.
+- A versioned `stagehand-asset-rigging` Codex skill, checksum, install smoke, Agent Guide, and five golden fixtures ship from `/downloads/`.
 
 ## Local verification
 
@@ -55,7 +60,9 @@ Commands run from the repository:
 ```text
 npm run format       PASS
 npm run lint         PASS
+npm run typecheck    PASS
 npm run build        PASS
+npm run smoke:skill  PASS
 git diff --check     PASS
 npm run smoke        PASS
 npm run smoke:native PASS
@@ -63,8 +70,8 @@ npm run smoke:native PASS
 
 The local smoke result verified:
 
-- 69 registered tools and no page errors.
-- 50 mutating tools expose the concurrency/retry contract; a stale pose command returns `REVISION_CONFLICT`, and a repeated rename replays at the same revision.
+- 38 registered public tools in exact order and no page errors; 93 granular handlers are legacy-only.
+- 26 public mutating tools expose the concurrency/retry contract; a stale pose command returns `REVISION_CONFLICT`, and a repeated rename replays at the same revision.
 - Human asset-style editor and agent `set_asset_style` update: PASS.
 - Agent partial render-settings update preserves 1080p before an explicit reset to 720p: PASS.
 - Agent `inspect_frame` at 125 ms returns deterministic scene state and 720Ã—405 render metadata: PASS.
@@ -90,7 +97,7 @@ The local smoke result verified:
 - Fresh asset readiness: imported prop and four-pose sheet assets carry valid default style metadata immediately; `validate_project` returns zero issues before reload: PASS.
 - Human audio timing: Start for the quiet diner bed changes from 0 ms to 120 ms through the Inspector and remains valid for render: PASS.
 - Empty collection recovery: deleting all six assets, six storyboard beats, and the active scene's audio cue, then reloading, preserves `assetCount: 0`, `storyboardBeatCount: 0`, and `audioCueCount: 0`: PASS.
-- Native WebMCP registration: Chromium experimental WebMCP context captured all 52 unique tools with zero registration errors; valid `set_playhead` moved to 250 ms, invalid input returned `INVALID_INPUT`, and the read-back revision advanced by one: PASS.
+- Native WebMCP registration: Chromium experimental WebMCP context captured all 38 unique public tools with zero registration errors; valid `set_playhead` moved to 250 ms, invalid input returned `INVALID_INPUT`, and the read-back revision advanced by one: PASS.
 - Semantic timeline presentation: the local and hosted shells render named Camera/Pose/Dialogue/Music/SFX event bands by default, and the Show details disclosure restores draggable raw keyframe controls: PASS.
 - Responsive shell: 390px Playwright inspection reports equal body/document widths and the More actions menu can open the Inspector drawer without page overflow: PASS.
 - Split-pane shell: 960px Playwright inspection reports equal body/document widths, a closed-by-default Inspector, a visible Open Inspector action, no redundant project-drawer action, a working Inspector drawer, and a 770px stage: PASS.
@@ -109,7 +116,7 @@ STAGEHAND_URL=https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site np
 STAGEHAND_URL=https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site npm run smoke:native
 ```
 
-Result: PASS. The hosted run verified 69 unique tools, 50 guarded mutations, the generated-asset approval gate, segmented skeleton proposal/correction/approval, guarded bone keyframes, shared frame inspection/export/render evaluation, bundled audio routing, the 15-second six-beat starter, stale-write conflict, idempotent replay, scene retiming, focused-stage keyboard stepping, PNG output with a valid `89504e47` signature, WebM output with a valid `1a45dfa3` EBML/WebM signature, and zero page errors. A separate hosted native Chromium run registered all 69 unique tools with zero registration errors and passed valid/invalid callback checks. `ffprobe` on a hosted WebM confirmed VP9 video plus Opus audio streams. Luna 5.6 completed a visual hosted smoke pass but could not invoke `webmcp_list_tools` in its task environment; the full WebMCP path is therefore covered by the native Chromium gate and Playwright fallback, while the Luna limitation remains explicitly recorded. No Codex TOML entry or restart was needed.
+The prior hosted baseline passed its then-current gates. This sprint's exact 38-tool contract and new asset-package/rig-preview gates are locally verified and await the explicit public-deploy approval required for the existing public Site.
 
 ## UI roast and fixes
 

@@ -1,0 +1,9 @@
+{
+  "case": "disconnected-alpha",
+  "preview": {
+    "visibleGaps": 2,
+    "disconnectedAlphaIslands": 4,
+    "clippedEdges": 0
+  },
+  "expected": ["VISIBLE_GAPS"]
+}

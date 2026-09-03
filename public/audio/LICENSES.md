@@ -4,12 +4,12 @@ These files are bundled because their source pages mark them CC0. The source
 pages and checksum metadata are kept here so the library can be audited or
 replaced without changing the project model.
 
-| File | Source | Author | License |
-| --- | --- | --- | --- |
-| `simple-loop.ogg` | https://opengameart.org/content/simple-menubackground-music-loop | polosik | CC0 |
-| `othercenter.ogg` | https://opengameart.org/content/other-center | zesona / Chris Murphy | CC0 |
-| `pop-1.ogg` | https://opengameart.org/content/pop-sounds | cogitollc | CC0 |
-| `pop-2.ogg` | https://opengameart.org/content/pop-sounds | cogitollc | CC0 |
+| File              | Source                                                           | Author                | License |
+| ----------------- | ---------------------------------------------------------------- | --------------------- | ------- |
+| `simple-loop.ogg` | https://opengameart.org/content/simple-menubackground-music-loop | polosik               | CC0     |
+| `othercenter.ogg` | https://opengameart.org/content/other-center                     | zesona / Chris Murphy | CC0     |
+| `pop-1.ogg`       | https://opengameart.org/content/pop-sounds                       | cogitollc             | CC0     |
+| `pop-2.ogg`       | https://opengameart.org/content/pop-sounds                       | cogitollc             | CC0     |
 
 SHA-256 checksums:
 
