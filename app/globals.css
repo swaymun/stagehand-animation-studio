@@ -931,8 +931,8 @@ button {
   font-style: normal;
 }
 .timeline {
-  height: 236px;
-  flex: 0 0 236px;
+  height: 262px;
+  flex: 0 0 262px;
   border-top: 1px solid var(--line);
   background: var(--cream);
 }
@@ -978,7 +978,7 @@ button {
 .timeline-grid {
   display: grid;
   grid-template-columns: 110px minmax(320px, 1fr);
-  height: 189px;
+  height: 215px;
 }
 .track-labels {
   padding-top: 25px;
@@ -1290,6 +1290,87 @@ button {
 .camera-actions button:hover {
   border-color: var(--blue);
   background: #fff6eb;
+}
+.audio-cue-list {
+  display: grid;
+  gap: 4px;
+}
+.audio-cue-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 5px 6px;
+  border: 1px solid #e6ded2;
+  border-radius: 4px;
+  background: #fffaf2;
+}
+.audio-cue-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 2px;
+  background: var(--violet);
+}
+.cue-footstep {
+  background: var(--yellow);
+}
+.cue-stinger {
+  background: var(--coral);
+}
+.audio-cue-row > span:nth-child(2) {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+.audio-cue-row strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+}
+.audio-cue-row small {
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 8px;
+}
+.audio-cue-row button {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  color: #a69d93;
+  background: transparent;
+  font-size: 15px;
+  line-height: 1;
+}
+.audio-cue-row button:hover {
+  color: #b65f51;
+  background: #f7e7df;
+}
+.audio-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin-top: 8px;
+}
+.audio-actions button {
+  padding: 6px 4px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: #6b817f;
+  background: #fffaf2;
+  font-size: 8px;
+  font-weight: 750;
+}
+.audio-actions button:hover {
+  border-color: var(--blue);
+  color: var(--blue);
+  background: #f3f7f4;
 }
 .pose-grid {
   display: grid;

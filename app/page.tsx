@@ -54,6 +54,15 @@ type Asset = {
   mimeType?: string;
   dataUrl?: string;
 };
+type AudioCueKind = 'music' | 'footstep' | 'stinger';
+type AudioCue = {
+  id: string;
+  kind: AudioCueKind;
+  label: string;
+  start: number;
+  end: number;
+  volume: number;
+};
 type Character = {
   id: string;
   name: string;
@@ -97,6 +106,7 @@ type SceneMeta = {
   keyframes?: Keyframe[];
   cameraKeyframes?: CameraKeyframe[];
   captions?: Caption[];
+  audioCues?: AudioCue[];
 };
 type StoryBeat = {
   id: string;
@@ -115,6 +125,7 @@ type Project = {
   keyframes: Keyframe[];
   cameraKeyframes: CameraKeyframe[];
   captions: Caption[];
+  audioCues: AudioCue[];
   assets: Asset[];
   scenes: SceneMeta[];
   activeSceneId: string;
@@ -127,7 +138,7 @@ type ValidationIssue = {
   path: string;
   message: string;
 };
-const WEBMCP_TOOL_COUNT = 26;
+const WEBMCP_TOOL_COUNT = 29;
 type ModelTool = {
   name: string;
   title: string;
@@ -277,6 +288,40 @@ const starterTemplates: Array<{
     tag: 'caption-led',
   },
 ];
+const starterAudioCues: AudioCue[] = [
+  {
+    id: 'music-low',
+    kind: 'music',
+    label: 'Quiet diner bed',
+    start: 0,
+    end: 5000,
+    volume: 0.08,
+  },
+  {
+    id: 'footstep-1',
+    kind: 'footstep',
+    label: 'Bob step 1',
+    start: 1550,
+    end: 1650,
+    volume: 0.28,
+  },
+  {
+    id: 'footstep-2',
+    kind: 'footstep',
+    label: 'Bob step 2',
+    start: 1770,
+    end: 1870,
+    volume: 0.24,
+  },
+  {
+    id: 'reaction-sting',
+    kind: 'stinger',
+    label: 'Reaction sting',
+    start: 3100,
+    end: 3450,
+    volume: 0.18,
+  },
+];
 const starterProject: Project = {
   revision: 7,
   duration: 5000,
@@ -394,6 +439,7 @@ const starterProject: Project = {
       speaker: 'Bob',
     },
   ],
+  audioCues: starterAudioCues,
   assets: starterAssets,
   scenes: starterScenes,
   activeSceneId: 'scene-01',
@@ -462,6 +508,7 @@ function makeTemplateScene(templateId: TemplateId, id: string): SceneMeta {
       ...caption,
       text: variant.captions[index],
     })),
+    audioCues: base.audioCues,
   };
 }
 
@@ -479,6 +526,8 @@ const isAssetKind = (value: unknown): value is AssetKind =>
   value === 'background' ||
   value === 'prop' ||
   value === 'audio';
+const isAudioCueKind = (value: unknown): value is AudioCueKind =>
+  value === 'music' || value === 'footstep' || value === 'stinger';
 
 function nextSceneId(scenes: SceneMeta[]) {
   let index = scenes.length + 1;
@@ -510,6 +559,16 @@ function assetKindLabel(kind: AssetKind) {
         : 'Audio';
 }
 
+function nextAudioCueId(cues: AudioCue[], kind: AudioCueKind) {
+  let index = cues.length + 1;
+  let id = `${kind}-${String(index).padStart(2, '0')}`;
+  while (cues.some((cue) => cue.id === id)) {
+    index += 1;
+    id = `${kind}-${String(index).padStart(2, '0')}`;
+  }
+  return id;
+}
+
 function loadSceneContent(project: Project, sceneId: string) {
   const target = project.scenes.find((scene) => scene.id === sceneId);
   if (!target) return false;
@@ -522,6 +581,7 @@ function loadSceneContent(project: Project, sceneId: string) {
     target.cameraKeyframes ?? project.cameraKeyframes,
   );
   project.captions = copy(target.captions ?? project.captions);
+  project.audioCues = copy(target.audioCues ?? project.audioCues);
   project.currentTime = 0;
   if (
     !project.characters.some((character) => character.id === project.selectedId)
@@ -612,6 +672,25 @@ function validateProjectState(project: Project): ValidationIssue[] {
         message: `${frame.id} has an invalid camera transform or time.`,
       });
   });
+  project.audioCues.forEach((cue) => {
+    if (
+      !isAudioCueKind(cue.kind) ||
+      !Number.isFinite(cue.start) ||
+      !Number.isFinite(cue.end) ||
+      cue.start < 0 ||
+      cue.end <= cue.start ||
+      cue.end > project.duration ||
+      !Number.isFinite(cue.volume) ||
+      cue.volume < 0 ||
+      cue.volume > 1
+    )
+      issues.push({
+        code: 'AUDIO_OUT_OF_BOUNDS',
+        severity: 'error',
+        path: `audioCues.${cue.id}`,
+        message: `${cue.id} has invalid timing, type, or volume.`,
+      });
+  });
   return issues;
 }
 
@@ -626,6 +705,7 @@ function syncActiveScene(project: Project) {
   activeScene.keyframes = copy(project.keyframes);
   activeScene.cameraKeyframes = copy(project.cameraKeyframes);
   activeScene.captions = copy(project.captions);
+  activeScene.audioCues = copy(project.audioCues);
 }
 
 const hydrateProject = (value: Partial<Project>): Project => {
@@ -645,6 +725,10 @@ const hydrateProject = (value: Partial<Project>): Project => {
   const fallbackCaptions = Array.isArray(value.captions)
     ? value.captions
     : base.captions;
+  const fallbackAudioCues =
+    Array.isArray(value.audioCues) && value.audioCues.length > 0
+      ? value.audioCues
+      : base.audioCues;
   const fallbackAssets =
     Array.isArray(value.assets) && value.assets.length > 0
       ? value.assets
@@ -669,6 +753,10 @@ const hydrateProject = (value: Partial<Project>): Project => {
         ? scene.cameraKeyframes
         : fallbackCameraKeyframes,
     captions: Array.isArray(scene.captions) ? scene.captions : fallbackCaptions,
+    audioCues:
+      Array.isArray(scene.audioCues) && scene.audioCues.length > 0
+        ? scene.audioCues
+        : fallbackAudioCues,
   }));
   const activeScene =
     scenes.find((scene) => scene.id === requestedActiveId) ?? scenes[0];
@@ -685,6 +773,7 @@ const hydrateProject = (value: Partial<Project>): Project => {
       activeScene.cameraKeyframes ?? fallbackCameraKeyframes,
     ),
     captions: copy(activeScene.captions ?? fallbackCaptions),
+    audioCues: copy(activeScene.audioCues ?? fallbackAudioCues),
     assets: copy(fallbackAssets),
   };
 };
@@ -867,6 +956,70 @@ function applyCameraTransform(
   ctx.rotate((camera.rotation * Math.PI) / 180);
   ctx.scale(camera.zoom, camera.zoom);
   ctx.translate(-width / 2, -height / 2);
+}
+
+function scheduleAudioCues(
+  context: AudioContext,
+  destination: AudioNode,
+  cues: AudioCue[],
+  startAt: number,
+) {
+  const footstepBuffer = context.createBuffer(
+    1,
+    Math.ceil(context.sampleRate * 0.12),
+    context.sampleRate,
+  );
+  const noise = footstepBuffer.getChannelData(0);
+  for (let index = 0; index < noise.length; index++) {
+    const envelope = 1 - index / noise.length;
+    noise[index] = Math.sin(index * 12.9898) * envelope;
+  }
+  cues.forEach((cue) => {
+    const start = startAt + cue.start / 1000;
+    const end = startAt + cue.end / 1000;
+    if (cue.kind === 'music') {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = 'triangle';
+      oscillator.frequency.setValueAtTime(110, start);
+      gain.gain.setValueAtTime(0, start);
+      const attackEnd = Math.max(
+        start + 0.001,
+        Math.min(start + 0.18, end - 0.001),
+      );
+      const releaseStart = Math.max(attackEnd, end - 0.25);
+      gain.gain.linearRampToValueAtTime(cue.volume * 0.22, attackEnd);
+      gain.gain.setValueAtTime(cue.volume * 0.22, releaseStart);
+      gain.gain.linearRampToValueAtTime(0, end);
+      oscillator.connect(gain).connect(destination);
+      oscillator.start(start);
+      oscillator.stop(end + 0.05);
+    } else if (cue.kind === 'footstep') {
+      const source = context.createBufferSource();
+      const gain = context.createGain();
+      source.buffer = footstepBuffer;
+      gain.gain.setValueAtTime(cue.volume * 0.35, start);
+      gain.gain.exponentialRampToValueAtTime(
+        0.001,
+        Math.max(start + 0.04, end),
+      );
+      source.connect(gain).connect(destination);
+      source.start(start);
+    } else {
+      [330, 440].forEach((frequency, index) => {
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(frequency, start + index * 0.04);
+        gain.gain.setValueAtTime(0, start);
+        gain.gain.linearRampToValueAtTime(cue.volume * 0.18, start + 0.04);
+        gain.gain.exponentialRampToValueAtTime(0.001, end);
+        oscillator.connect(gain).connect(destination);
+        oscillator.start(start);
+        oscillator.stop(end + 0.05);
+      });
+    }
+  });
 }
 
 function upsertCharacterKeyframe(
@@ -1386,6 +1539,7 @@ export default function Home() {
           keyframeCount: current.keyframes.length,
           cameraKeyframeCount: current.cameraKeyframes.length,
           captionCount: current.captions.length,
+          audioCueCount: current.audioCues.length,
           assetCount: current.assets.length,
         };
       },
@@ -1408,6 +1562,7 @@ export default function Home() {
           keyframeCount: current.keyframes.length,
           cameraKeyframeCount: current.cameraKeyframes.length,
           captionCount: current.captions.length,
+          audioCueCount: current.audioCues.length,
         };
       },
       true,
@@ -1437,10 +1592,11 @@ export default function Home() {
           fps: 12,
           currentTimeMs: current.currentTime,
           durationMs: current.duration,
-          tracks: ['camera', 'alice', 'bob', 'captions', 'music'],
+          tracks: ['camera', 'alice', 'bob', 'captions', 'music', 'sfx'],
           captions: current.captions,
           keyframes: current.keyframes,
           cameraKeyframes: current.cameraKeyframes,
+          audioCues: current.audioCues,
         };
       },
       true,
@@ -1576,6 +1732,22 @@ export default function Home() {
           revision: current.revision,
           camera: evaluateCamera(current, current.currentTime),
           cameraKeyframes: current.cameraKeyframes,
+        };
+      },
+      true,
+    );
+    register(
+      'get_audio_cues',
+      'Get audio cues',
+      'Inspect non-voice music, footsteps, and reaction sting cues for the active scene.',
+      { type: 'object', properties: {}, additionalProperties: false },
+      () => {
+        const current = projectRef.current;
+        return {
+          ok: true,
+          revision: current.revision,
+          audioCues: current.audioCues,
+          voiceStatus: 'out-of-scope',
         };
       },
       true,
@@ -1745,6 +1917,7 @@ export default function Home() {
           keyframes: copy(current.keyframes),
           cameraKeyframes: copy(current.cameraKeyframes),
           captions: copy(current.captions),
+          audioCues: copy(current.audioCues),
         } satisfies SceneMeta;
         commitRef.current(
           (next) => {
@@ -1939,6 +2112,103 @@ export default function Home() {
           revision: current.revision + 1,
           scene,
           changedEntityIds: [scene.id],
+        };
+      },
+    );
+    register(
+      'add_audio_cue',
+      'Add audio cue',
+      'Add a bounded non-voice music, footstep, or reaction sting cue to the active scene.',
+      {
+        type: 'object',
+        required: ['kind', 'label'],
+        additionalProperties: false,
+        properties: {
+          kind: { type: 'string', enum: ['music', 'footstep', 'stinger'] },
+          label: { type: 'string', minLength: 1 },
+          startMs: { type: 'number', minimum: 0 },
+          endMs: { type: 'number', minimum: 0 },
+          volume: { type: 'number', minimum: 0, maximum: 1 },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const label = typeof input.label === 'string' ? input.label.trim() : '';
+        if (!isAudioCueKind(input.kind) || !label)
+          return { ok: false, code: 'INVALID_INPUT' };
+        const start =
+          typeof input.startMs === 'number'
+            ? input.startMs
+            : current.currentTime;
+        const defaultLength =
+          input.kind === 'music'
+            ? current.duration
+            : input.kind === 'footstep'
+              ? 120
+              : 350;
+        const end =
+          typeof input.endMs === 'number' ? input.endMs : start + defaultLength;
+        const volume = typeof input.volume === 'number' ? input.volume : 0.15;
+        if (
+          !Number.isFinite(start) ||
+          !Number.isFinite(end) ||
+          !Number.isFinite(volume) ||
+          start < 0 ||
+          end <= start ||
+          end > current.duration ||
+          volume < 0 ||
+          volume > 1
+        )
+          return { ok: false, code: 'INVALID_TIMING' };
+        const cue: AudioCue = {
+          id: nextAudioCueId(current.audioCues, input.kind),
+          kind: input.kind,
+          label,
+          start,
+          end,
+          volume,
+        };
+        commitRef.current(
+          (next) => {
+            next.audioCues.push(cue);
+          },
+          `Add audio ${label}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          cue,
+          changedEntityIds: [cue.id],
+        };
+      },
+    );
+    register(
+      'remove_audio_cue',
+      'Remove audio cue',
+      'Remove one non-voice audio cue while preserving captions and animation.',
+      {
+        type: 'object',
+        required: ['cueId'],
+        additionalProperties: false,
+        properties: { cueId: { type: 'string' } },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const cueId = typeof input.cueId === 'string' ? input.cueId : '';
+        const cue = current.audioCues.find((item) => item.id === cueId);
+        if (!cue) return { ok: false, code: 'NOT_FOUND' };
+        commitRef.current(
+          (next) => {
+            next.audioCues = next.audioCues.filter((item) => item.id !== cueId);
+          },
+          `Remove audio ${cue.label}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          removedCueId: cueId,
         };
       },
     );
@@ -2431,6 +2701,29 @@ export default function Home() {
       next.assets = next.assets.filter((item) => item.id !== asset.id);
     }, `Remove asset ${asset.label}`);
   };
+  const addAudioCue = (kind: Exclude<AudioCueKind, 'music'>) => {
+    const start = project.currentTime;
+    const end = Math.min(
+      project.duration,
+      start + (kind === 'footstep' ? 120 : 350),
+    );
+    const label = kind === 'footstep' ? 'Footstep' : 'Reaction sting';
+    commit((next) => {
+      next.audioCues.push({
+        id: nextAudioCueId(next.audioCues, kind),
+        kind,
+        label,
+        start,
+        end,
+        volume: kind === 'footstep' ? 0.24 : 0.16,
+      });
+    }, `Add audio ${label}`);
+  };
+  const removeAudioCue = (cue: AudioCue) => {
+    commit((next) => {
+      next.audioCues = next.audioCues.filter((item) => item.id !== cue.id);
+    }, `Remove audio ${cue.label}`);
+  };
   const importAsset = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -2483,6 +2776,7 @@ export default function Home() {
       keyframes: copy(project.keyframes),
       cameraKeyframes: copy(project.cameraKeyframes),
       captions: copy(project.captions),
+      audioCues: copy(project.audioCues),
     } satisfies SceneMeta;
     commit((next) => {
       next.scenes.push(scene);
@@ -2618,12 +2912,33 @@ export default function Home() {
       setNotice('Render surface could not be created');
       return;
     }
-    const stream = output.captureStream(0),
-      track = stream.getVideoTracks()[0] as CanvasCaptureMediaStreamTrack,
-      chunks: Blob[] = [];
-    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-      ? 'video/webm;codecs=vp9'
-      : 'video/webm';
+    const canvasStream = output.captureStream(0);
+    const track =
+      canvasStream.getVideoTracks()[0] as CanvasCaptureMediaStreamTrack;
+    const audioContext = 'AudioContext' in window ? new AudioContext() : null;
+    let stream = canvasStream;
+    let audioStream: MediaStream | null = null;
+    if (audioContext && project.audioCues.length > 0) {
+      const destination = audioContext.createMediaStreamDestination();
+      audioStream = destination.stream;
+      stream = new MediaStream([
+        ...canvasStream.getVideoTracks(),
+        ...audioStream.getAudioTracks(),
+      ]);
+      scheduleAudioCues(
+        audioContext,
+        destination,
+        project.audioCues,
+        audioContext.currentTime + 0.08,
+      );
+      void audioContext.resume();
+    }
+    const chunks: Blob[] = [];
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+      ? 'video/webm;codecs=vp9,opus'
+      : MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+        ? 'video/webm;codecs=vp9'
+        : 'video/webm';
     const recorder = new MediaRecorder(stream, { mimeType });
     recorder.ondataavailable = (event) => {
       if (event.data.size > 0) chunks.push(event.data);
@@ -2639,12 +2954,14 @@ export default function Home() {
       link.click();
       URL.revokeObjectURL(url);
       stream.getTracks().forEach((track) => track.stop());
+      audioStream?.getTracks().forEach((audioTrack) => audioTrack.stop());
+      void audioContext?.close();
       setPlaying(false);
       setRendering(false);
-      setNotice('Silent WebM downloaded · preview render complete');
+      setNotice('WebM downloaded · preview render complete');
     };
     setProject((current) => ({ ...current, currentTime: 0 }));
-    setNotice('Rendering 5-second silent WebM preview');
+    setNotice('Rendering 5-second WebM with cue mix');
     recorder.start();
     const drawNextFrame = () => {
       drawRenderFrame(
@@ -2690,12 +3007,26 @@ export default function Home() {
           (caption) => (caption.start / project.duration) * 100,
         ),
       },
-      { name: 'Music · low', color: 'violet', marks: [0, 100] },
+      {
+        name: 'Music · low',
+        color: 'violet',
+        marks: project.audioCues
+          .filter((cue) => cue.kind === 'music')
+          .map((cue) => (cue.start / project.duration) * 100),
+      },
+      {
+        name: 'SFX',
+        color: 'yellow',
+        marks: project.audioCues
+          .filter((cue) => cue.kind !== 'music')
+          .map((cue) => (cue.start / project.duration) * 100),
+      },
     ];
   }, [
     project.cameraKeyframes,
     project.captions,
     project.duration,
+    project.audioCues,
     project.keyframes,
   ]);
   const activeSceneIndex = Math.max(
@@ -2742,7 +3073,7 @@ export default function Home() {
             <Settings2 size={17} />
           </IconButton>
           <button className="render-button" type="button" onClick={renderWebM}>
-            <Film size={16} /> {rendering ? 'Rendering…' : 'Render silent WebM'}
+            <Film size={16} /> {rendering ? 'Rendering…' : 'Render WebM'}
           </button>
           <button
             className="top-secondary-button"
@@ -3358,7 +3689,9 @@ export default function Home() {
                           ? 'T'
                           : track.name === 'Music · low'
                             ? '♫'
-                            : '✦'}
+                            : track.name === 'SFX'
+                              ? '⌁'
+                              : '✦'}
                     </span>
                     <span>{track.name}</span>
                   </div>
@@ -3395,8 +3728,12 @@ export default function Home() {
                       }}
                     >
                       {track.name === 'Captions' && (
-                        <span>You actually came</span>
+                        <span>dialogue captions</span>
                       )}
+                      {track.name === 'Music · low' && (
+                        <span>quiet diner bed</span>
+                      )}
+                      {track.name === 'SFX' && <span>footsteps + sting</span>}
                     </div>
                     {track.marks.map((mark) => (
                       <button
@@ -3685,6 +4022,45 @@ export default function Home() {
             )}
           </div>
           <div className="inspector-section">
+            <div className="inspector-label">
+              AUDIO CUES <span>non-voice mix</span>
+            </div>
+            <div className="audio-cue-list">
+              {project.audioCues.map((cue) => (
+                <div className="audio-cue-row" key={cue.id}>
+                  <span className={`audio-cue-dot cue-${cue.kind}`} />
+                  <span>
+                    <strong>{cue.label}</strong>
+                    <small>
+                      {cue.kind} · {timecode(cue.start)} ·{' '}
+                      {Math.round(cue.volume * 100)}%
+                    </small>
+                  </span>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${cue.label}`}
+                    title={`Remove ${cue.label}`}
+                    onClick={() => removeAudioCue(cue)}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="audio-actions">
+              <button type="button" onClick={() => addAudioCue('footstep')}>
+                + Footstep
+              </button>
+              <button type="button" onClick={() => addAudioCue('stinger')}>
+                + Sting
+              </button>
+            </div>
+            <small className="transform-help">
+              Cue mix is rendered into WebM; voice and lip-sync stay out of
+              scope.
+            </small>
+          </div>
+          <div className="inspector-section">
             <div className="inspector-label">STYLE BIBLE</div>
             <div className="style-row">
               <span>Construction</span>
@@ -3772,7 +4148,9 @@ export default function Home() {
                   </div>
                   <div>
                     <dt>Render</dt>
-                    <dd>Export a silent, editable-preview WebM</dd>
+                    <dd>
+                      Export an editable-preview WebM with cue-based audio
+                    </dd>
                   </div>
                 </dl>
               </div>
