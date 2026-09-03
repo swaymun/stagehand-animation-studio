@@ -576,15 +576,20 @@ const emptied = await page.evaluate(async () => {
   const call = (name, input = {}) => tools.get(name).execute(input);
   const storyboard = await call('get_storyboard');
   const timeline = await call('get_timeline');
+  const manifest = await call('get_asset_manifest');
   for (const beat of storyboard.beats ?? []) {
     await call('remove_storyboard_beat', { beatId: beat.id });
   }
   for (const cue of timeline.audioCues ?? []) {
     await call('remove_audio_cue', { cueId: cue.id });
   }
+  for (const asset of manifest.assets ?? []) {
+    await call('remove_asset', { assetId: asset.id });
+  }
   return {
     beatsRemoved: storyboard.beats?.length ?? 0,
     cuesRemoved: timeline.audioCues?.length ?? 0,
+    assetsRemoved: manifest.assets?.length ?? 0,
   };
 });
 await page.waitForTimeout(650);
@@ -597,8 +602,10 @@ const emptyStatePersistence = await page.evaluate(() =>
 if (
   emptied.beatsRemoved !== 6 ||
   emptied.cuesRemoved < 1 ||
+  emptied.assetsRemoved < 5 ||
   emptyStatePersistence.storyboardBeatCount !== 0 ||
-  emptyStatePersistence.audioCueCount !== 0
+  emptyStatePersistence.audioCueCount !== 0 ||
+  emptyStatePersistence.assetCount !== 0
 ) {
   throw new Error(
     `empty editable collections should survive recovery: ${JSON.stringify({ emptied, emptyStatePersistence })}`,
@@ -668,8 +675,10 @@ const result = {
   emptyStatePersistence: {
     removedBeats: emptied.beatsRemoved,
     removedCues: emptied.cuesRemoved,
+    removedAssets: emptied.assetsRemoved,
     persistedBeats: emptyStatePersistence.storyboardBeatCount,
     persistedCues: emptyStatePersistence.audioCueCount,
+    persistedAssets: emptyStatePersistence.assetCount,
   },
   summary: {
     name: summary.name,
@@ -749,6 +758,7 @@ if (
   preview.resetStarter !== 0 ||
   result.emptyStatePersistence.persistedBeats !== 0 ||
   result.emptyStatePersistence.persistedCues !== 0 ||
+  result.emptyStatePersistence.persistedAssets !== 0 ||
   errors.length > 0
 )
   throw new Error(`Smoke test failed: ${JSON.stringify(result)}`);
