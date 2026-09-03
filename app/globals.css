@@ -610,6 +610,30 @@ button {
   border-color: var(--blue);
   background: #fff6eb;
 }
+.asset-import-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin-top: 6px;
+}
+.asset-import-grid button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 7px 3px;
+  border: 1px dashed #b9afa3;
+  border-radius: 4px;
+  color: #6b817f;
+  background: transparent;
+  font-size: 8px;
+  font-weight: 700;
+}
+.asset-import-grid button:hover {
+  border-color: var(--blue);
+  color: var(--blue);
+  background: #f3f7f4;
+}
 .asset-hint {
   margin-top: 9px;
 }

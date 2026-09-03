@@ -4,7 +4,7 @@ Stagehand is a WebMCP-native 2D animation studio where a person and ChatGPT can 
 
 ## Current cut
 
-The current cut is a deterministic, local-first Paper Cutout Comedy scene: two pre-rigged placeholder characters, a diner background, captions, interpolated character and camera keyframe timelines, a structured asset library with placeholder add/remove operations, command-backed transforms, poses, and reaction cuts, undo/redo, local recovery, independent multi-scene content with add/rename/duplicate/delete operations, JSON import/export, visible readiness validation, silent WebM export, and twenty-five WebMCP tools. TTS, voice cloning, dialogue recording, phoneme extraction, and lip-sync remain explicitly out of scope.
+The current cut is a deterministic, local-first Paper Cutout Comedy scene: two pre-rigged placeholder characters, a diner background, captions, interpolated character and camera keyframe timelines, a structured asset library with placeholder add/remove and local image import/compositing, command-backed transforms, poses, and reaction cuts, undo/redo, local recovery, independent multi-scene content with add/rename/duplicate/delete operations, JSON import/export, visible readiness validation, silent WebM export, and twenty-five WebMCP tools. TTS, voice cloning, dialogue recording, phoneme extraction, and lip-sync remain explicitly out of scope.
 
 ## Product rules
 
@@ -26,7 +26,7 @@ Start from Paper Cutout Comedy. Alice waits nervously in a diner; Bob enters beh
 2. Editable vertical slice — complete: model, persistence, commands, one scene, rig editing, timeline, preview, import/export.
 3. Multi-scene animation core — in progress: independent scene content, scene operations, and interpolated camera framing are complete; richer storyboard promotion remains.
 4. Agent-native control — in progress: twenty-five registered tools, revisions, undo, structured validation, and visible/agent parity are present; hosted live WebMCP enumeration is still a platform/browser capability gap.
-5. Mixed media/templates — in progress: structured asset add/remove and placeholder workflows are present; media compositing, asset briefs/import, character-sheet rig import, four starters, and an expanded style bible remain.
+5. Mixed media/templates — in progress: structured asset add/remove, local image import, and deterministic background/prop compositing are present; asset briefs, character-sheet rig import, four starters, and an expanded style bible remain.
 6. Captions/audio/validation/render — partial: captions, deterministic validation, and silent WebM export are present; bundled SFX/music and richer render controls remain.
 7. UX/challenge polish — ongoing: accessibility, recovery, performance, README, architecture, and demo script continue through the implementation loop.
 

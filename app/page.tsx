@@ -46,6 +46,8 @@ type Asset = {
   kind: AssetKind;
   label: string;
   source: 'starter' | 'placeholder' | 'imported';
+  mimeType?: string;
+  dataUrl?: string;
 };
 type Character = {
   id: string;
@@ -676,7 +678,12 @@ function drawDinerBackground(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
+  backgroundImage?: CanvasImageSource,
 ) {
+  if (backgroundImage) {
+    ctx.drawImage(backgroundImage, 0, 0, width, height);
+    return;
+  }
   ctx.fillStyle = '#e9d6b8';
   ctx.fillRect(0, 0, width, height);
   ctx.fillStyle = '#c38b62';
@@ -717,6 +724,25 @@ function drawDinerBackground(
   ctx.fillRect(width * 0.71, height * 0.27, 32, 72);
   ctx.fillStyle = '#f0c27f';
   ctx.fillRect(width * 0.73, height * 0.3, 28, 40);
+}
+
+function drawImportedProps(
+  ctx: CanvasRenderingContext2D,
+  assets: Asset[],
+  width: number,
+  height: number,
+  imageMap?: Map<string, CanvasImageSource>,
+) {
+  assets
+    .filter((asset) => asset.kind === 'prop' && asset.dataUrl)
+    .forEach((asset, index) => {
+      const image = imageMap?.get(asset.id);
+      if (!image) return;
+      const size = Math.min(width, height) * 0.16;
+      const x = width * 0.64 + index * size * 0.72;
+      const y = height * 0.48 - index * size * 0.08;
+      ctx.drawImage(image, x, y, size, size);
+    });
 }
 
 function applyCameraTransform(
@@ -848,6 +874,7 @@ function drawRenderFrame(
   project: Project,
   width: number,
   height: number,
+  imageMap?: Map<string, CanvasImageSource>,
 ) {
   ctx.fillStyle = '#e9d6b8';
   ctx.fillRect(0, 0, width, height);
@@ -858,10 +885,19 @@ function drawRenderFrame(
     width,
     height,
   );
-  drawDinerBackground(ctx, width, height);
+  const backgroundImage = project.assets.find(
+    (asset) => asset.kind === 'background' && asset.dataUrl,
+  );
+  drawDinerBackground(
+    ctx,
+    width,
+    height,
+    backgroundImage ? imageMap?.get(backgroundImage.id) : undefined,
+  );
   evaluateCharacters(project, project.currentTime).forEach((character) =>
     drawCharacter(ctx, character, width, height, false),
   );
+  drawImportedProps(ctx, project.assets, width, height, imageMap);
   ctx.restore();
   const caption = project.captions.find(
     (item) =>
@@ -902,6 +938,9 @@ function StageCanvas({
   interactionMode: 'select' | 'pan';
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const imageCacheRef = useRef(new Map<string, HTMLImageElement>());
+  const imagePendingRef = useRef(new Set<string>());
+  const redrawRef = useRef<() => void>(() => {});
   const draw = useCallback(() => {
     const canvas = ref.current;
     if (!canvas) return;
@@ -913,6 +952,29 @@ function StageCanvas({
     if (!ctx) return;
     ctx.scale(dpr, dpr);
     const { width, height } = rect;
+    project.assets
+      .filter(
+        (asset) =>
+          (asset.kind === 'background' || asset.kind === 'prop') &&
+          asset.dataUrl,
+      )
+      .forEach((asset) => {
+        if (
+          imageCacheRef.current.has(asset.id) ||
+          imagePendingRef.current.has(asset.id) ||
+          !asset.dataUrl
+        )
+          return;
+        imagePendingRef.current.add(asset.id);
+        const image = new Image();
+        image.onload = () => {
+          imageCacheRef.current.set(asset.id, image);
+          imagePendingRef.current.delete(asset.id);
+          redrawRef.current();
+        };
+        image.onerror = () => imagePendingRef.current.delete(asset.id);
+        image.src = asset.dataUrl;
+      });
     ctx.fillStyle = '#e9d6b8';
     ctx.fillRect(0, 0, width, height);
     ctx.save();
@@ -922,9 +984,26 @@ function StageCanvas({
       width,
       height,
     );
-    drawDinerBackground(ctx, width, height);
+    const backgroundAsset = project.assets.find(
+      (asset) => asset.kind === 'background' && asset.dataUrl,
+    );
+    drawDinerBackground(
+      ctx,
+      width,
+      height,
+      backgroundAsset
+        ? imageCacheRef.current.get(backgroundAsset.id)
+        : undefined,
+    );
     evaluateCharacters(project, project.currentTime).forEach((c) =>
       drawCharacter(ctx, c, width, height, c.id === project.selectedId),
+    );
+    drawImportedProps(
+      ctx,
+      project.assets,
+      width,
+      height,
+      imageCacheRef.current,
     );
     ctx.restore();
     const camera = evaluateCamera(project, project.currentTime);
@@ -946,6 +1025,7 @@ function StageCanvas({
     );
   }, [project, sceneLabel]);
   useEffect(() => {
+    redrawRef.current = draw;
     draw();
     window.addEventListener('resize', draw);
     return () => window.removeEventListener('resize', draw);
@@ -1015,12 +1095,16 @@ export default function Home() {
     [notice, setNotice] = useState('Ready for direction'),
     [saved, setSaved] = useState(true);
   const importInputRef = useRef<HTMLInputElement>(null);
+  const assetImportInputRef = useRef<HTMLInputElement>(null);
   const [lastCommand, setLastCommand] = useState('set_pose( alice )');
   const [showSafeArea, setShowSafeArea] = useState(true);
   const [sceneMenuId, setSceneMenuId] = useState<string | null>(null);
   const [editingSceneId, setEditingSceneId] = useState<string | null>(null);
   const [sceneTitleDraft, setSceneTitleDraft] = useState('');
   const [sceneDescriptionDraft, setSceneDescriptionDraft] = useState('');
+  const [assetImportKind, setAssetImportKind] = useState<'background' | 'prop'>(
+    'prop',
+  );
   const panStartRef = useRef<{
     x: number;
     y: number;
@@ -2188,6 +2272,39 @@ export default function Home() {
       next.assets = next.assets.filter((item) => item.id !== asset.id);
     }, `Remove asset ${asset.label}`);
   };
+  const importAsset = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setNotice('Import an image asset · PNG, JPG, WebP, or GIF');
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      setNotice('Image import is limited to 4 MB for local recovery');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== 'string') {
+        setNotice('Image import failed');
+        return;
+      }
+      const label = file.name.replace(/\.[^/.]+$/, '') || 'Imported image';
+      commit((next) => {
+        next.assets.push({
+          id: nextAssetId(next.assets, assetImportKind),
+          kind: assetImportKind,
+          label,
+          source: 'imported',
+          mimeType: file.type,
+          dataUrl: reader.result as string,
+        });
+      }, `Import asset ${label}`);
+    };
+    reader.onerror = () => setNotice('Image import failed');
+    reader.readAsDataURL(file);
+  };
   const addScene = () => {
     const sceneNumber = project.scenes.length + 1;
     const scene = {
@@ -2292,7 +2409,7 @@ export default function Home() {
       })
       .catch(() => setNotice('Import failed · expected Stagehand JSON'));
   };
-  const renderWebM = useCallback(() => {
+  const renderWebM = useCallback(async () => {
     if (rendering) return;
     const canvas = document.querySelector(
       '.stage-canvas',
@@ -2301,11 +2418,36 @@ export default function Home() {
       setNotice('WebM export is not supported in this browser');
       return;
     }
+    setRendering(true);
+    setPlaying(false);
+    setNotice('Preparing local media for WebM render');
+    const imageMap = new Map<string, HTMLImageElement>();
+    await Promise.all(
+      project.assets
+        .filter(
+          (asset) =>
+            (asset.kind === 'background' || asset.kind === 'prop') &&
+            asset.dataUrl,
+        )
+        .map(
+          (asset) =>
+            new Promise<void>((resolve) => {
+              const image = new Image();
+              image.onload = () => {
+                imageMap.set(asset.id, image);
+                resolve();
+              };
+              image.onerror = () => resolve();
+              image.src = asset.dataUrl as string;
+            }),
+        ),
+    );
     const output = document.createElement('canvas');
     output.width = 720;
     output.height = 405;
     const outputContext = output.getContext('2d');
     if (!outputContext) {
+      setRendering(false);
       setNotice('Render surface could not be created');
       return;
     }
@@ -2335,8 +2477,6 @@ export default function Home() {
       setNotice('Silent WebM downloaded · preview render complete');
     };
     setProject((current) => ({ ...current, currentTime: 0 }));
-    setRendering(true);
-    setPlaying(false);
     setNotice('Rendering 5-second silent WebM preview');
     recorder.start();
     const drawNextFrame = () => {
@@ -2345,6 +2485,7 @@ export default function Home() {
         { ...project, currentTime: frame },
         output.width,
         output.height,
+        imageMap,
       );
       track.requestFrame();
       frame += 1000 / 12;
@@ -2699,6 +2840,15 @@ export default function Home() {
                   <div className="asset-row" key={asset.id}>
                     <span
                       className={`asset-swatch asset-${asset.kind.replace('rigged-character', 'rig')}`}
+                      style={
+                        asset.dataUrl
+                          ? {
+                              backgroundImage: `url(${asset.dataUrl})`,
+                              backgroundPosition: 'center',
+                              backgroundSize: 'cover',
+                            }
+                          : undefined
+                      }
                     />
                     <span className="asset-copy">
                       <strong>{asset.label}</strong>
@@ -2736,10 +2886,38 @@ export default function Home() {
                   </button>
                 ))}
               </div>
+              <div className="asset-import-grid">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssetImportKind('background');
+                    assetImportInputRef.current?.click();
+                  }}
+                >
+                  <Upload size={11} /> Import background
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssetImportKind('prop');
+                    assetImportInputRef.current?.click();
+                  }}
+                >
+                  <Upload size={11} /> Import prop
+                </button>
+              </div>
               <small className="panel-hint asset-hint">
                 Placeholders keep the scene editable until an imported or
                 generated file replaces them.
               </small>
+              <input
+                ref={assetImportInputRef}
+                className="visually-hidden"
+                type="file"
+                accept="image/*"
+                onChange={importAsset}
+                aria-label="Import image asset"
+              />
             </div>
           )}
           <div className="rail-footer">
