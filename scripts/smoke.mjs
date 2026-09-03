@@ -110,6 +110,36 @@ if (
 ) {
   throw new Error('studio should expose one descriptive h1 brand heading');
 }
+const uiChrome = {
+  previewAction: await page
+    .getByRole('button', { name: 'Preview', exact: true })
+    .count(),
+  renderAction: await page
+    .getByRole('button', { name: 'Render', exact: true })
+    .count(),
+  previewTab: await page
+    .getByRole('tab', { name: 'Preview', exact: true })
+    .count(),
+  legacyToolBadge: await page
+    .getByText('52 tools declared', { exact: true })
+    .count(),
+  legacyValidationCard: await page
+    .getByText('READY TO RENDER', { exact: true })
+    .count(),
+  legacySaveCopy: await page
+    .getByText('Saved locally', { exact: true })
+    .count(),
+};
+if (
+  uiChrome.previewAction !== 1 ||
+  uiChrome.renderAction !== 1 ||
+  uiChrome.previewTab !== 0 ||
+  uiChrome.legacyToolBadge !== 0 ||
+  uiChrome.legacyValidationCard !== 0 ||
+  uiChrome.legacySaveCopy !== 0
+) {
+  throw new Error(`editor chrome regression: ${JSON.stringify(uiChrome)}`);
+}
 const sceneTitleLines = await page
   .locator('.scene-meta strong')
   .first()
@@ -680,6 +710,46 @@ if (
   );
 }
 
+const mobileContext = await browser.newContext({
+  viewport: { width: 390, height: 844 },
+});
+const mobilePage = await mobileContext.newPage();
+await mobilePage.goto(`${baseUrl}?qa=responsive-smoke`, {
+  waitUntil: 'domcontentloaded',
+  timeout: 15000,
+});
+await mobilePage.evaluate(() => localStorage.clear());
+await mobilePage.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
+await mobilePage.waitForTimeout(400);
+await mobilePage
+  .getByRole('button', { name: 'More actions', exact: true })
+  .click();
+const mobileMenuItems = await mobilePage.locator('.mobile-only').count();
+await mobilePage
+  .getByRole('menuitem', { name: 'Open Inspector', exact: true })
+  .click();
+const responsive = {
+  bodyWidth: await mobilePage.evaluate(() => document.body.scrollWidth),
+  documentWidth: await mobilePage.evaluate(
+    () => document.documentElement.scrollWidth,
+  ),
+  mobileMenuItems,
+  inspectorDrawer: await mobilePage
+    .locator('.workspace.mobile-inspector-open > .inspector')
+    .isVisible(),
+};
+await mobileContext.close();
+if (
+  responsive.bodyWidth !== 390 ||
+  responsive.documentWidth !== 390 ||
+  responsive.mobileMenuItems !== 2 ||
+  !responsive.inspectorDrawer
+) {
+  throw new Error(
+    `responsive editor regression: ${JSON.stringify(responsive)}`,
+  );
+}
+
 const result = {
   url: baseUrl,
   toolCount: bridge.toolCount,
@@ -702,6 +772,8 @@ const result = {
   },
   sceneTitleLines,
   h1: (await h1.textContent())?.trim(),
+  uiChrome,
+  responsive,
   modal: { heading: modalHeading },
   inspector: {
     groupCount: inspectorGroupCount,
