@@ -64,6 +64,18 @@ const humanPropXInput = page.locator('input[aria-label="X for smoke-prop"]');
 await humanPropXInput.fill('63');
 await page.waitForTimeout(100);
 const humanPropX = await humanPropXInput.inputValue();
+const unnamedNumberInputs = await page
+  .locator('input[type="number"]')
+  .evaluateAll((inputs) =>
+    inputs
+      .filter((input) => !input.getAttribute('aria-label'))
+      .map((input) => input.outerHTML),
+  );
+if (unnamedNumberInputs.length > 0) {
+  throw new Error(
+    `numeric controls must have accessible names: ${unnamedNumberInputs.join(', ')}`,
+  );
+}
 
 const bridge = await page.evaluate(async () => {
   const tools = window.__stagehandTools;

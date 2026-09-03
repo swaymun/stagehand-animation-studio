@@ -6787,6 +6787,7 @@ export default function Home() {
                 X{' '}
                 <input
                   type="number"
+                  aria-label={`${selected.name} X position`}
                   value={selected.x}
                   onChange={(e) => updateSelected('x', Number(e.target.value))}
                 />
@@ -6796,6 +6797,7 @@ export default function Home() {
                 Y{' '}
                 <input
                   type="number"
+                  aria-label={`${selected.name} Y position`}
                   value={selected.y}
                   onChange={(e) => updateSelected('y', Number(e.target.value))}
                 />
@@ -6807,6 +6809,7 @@ export default function Home() {
                 Rotation{' '}
                 <input
                   type="number"
+                  aria-label={`${selected.name} rotation`}
                   value={selected.rotation}
                   onChange={(e) =>
                     updateSelected('rotation', Number(e.target.value))
@@ -6815,7 +6818,13 @@ export default function Home() {
                 <b>°</b>
               </label>
               <label>
-                Opacity <input type="number" value="100" readOnly />
+                Opacity{' '}
+                <input
+                  type="number"
+                  aria-label={`${selected.name} opacity`}
+                  value="100"
+                  readOnly
+                />
                 <b>%</b>
               </label>
             </div>
