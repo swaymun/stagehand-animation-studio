@@ -43,10 +43,10 @@ def bullets(items):
 
 story = [
     p("Stagehand Phase Evidence", title),
-    p("Current checkpoint: public Site v93, verified 2026-09-03.", subtitle),
+    p("Current checkpoint: public Site v94, verified 2026-09-03.", subtitle),
     p("Project", heading),
     p("Stagehand is a WebMCP-native 2D animation studio for editable paper-cutout scenes. The current cut supports rigged characters, imported image props, per-asset visual direction, camera work, captions, non-voice audio cues, storyboard beats, multi-scene Preview, and deterministic WebM export.", body),
-    p("Private source: github.com/swaymun/stagehand-animation-studio<br/>Commit: 2aed5e393d38ee55246140842d2bec4c53efd50c<br/>Public Site: stagehand-animation-studio.saimun-h-shahee.chatgpt.site<br/>Sites version: 93", body),
+    p("Private source: github.com/swaymun/stagehand-animation-studio<br/>Source HEAD: c28911081af6a7f611bb684cf84235637ece04e7<br/>Deployed runtime: 2312388c03d4f245378fe9ec667cd246852859c3<br/>Public Site: stagehand-animation-studio.saimun-h-shahee.chatgpt.site<br/>Sites version: 94", body),
     p("Acceptance loop", heading),
     p("Implement - local tests - Sites deployment - hosted test - UI roast - fixes - second review.", body),
     p("Implemented at this checkpoint", heading),
@@ -60,6 +60,8 @@ story = [
         "Animate and Storyboard are the only top-level editor modes; Preview is a compact review action and overflow actions keep infrastructure chrome out of the workspace.",
         "The timeline defaults to semantic camera, pose, prop, dialogue, music, and SFX event bands; Show details restores raw keyframe controls.",
         "Responsive project and Inspector drawers preserve a readable shell at phone widths.",
+        "At split-browser widths up to 1200 px, the Inspector is closed by default and opens as an overlay drawer while the stage and project rail retain working width.",
+        "A Sol-powered Codex run used the public page's live WebMCP tools to apply and validate an Alice/Bob coupon gag without a separate MCP connection or TOML change.",
     ]),
     p("Verification", heading),
     p("Local gate:", body),
@@ -69,14 +71,15 @@ story = [
 ]
 
 screens = [
-    ("Animate editing workspace", "v93-animate.png", "Hosted Playwright capture at 1440 x 960. The focused editor keeps artwork dominant, with semantic event bands and raw-keyframe details available on demand."),
-    ("Assets style editor", "v93-assets.png", "Hosted Playwright capture at 1440 x 960. Scannable asset rows stay in the rail while the selected asset's style and placement context live in Inspector."),
-    ("Storyboard mode with Board rail", "v93-storyboard.png", "Hosted Playwright capture at 1440 x 960. Six beat cards make the longer arc inspectable while the selected mode and project rail stay synchronized."),
-    ("Review-first Preview player", "v93-preview.png", "Hosted Playwright capture at 1440 x 960. Scene-only context, transport, and a compact scrubber remain; the editable timeline grid and Inspector are hidden."),
+    ("Animate editing workspace", "v93-animate.png", "Hosted Playwright capture at 1440 x 960. The focused editor keeps artwork dominant, with semantic event bands and raw-keyframe details available on demand.", 4.667),
+    ("Assets style editor", "v93-assets.png", "Hosted Playwright capture at 1440 x 960. Scannable asset rows stay in the rail while the selected asset's style and placement context live in Inspector.", 4.667),
+    ("Storyboard mode with Board rail", "v93-storyboard.png", "Hosted Playwright capture at 1440 x 960. Six beat cards make the longer arc inspectable while the selected mode and project rail stay synchronized.", 4.667),
+    ("Review-first Preview player", "v93-preview.png", "Hosted Playwright capture at 1440 x 960. Scene-only context, transport, and a compact scrubber remain; the editable timeline grid and Inspector are hidden.", 4.667),
+    ("Split-browser compact editor", "v94-split-pane.png", "Hosted Playwright capture at 960 x 820. The Inspector becomes a closed-by-default drawer, leaving the scene rail and artwork usable beside a ChatGPT or Codex conversation.", 5.979),
 ]
 
-for index, (heading_text, filename, caption_text) in enumerate(screens):
-    story.extend([p(heading_text, heading), Spacer(1, 0.08 * inch), Image(str(EVIDENCE / filename), width=7.0 * inch, height=4.667 * inch), p(caption_text, caption)])
+for index, (heading_text, filename, caption_text, image_height) in enumerate(screens):
+    story.extend([p(heading_text, heading), Spacer(1, 0.08 * inch), Image(str(EVIDENCE / filename), width=7.0 * inch, height=image_height * inch), p(caption_text, caption)])
     if index != len(screens) - 1:
         story.append(PageBreak())
 
@@ -105,9 +108,10 @@ story.extend([
         "Header/sidebar implementation details competed with the artwork. Made Preview and Render primary actions, moved secondary actions under More, and removed permanent validation/tool-count/starter cards.",
         "The timeline's first read was keyframe noise. Added semantic event bands with an explicit Show details disclosure for precise edits.",
         "The desktop shell could force phone-width overflow. Removed the global minimum width and added responsive project/Inspector drawers with a readable-width timeline.",
+        "In a split ChatGPT/Codex browser pane, the permanent Inspector consumed the stage's working width. Moved it to a closed-by-default overlay drawer at <= 1200 px, hid the redundant project-drawer action while the rail remains visible, and added a checked-in 960 px regression gate.",
     ]),
     p("Limits", heading),
-    p("Direct CUA inspection was unavailable because the Mac was locked; Playwright was used for hosted interaction and screenshots. Native Chromium smoke proves browser registration and callback behavior, while ChatGPT's in-app browser discovery remains unverified. TTS, voice cloning, dialogue recording, phoneme extraction, and lip-sync remain out of scope.", body),
+    p("The regular hosted interaction suite remains a Playwright fallback, while a Sol-powered Codex run directly exercised the public page's WebMCP tools in the in-app browser and verified the Alice/Bob coupon gag. The Luna-bound main task cannot call browser WebMCP; supported Sol/Terra tasks can. No separate MCP server connection, TOML entry, or restart was needed. Native Chromium smoke complements that live run. TTS, voice cloning, dialogue recording, phoneme extraction, and lip-sync remain out of scope.", body),
 ])
 
 OUTPUT.parent.mkdir(parents=True, exist_ok=True)

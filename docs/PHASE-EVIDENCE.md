@@ -6,9 +6,10 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement �
 
 - Date: 2026-09-03
 - Private source: [github.com/swaymun/stagehand-animation-studio](https://github.com/swaymun/stagehand-animation-studio)
-- Verified source commit: `2aed5e393d38ee55246140842d2bec4c53efd50c`
+- Verified source commit: `c28911081af6a7f611bb684cf84235637ece04e7`
+- Deployed runtime commit: `2312388c03d4f245378fe9ec667cd246852859c3`
 - Public Site: [stagehand-animation-studio.saimun-h-shahee.chatgpt.site](https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site)
-- Sites version: `93`
+- Sites version: `94`
 - Scope at this checkpoint: a 15-second six-beat canonical starter arc with expanded captions, poses, camera beats, and non-voice cues, plus renderer-applied per-asset visual treatments, palette chips and stage/library placement, manifest-derived asset usage state, immediate style defaults for new/imported assets, human audio cue timing controls, clarified motion actions, revision-safe and idempotent WebMCP mutations, partial render-settings preservation, synchronized human/agent playhead reads, semantic scene speed retiming across timed tracks, synchronized Storyboard/Board navigation, review-first Preview with editing controls removed, readable two-line scene labels, semantic heading/dialog landmarks, accessible transform controls, wide four-column pose-sheet detection, imported-prop/sequence coverage, a calmer Animate/Storyboard editor shell, semantic timeline event bands with optional raw-keyframe details, compact header overflow actions, on-demand validation, and mobile project/Inspector drawers.
 
 ## Implement
@@ -43,6 +44,7 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement �
 - The timeline now presents camera, pose, prop, dialogue, music, and SFX events as semantic bands by default; raw keyframe diamonds remain available through Show details so precise editing is preserved without making implementation noise the first read.
 - Validation, WebMCP tool counts, starter-kit copy, revision numbers, and explanatory status cards are no longer permanent workspace chrome; validation remains available to the command path and export blocks on error-level issues.
 - On small screens the project rail and Inspector are drawer surfaces opened from More actions; the timeline retains a minimum readable editing width without forcing the whole document to overflow.
+- At split-browser widths up to 1200px, the Inspector is closed by default and opens as an overlay drawer from More actions, while the scene rail and stage keep the available width focused on editing.
 
 ## Local verification
 
@@ -89,14 +91,16 @@ The local smoke result verified:
 - Native WebMCP registration: Chromium experimental WebMCP context captured all 52 unique tools with zero registration errors; valid `set_playhead` moved to 250 ms, invalid input returned `INVALID_INPUT`, and the read-back revision advanced by one: PASS.
 - Semantic timeline presentation: the local and hosted shells render named Camera/Pose/Dialogue/Music/SFX event bands by default, and the Show details disclosure restores draggable raw keyframe controls: PASS.
 - Responsive shell: 390px Playwright inspection reports equal body/document widths and the More actions menu can open the Inspector drawer without page overflow: PASS.
+- Split-pane shell: 960px Playwright inspection reports equal body/document widths, a closed-by-default Inspector, a visible Open Inspector action, no redundant project-drawer action, a working Inspector drawer, and a 770px stage: PASS.
 
 ## Hosted verification
 
 ```text
 STAGEHAND_URL=https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site npm run smoke
+STAGEHAND_URL=https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site npm run smoke:native
 ```
 
-Result: PASS. The hosted run verified the same 52-tool injected bridge, 39 guarded mutations, the 15-second six-beat starter, stale-write conflict, idempotent replay, human and agent scene retiming, focused-stage keyboard stepping, frame inspection, PNG frame download with a valid `89504e47` signature, wide pose-sheet auto-detection, manifest stage placement, renderer-applied `inked` treatment, asset-style update, immediate fresh-asset readiness, human audio cue timing, partial render-settings preservation, prop workflow, two-scene WebM download with a valid `1a45dfa3` EBML/WebM signature, sequence Preview scene transition, synchronized Storyboard/Board context, synchronized Assets asset-specific Inspector context, human-scrubbed playhead visibility through `get_timeline`, clarified motion copy, collapsible Inspector groups, clean Preview state with global editing controls removed, readable scene-label layout, semantic `h1`, labelled Help modal, reload recovery including intentionally empty asset/beat/cue collections, and zero page errors. This remains labeled a Playwright fallback for the full interaction suite. A separate hosted native Chromium run registered all 52 unique tools with zero registration errors and passed valid/invalid callback checks; ChatGPT's in-app browser enumeration remains unverified because the desktop session was locked.
+Result: PASS. The hosted run verified the same 52-tool injected bridge, 39 guarded mutations, the 15-second six-beat starter, stale-write conflict, idempotent replay, human and agent scene retiming, focused-stage keyboard stepping, frame inspection, PNG frame download with a valid `89504e47` signature, wide pose-sheet auto-detection, manifest stage placement, renderer-applied `inked` treatment, asset-style update, immediate fresh-asset readiness, human audio cue timing, partial render-settings preservation, prop workflow, two-scene WebM download with a valid `1a45dfa3` EBML/WebM signature, sequence Preview scene transition, synchronized Storyboard/Board context, synchronized Assets asset-specific Inspector context, human-scrubbed playhead visibility through `get_timeline`, clarified motion copy, collapsible Inspector groups, clean Preview state with global editing controls removed, readable scene-label layout, semantic `h1`, labelled Help modal, reload recovery including intentionally empty asset/beat/cue collections, split-pane behavior at 960px, and zero page errors. This remains labeled a Playwright fallback for the full interaction suite. A separate hosted native Chromium run registered all 52 unique tools with zero registration errors and passed valid/invalid callback checks. A Sol-powered Codex sub-agent then used the public site's live WebMCP path in the in-app browser: it read project state, applied the Alice/Bob coupon gag, and verified `validate_project` with zero issues plus `inspect_frame` at 3300 ms. No Codex TOML entry or restart was needed.
 
 ## UI roast and fixes
 
@@ -106,6 +110,7 @@ Evidence screenshots are captured from the hosted v93 build at 1440×960:
 - [`v93-assets.png`](evidence/v93-assets.png): Assets workflow with scannable asset rows and the asset-specific Inspector.
 - [`v93-storyboard.png`](evidence/v93-storyboard.png): six-card Storyboard mode with the Board rail selected and the same semantic timeline below.
 - [`v93-preview.png`](evidence/v93-preview.png): compact review player with a scene strip and scrubber, no editor timeline grid, and no Inspector.
+- [`v94-split-pane.png`](evidence/v94-split-pane.png): hosted 960px split-pane capture with the Inspector closed by default, a wide stage, and the scene rail retained.
 
 - [`v90-animate.png`](evidence/v90-animate.png): current editing workspace with the expanded timeline and semantic scene speed controls.
 - [`v90-assets.png`](evidence/v90-assets.png): Assets workflow with the selected Alice style editor and matching asset-specific Inspector context.
@@ -152,11 +157,12 @@ Findings from the current screenshot review:
 29. Header and sidebar implementation details competed with the artwork: Preview was an equal mode, Render said “Render WebM,” and validation/tool-count/starter cards were always present. Fixed with two top-level editor modes, primary Preview/Render actions, a More actions overflow, and on-demand infrastructure UI.
 30. The timeline’s first read was a field of keyframe diamonds rather than animation intent. Fixed with semantic event bands for camera, poses, props, dialogue, music, and SFX, with raw diamonds behind an explicit Show details control.
 31. The desktop shell could force horizontal overflow at phone widths. Fixed by removing the global minimum width and adding responsive project/Inspector drawers plus a scrollable readable-width timeline.
+32. In a split ChatGPT/Codex browser pane, the permanent Inspector consumed the stage's working width even when no property edit was active. Fixed by moving the Inspector to a closed-by-default overlay drawer at ≤1200px, hiding the redundant project-drawer action while the rail remains visible, and adding a checked-in 960px regression gate.
 
 ## Limits and warnings
 
-- Direct CUA inspection was unavailable because the Mac was locked; Playwright was used for hosted interaction and screenshots.
-- The smoke harness proves injected `modelContext` registration and tool execution, not live production ChatGPT WebMCP discovery.
-- Native Chromium smoke requires the experimental WebMCP flag and validates registration/callback behavior; it does not substitute for ChatGPT's in-app browser access path.
+- The regular hosted interaction suite remains a Playwright fallback, while the separate Sol-powered Codex run is the direct live WebMCP evidence for the public Site.
+- The main Luna-bound task cannot call the browser WebMCP capability; supported Sol/Terra tasks can. The page itself has no separate MCP server connection, so no Codex TOML entry or restart was required for the successful live run.
+- Native Chromium smoke requires the experimental WebMCP flag and validates registration/callback behavior; it complements, rather than replaces, the live in-app browser path.
 - Generated PNG fixtures are intentionally tiny test assets; production art quality is not evaluated by this gate.
 - TTS and lip-sync remain out of scope.

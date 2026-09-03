@@ -54,6 +54,8 @@ TTS, voice cloning, dialogue recording, phoneme extraction, and lip-sync are exp
 4. Open **Assets**, expand **Style**, and change treatment or palette to see the asset direction reflected in the stage and render path.
 5. Open **Storyboard** to inspect the six beat thumbnails, then return to **Animate**.
 6. Open **Preview** for the clean review player and let the sequence loop.
-7. Lower the music cue, click **Render WebM**, and inspect the downloaded result.
+7. Lower the music cue, click **Render**, and inspect the downloaded result.
+
+When the studio is used beside a ChatGPT or Codex conversation, the split-pane layout keeps the project rail and artwork visible while the Inspector stays available from More actions. The public demo has also been exercised by a Sol-powered Codex task through the page's WebMCP tools: it generated and applied an Alice/Bob coupon gag, then validated and inspected the punchline frame.
 
 See [`SPEC.md`](SPEC.md) for the phase gates and [`docs/PHASE-EVIDENCE.md`](docs/PHASE-EVIDENCE.md) for the current verification record.
