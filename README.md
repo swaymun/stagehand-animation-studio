@@ -1,6 +1,6 @@
 # Stagehand Animation Studio
 
-Stagehand is a WebMCP-native 2D animation studio for making short, editable paper-cutout scenes together with a person and ChatGPT. The current cut is a deterministic diner comedy scene with rigged characters, imported image assets, animated props, camera work, captions, non-voice audio cues, storyboard beats, multi-scene preview, and WebM export.
+Stagehand is a WebMCP-native 2D animation studio for making short, editable paper-cutout scenes together with a person and ChatGPT. The current cut is a deterministic diner comedy scene with rigged characters, imported image assets, per-asset visual direction, animated props, camera work, captions, non-voice audio cues, storyboard beats, multi-scene preview, and WebM export.
 
 ## Run it
 
@@ -25,12 +25,12 @@ The smoke gate injects a model-context bridge, verifies all 50 tools, imports a 
 
 ## Studio map
 
-- **Scenes / Board / Assets**: scene management, editable storyboard beats, starter templates, asset import, visual briefs, and imported-prop motion.
+- **Scenes / Board / Assets**: scene management, editable storyboard beats, starter templates, asset import, visual briefs, per-asset style direction, and imported-prop motion.
 - **Animate**: canvas, character and camera inspector, captions, non-voice mix, style bible, and the structured timeline.
 - **Storyboard**: renderer-backed beat thumbnails that move the shared playhead; beats can be promoted into trimmed scenes.
 - **Preview**: review-first sequence player using the same deterministic evaluator as export; editing chrome is hidden while transport and scene context remain available.
 - **Render WebM**: deterministic project-sequence export with captions and cue-based audio.
-- **WebMCP surface**: read tools expose project state; narrow mutation tools share the human command path and revisioned undo/redo history. Every mutation accepts optional `expectedRevision` and `idempotencyKey` safeguards for stale reads and safe retries.
+- **WebMCP surface**: read tools expose project state; narrow mutation tools share the human command path and revisioned undo/redo history. Every mutation accepts optional `expectedRevision` and `idempotencyKey` safeguards for stale reads and safe retries, including structured per-asset visual style edits.
 
 ## Architecture
 

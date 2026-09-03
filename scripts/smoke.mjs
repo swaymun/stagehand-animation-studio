@@ -27,7 +27,7 @@ await page.waitForTimeout(700);
 await page.evaluate(() => localStorage.clear());
 await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
 await page.waitForTimeout(700);
-await page.waitForFunction(() => window.__stagehandTools?.size === 50);
+await page.waitForFunction(() => window.__stagehandTools?.size === 51);
 
 const marks = page.locator('button[aria-label^="Alice keyframe"]');
 const beforeDrag = await marks.nth(1).getAttribute('aria-label');
@@ -64,6 +64,11 @@ const humanPropXInput = page.locator('input[aria-label="X for smoke-prop"]');
 await humanPropXInput.fill('63');
 await page.waitForTimeout(100);
 const humanPropX = await humanPropXInput.inputValue();
+await page.getByRole('button', { name: 'Edit style for smoke-prop' }).click();
+await page
+  .locator('select[aria-label="Role for smoke-prop"]')
+  .selectOption('accent');
+await page.waitForTimeout(80);
 const unnamedNumberInputs = await page
   .locator('input[type="number"]')
   .evaluateAll((inputs) =>
@@ -133,6 +138,19 @@ const bridge = await page.evaluate(async () => {
     (asset) => asset.kind === 'prop' && asset.source === 'imported',
   );
   if (!prop) throw new Error('Imported smoke prop unavailable');
+  const styled = await call('set_asset_style', {
+    assetId: prop.id,
+    role: 'accent',
+    treatment: 'inked',
+    silhouette: 'clear',
+    palette: ['amber', 'coral'],
+    notes: 'One readable silhouette for the beat.',
+  });
+  if (!styled.ok || styled.style?.treatment !== 'inked') {
+    throw new Error(
+      `expected asset style update, got ${JSON.stringify(styled)}`,
+    );
+  }
   const propReadBefore = await call('get_prop_keyframes', {
     assetId: prop.id,
   });
@@ -181,6 +199,11 @@ const bridge = await page.evaluate(async () => {
       keyframe: { ok: propKeyframe.ok, x: propKeyframe.keyframe?.x },
       preset: { ok: propPreset.ok, count: propPreset.keyframes?.length },
       after: propReadAfter.propKeyframes.length,
+    },
+    assetStyle: {
+      ok: styled.ok,
+      treatment: styled.style?.treatment,
+      palette: styled.style?.palette,
     },
     undone: { ok: undone.ok, revision: undone.revision },
     redone: { ok: redone.ok, revision: redone.revision },
@@ -269,7 +292,7 @@ const result = {
 };
 
 if (
-  result.toolCount !== 50 ||
+  result.toolCount !== 51 ||
   !result.timelineDrag.moved ||
   !bridge.audio.ok ||
   bridge.audio.volume !== 0.03 ||
@@ -279,6 +302,9 @@ if (
   !bridge.prop.preset.ok ||
   bridge.prop.preset.count !== 2 ||
   bridge.prop.after < 2 ||
+  !bridge.assetStyle.ok ||
+  bridge.assetStyle.treatment !== 'inked' ||
+  bridge.assetStyle.palette?.join(',') !== 'amber,coral' ||
   result.humanPropX !== '63.0' ||
   !bridge.undone.ok ||
   !bridge.redone.ok ||

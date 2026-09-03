@@ -45,6 +45,16 @@ import {
 type Pose = 'idle' | 'nervous' | 'wave' | 'lean-in' | 'point' | 'shrug';
 type AssetKind = 'rigged-character' | 'background' | 'prop' | 'audio';
 type AssetFrameLayout = 'single' | 'four-column';
+type AssetRole = 'hero' | 'support' | 'environment' | 'accent';
+type AssetTreatment = 'paper' | 'inked' | 'flat-color' | 'photo';
+type AssetSilhouette = 'clear' | 'detailed';
+type AssetStyle = {
+  role: AssetRole;
+  treatment: AssetTreatment;
+  silhouette: AssetSilhouette;
+  palette: string[];
+  notes: string;
+};
 type TemplateId =
   | 'first-meeting'
   | 'coffee-spill'
@@ -60,6 +70,7 @@ type Asset = {
   mimeType?: string;
   dataUrl?: string;
   frameCount?: number;
+  style?: AssetStyle;
 };
 type AudioCueKind = 'music' | 'footstep' | 'stinger';
 type AudioCue = {
@@ -172,7 +183,7 @@ type ValidationIssue = {
   path: string;
   message: string;
 };
-const WEBMCP_TOOL_COUNT = 50;
+const WEBMCP_TOOL_COUNT = 51;
 type ModelTool = {
   name: string;
   title: string;
@@ -205,6 +216,40 @@ const starterScenes: SceneMeta[] = [
     templateId: 'first-meeting',
   },
 ];
+function defaultAssetStyle(kind: AssetKind): AssetStyle {
+  return kind === 'rigged-character'
+    ? {
+        role: 'hero',
+        treatment: 'paper',
+        silhouette: 'clear',
+        palette: ['coral', 'diner teal'],
+        notes: 'Keep the silhouette readable during pose changes.',
+      }
+    : kind === 'background'
+      ? {
+          role: 'environment',
+          treatment: 'paper',
+          silhouette: 'clear',
+          palette: ['warm paper', 'diner teal'],
+          notes: 'Protect negative space for blocking and captions.',
+        }
+      : kind === 'prop'
+        ? {
+            role: 'accent',
+            treatment: 'flat-color',
+            silhouette: 'clear',
+            palette: ['mustard', 'amber'],
+            notes: 'Use one readable silhouette for the business beat.',
+          }
+        : {
+            role: 'support',
+            treatment: 'flat-color',
+            silhouette: 'detailed',
+            palette: ['violet'],
+            notes: 'Keep the cue supportive and below the dialogue mix.',
+          };
+}
+
 const starterAssets: Asset[] = [
   {
     id: 'alice',
@@ -214,6 +259,7 @@ const starterAssets: Asset[] = [
       'Warm coral paper protagonist; keep her silhouette clear for awkward reactions.',
     source: 'starter',
     frameLayout: 'single',
+    style: defaultAssetStyle('rigged-character'),
   },
   {
     id: 'bob',
@@ -223,6 +269,10 @@ const starterAssets: Asset[] = [
       'Diner teal foil character; enters from upstage with a readable lean-in.',
     source: 'starter',
     frameLayout: 'single',
+    style: {
+      ...defaultAssetStyle('rigged-character'),
+      palette: ['diner teal', 'warm paper'],
+    },
   },
   {
     id: 'diner-background',
@@ -232,6 +282,7 @@ const starterAssets: Asset[] = [
       'Warm late-night diner backdrop; leave the lower third open for captions.',
     source: 'starter',
     frameLayout: 'single',
+    style: defaultAssetStyle('background'),
   },
   {
     id: 'coffee-mug',
@@ -241,6 +292,7 @@ const starterAssets: Asset[] = [
       'Small amber prop for the coffee-spill business and close reaction beats.',
     source: 'starter',
     frameLayout: 'single',
+    style: defaultAssetStyle('prop'),
   },
 ];
 const starterCameraKeyframes: CameraKeyframe[] = [
@@ -753,6 +805,18 @@ const isAssetKind = (value: unknown): value is AssetKind =>
   value === 'background' ||
   value === 'prop' ||
   value === 'audio';
+const isAssetRole = (value: unknown): value is AssetRole =>
+  value === 'hero' ||
+  value === 'support' ||
+  value === 'environment' ||
+  value === 'accent';
+const isAssetTreatment = (value: unknown): value is AssetTreatment =>
+  value === 'paper' ||
+  value === 'inked' ||
+  value === 'flat-color' ||
+  value === 'photo';
+const isAssetSilhouette = (value: unknown): value is AssetSilhouette =>
+  value === 'clear' || value === 'detailed';
 const isAudioCueKind = (value: unknown): value is AudioCueKind =>
   value === 'music' || value === 'footstep' || value === 'stinger';
 
@@ -1063,6 +1127,20 @@ function validateProjectState(project: Project): ValidationIssue[] {
         path: `assets.${asset.id}.frameCount`,
         message: `${asset.id} must be a single image or a four-pose sheet.`,
       });
+    if (
+      !asset.style ||
+      !isAssetRole(asset.style.role) ||
+      !isAssetTreatment(asset.style.treatment) ||
+      !isAssetSilhouette(asset.style.silhouette) ||
+      asset.style.palette.length === 0 ||
+      asset.style.palette.some((value) => !value.trim())
+    )
+      issues.push({
+        code: 'INVALID_ASSET_STYLE',
+        severity: 'error',
+        path: `assets.${asset.id}.style`,
+        message: `${asset.id} needs a complete visual style direction.`,
+      });
   });
   return issues;
 }
@@ -1116,6 +1194,30 @@ const hydrateProject = (value: Partial<Project>): Project => {
       asset.frameCount === 4 || asset.frameLayout === 'four-column'
         ? 'four-column'
         : 'single';
+    const rawAssetStyle = asset.style;
+    const baseAssetStyle = defaultAssetStyle(asset.kind);
+    const style: AssetStyle = {
+      role: isAssetRole(rawAssetStyle?.role)
+        ? rawAssetStyle.role
+        : baseAssetStyle.role,
+      treatment: isAssetTreatment(rawAssetStyle?.treatment)
+        ? rawAssetStyle.treatment
+        : baseAssetStyle.treatment,
+      silhouette: isAssetSilhouette(rawAssetStyle?.silhouette)
+        ? rawAssetStyle.silhouette
+        : baseAssetStyle.silhouette,
+      palette:
+        Array.isArray(rawAssetStyle?.palette) &&
+        rawAssetStyle.palette.every(
+          (value) => typeof value === 'string' && value.trim(),
+        )
+          ? rawAssetStyle.palette.map((value) => value.trim())
+          : baseAssetStyle.palette,
+      notes:
+        typeof rawAssetStyle?.notes === 'string'
+          ? rawAssetStyle.notes
+          : baseAssetStyle.notes,
+    };
     return {
       ...asset,
       brief:
@@ -1123,6 +1225,7 @@ const hydrateProject = (value: Partial<Project>): Project => {
           ? asset.brief.trim()
           : defaultAssetBrief(asset.kind),
       frameLayout,
+      style,
     };
   });
   const rawScenes =
@@ -2080,6 +2183,9 @@ export default function Home() {
   const [assetBriefDrafts, setAssetBriefDrafts] = useState<
     Record<string, string>
   >({});
+  const [expandedAssetStyleId, setExpandedAssetStyleId] = useState<
+    string | null
+  >(null);
   const [assetImportKind, setAssetImportKind] = useState<
     'rigged-character' | 'background' | 'prop'
   >('prop');
@@ -3199,6 +3305,92 @@ export default function Home() {
           assetId,
           brief,
           changedPaths: [`assets.${assetId}.brief`],
+        };
+      },
+    );
+    register(
+      'set_asset_style',
+      'Set asset style',
+      'Update the structured visual treatment, role, silhouette, palette, and notes for one asset.',
+      {
+        type: 'object',
+        required: ['assetId'],
+        additionalProperties: false,
+        properties: {
+          assetId: { type: 'string' },
+          role: {
+            type: 'string',
+            enum: ['hero', 'support', 'environment', 'accent'],
+          },
+          treatment: {
+            type: 'string',
+            enum: ['paper', 'inked', 'flat-color', 'photo'],
+          },
+          silhouette: { type: 'string', enum: ['clear', 'detailed'] },
+          palette: {
+            type: 'array',
+            items: { type: 'string', minLength: 1 },
+            minItems: 1,
+          },
+          notes: { type: 'string' },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const assetId = typeof input.assetId === 'string' ? input.assetId : '';
+        const asset = current.assets.find((item) => item.id === assetId);
+        if (!asset) return { ok: false, code: 'NOT_FOUND' };
+        const currentStyle = asset.style ?? defaultAssetStyle(asset.kind);
+        const role = input.role === undefined ? currentStyle.role : input.role;
+        const treatment =
+          input.treatment === undefined
+            ? currentStyle.treatment
+            : input.treatment;
+        const silhouette =
+          input.silhouette === undefined
+            ? currentStyle.silhouette
+            : input.silhouette;
+        const palette =
+          input.palette === undefined
+            ? currentStyle.palette
+            : Array.isArray(input.palette)
+              ? input.palette
+              : null;
+        const notes =
+          input.notes === undefined ? currentStyle.notes : input.notes;
+        if (
+          !isAssetRole(role) ||
+          !isAssetTreatment(treatment) ||
+          !isAssetSilhouette(silhouette) ||
+          !Array.isArray(palette) ||
+          palette.length === 0 ||
+          palette.some((value) => typeof value !== 'string' || !value.trim()) ||
+          typeof notes !== 'string'
+        )
+          return { ok: false, code: 'INVALID_INPUT' };
+        const style: AssetStyle = {
+          role,
+          treatment,
+          silhouette,
+          palette: palette.map((value) => value.trim()),
+          notes: notes.trim(),
+        };
+        commitRef.current(
+          (next) => {
+            const item = next.assets.find(
+              (candidate) => candidate.id === assetId,
+            );
+            if (item) item.style = style;
+          },
+          `Set style for ${asset.label}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          assetId,
+          style,
+          changedPaths: [`assets.${assetId}.style`],
         };
       },
     );
@@ -4789,6 +4981,19 @@ export default function Home() {
       if (item) item.brief = brief;
     }, `Set brief for ${asset.label}`);
   };
+  const updateAssetStyle = (asset: Asset, changes: Partial<AssetStyle>) => {
+    const currentStyle = asset.style ?? defaultAssetStyle(asset.kind);
+    const style: AssetStyle = {
+      ...currentStyle,
+      ...changes,
+      palette: changes.palette ?? currentStyle.palette,
+      notes: changes.notes ?? currentStyle.notes,
+    };
+    commit((next) => {
+      const item = next.assets.find((candidate) => candidate.id === asset.id);
+      if (item) item.style = style;
+    }, `Set style for ${asset.label}`);
+  };
   const removeAsset = (asset: Asset) => {
     commit((next) => {
       next.assets = next.assets.filter((item) => item.id !== asset.id);
@@ -6055,193 +6260,297 @@ export default function Home() {
                 <Upload size={13} />
               </div>
               <div className="asset-list">
-                {project.assets.map((asset) => (
-                  <div className="asset-row" key={asset.id}>
-                    <span
-                      className={`asset-swatch asset-${asset.kind.replace('rigged-character', 'rig')}`}
-                      style={
-                        asset.dataUrl
-                          ? {
-                              backgroundImage: `url(${asset.dataUrl})`,
-                              backgroundPosition: 'center',
-                              backgroundSize: 'cover',
-                            }
-                          : undefined
-                      }
-                    />
-                    <span className="asset-copy">
-                      <strong>{asset.label}</strong>
-                      <small>
-                        {asset.frameLayout === 'four-column' ||
-                        asset.frameCount === 4
-                          ? '4-pose sheet'
-                          : assetKindLabel(asset.kind)}{' '}
-                        · {asset.source}
-                        {project.characters.find(
-                          (character) => character.assetId === asset.id,
-                        )
-                          ? ` · bound to ${project.characters.find((character) => character.assetId === asset.id)?.name}`
-                          : ''}
-                      </small>
-                      {asset.kind === 'rigged-character' && asset.dataUrl && (
-                        <label className="asset-bind-control">
-                          <span>Rig binding</span>
-                          <select
-                            aria-label={`Bind ${asset.label} to rig`}
-                            value={
-                              project.characters.find(
-                                (character) => character.assetId === asset.id,
-                              )?.id ?? ''
-                            }
-                            onChange={(event) =>
-                              bindAssetToCharacter(asset, event.target.value)
+                {project.assets.map((asset) => {
+                  const assetStyle =
+                    asset.style ?? defaultAssetStyle(asset.kind);
+                  return (
+                    <div className="asset-row" key={asset.id}>
+                      <span
+                        className={`asset-swatch asset-${asset.kind.replace('rigged-character', 'rig')}`}
+                        style={
+                          asset.dataUrl
+                            ? {
+                                backgroundImage: `url(${asset.dataUrl})`,
+                                backgroundPosition: 'center',
+                                backgroundSize: 'cover',
+                              }
+                            : undefined
+                        }
+                      />
+                      <span className="asset-copy">
+                        <strong>{asset.label}</strong>
+                        <small>
+                          {asset.frameLayout === 'four-column' ||
+                          asset.frameCount === 4
+                            ? '4-pose sheet'
+                            : assetKindLabel(asset.kind)}{' '}
+                          · {asset.source}
+                          {project.characters.find(
+                            (character) => character.assetId === asset.id,
+                          )
+                            ? ` · bound to ${project.characters.find((character) => character.assetId === asset.id)?.name}`
+                            : ''}
+                        </small>
+                        <div className="asset-style-summary">
+                          <span>
+                            {assetStyle.role} · {assetStyle.treatment}
+                          </span>
+                          <button
+                            type="button"
+                            aria-expanded={expandedAssetStyleId === asset.id}
+                            aria-label={`Edit style for ${asset.label}`}
+                            onClick={() =>
+                              setExpandedAssetStyleId((current) =>
+                                current === asset.id ? null : asset.id,
+                              )
                             }
                           >
-                            <option value="">Unbound</option>
-                            {project.characters.map((character) => (
-                              <option value={character.id} key={character.id}>
-                                {character.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      )}
-                      {asset.kind === 'prop' && asset.dataUrl && (
-                        <>
-                          <div className="asset-motion-actions">
-                            <span>Motion</span>
-                            <button
-                              type="button"
-                              onClick={() => applyPropPreset(asset, 'pop-in')}
-                            >
-                              Pop in
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => applyPropPreset(asset, 'nudge')}
-                            >
-                              Nudge
-                            </button>
+                            Style
+                          </button>
+                        </div>
+                        {expandedAssetStyleId === asset.id && (
+                          <div className="asset-style-editor">
+                            <label>
+                              Role
+                              <select
+                                aria-label={`Role for ${asset.label}`}
+                                value={assetStyle.role}
+                                onChange={(event) =>
+                                  updateAssetStyle(asset, {
+                                    role: event.target.value as AssetRole,
+                                  })
+                                }
+                              >
+                                <option value="hero">Hero</option>
+                                <option value="support">Support</option>
+                                <option value="environment">Environment</option>
+                                <option value="accent">Accent</option>
+                              </select>
+                            </label>
+                            <label>
+                              Treatment
+                              <select
+                                aria-label={`Treatment for ${asset.label}`}
+                                value={assetStyle.treatment}
+                                onChange={(event) =>
+                                  updateAssetStyle(asset, {
+                                    treatment: event.target
+                                      .value as AssetTreatment,
+                                  })
+                                }
+                              >
+                                <option value="paper">Paper</option>
+                                <option value="inked">Inked</option>
+                                <option value="flat-color">Flat color</option>
+                                <option value="photo">Photo</option>
+                              </select>
+                            </label>
+                            <label>
+                              Silhouette
+                              <select
+                                aria-label={`Silhouette for ${asset.label}`}
+                                value={assetStyle.silhouette}
+                                onChange={(event) =>
+                                  updateAssetStyle(asset, {
+                                    silhouette: event.target
+                                      .value as AssetSilhouette,
+                                  })
+                                }
+                              >
+                                <option value="clear">Clear</option>
+                                <option value="detailed">Detailed</option>
+                              </select>
+                            </label>
+                            <label className="asset-style-palette">
+                              Palette
+                              <input
+                                aria-label={`Palette for ${asset.label}`}
+                                value={assetStyle.palette.join(', ')}
+                                onChange={(event) => {
+                                  const palette = event.target.value
+                                    .split(',')
+                                    .map((value) => value.trim())
+                                    .filter(Boolean);
+                                  if (palette.length > 0)
+                                    updateAssetStyle(asset, { palette });
+                                }}
+                              />
+                            </label>
+                            <label className="asset-style-notes">
+                              Direction
+                              <textarea
+                                aria-label={`Style direction for ${asset.label}`}
+                                value={assetStyle.notes}
+                                rows={2}
+                                onChange={(event) =>
+                                  updateAssetStyle(asset, {
+                                    notes: event.target.value,
+                                  })
+                                }
+                              />
+                            </label>
                           </div>
-                          {(() => {
-                            const prop = evaluatedProps.find(
-                              (item) => item.assetId === asset.id,
-                            );
-                            if (!prop) return null;
-                            return (
-                              <div className="asset-transform-editor">
-                                <span>At playhead</span>
-                                <label>
-                                  X
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    step="0.1"
-                                    aria-label={`X for ${asset.label}`}
-                                    value={prop.x.toFixed(1)}
-                                    onChange={(event) =>
-                                      updatePropTransform(
-                                        asset,
-                                        'x',
-                                        Number(event.target.value),
-                                      )
-                                    }
-                                  />
-                                  <b>%</b>
-                                </label>
-                                <label>
-                                  Y
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    step="0.1"
-                                    aria-label={`Y for ${asset.label}`}
-                                    value={prop.y.toFixed(1)}
-                                    onChange={(event) =>
-                                      updatePropTransform(
-                                        asset,
-                                        'y',
-                                        Number(event.target.value),
-                                      )
-                                    }
-                                  />
-                                  <b>%</b>
-                                </label>
-                                <label>
-                                  Scale
-                                  <input
-                                    type="number"
-                                    min="0.25"
-                                    max="2.5"
-                                    step="0.05"
-                                    aria-label={`Scale for ${asset.label}`}
-                                    value={prop.scale.toFixed(2)}
-                                    onChange={(event) =>
-                                      updatePropTransform(
-                                        asset,
-                                        'scale',
-                                        Number(event.target.value),
-                                      )
-                                    }
-                                  />
-                                  <b>×</b>
-                                </label>
-                                <label>
-                                  Rot
-                                  <input
-                                    type="number"
-                                    min="-180"
-                                    max="180"
-                                    step="1"
-                                    aria-label={`Rotation for ${asset.label}`}
-                                    value={prop.rotation.toFixed(0)}
-                                    onChange={(event) =>
-                                      updatePropTransform(
-                                        asset,
-                                        'rotation',
-                                        Number(event.target.value),
-                                      )
-                                    }
-                                  />
-                                  <b>°</b>
-                                </label>
-                              </div>
-                            );
-                          })()}
-                        </>
-                      )}
-                      <textarea
-                        className="asset-brief"
-                        aria-label={`Brief for ${asset.label}`}
-                        value={
-                          assetBriefDrafts[asset.id] ??
-                          asset.brief ??
-                          defaultAssetBrief(asset.kind)
-                        }
-                        onChange={(event) =>
-                          setAssetBriefDrafts((drafts) => ({
-                            ...drafts,
-                            [asset.id]: event.target.value,
-                          }))
-                        }
-                        onBlur={(event) =>
-                          updateAssetBrief(asset, event.target.value)
-                        }
-                        rows={2}
-                      />
-                    </span>
-                    <button
-                      type="button"
-                      aria-label={`Remove ${asset.label}`}
-                      title={`Remove ${asset.label}`}
-                      onClick={() => removeAsset(asset)}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
+                        )}
+                        {asset.kind === 'rigged-character' && asset.dataUrl && (
+                          <label className="asset-bind-control">
+                            <span>Rig binding</span>
+                            <select
+                              aria-label={`Bind ${asset.label} to rig`}
+                              value={
+                                project.characters.find(
+                                  (character) => character.assetId === asset.id,
+                                )?.id ?? ''
+                              }
+                              onChange={(event) =>
+                                bindAssetToCharacter(asset, event.target.value)
+                              }
+                            >
+                              <option value="">Unbound</option>
+                              {project.characters.map((character) => (
+                                <option value={character.id} key={character.id}>
+                                  {character.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
+                        {asset.kind === 'prop' && asset.dataUrl && (
+                          <>
+                            <div className="asset-motion-actions">
+                              <span>Motion</span>
+                              <button
+                                type="button"
+                                onClick={() => applyPropPreset(asset, 'pop-in')}
+                              >
+                                Pop in
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => applyPropPreset(asset, 'nudge')}
+                              >
+                                Nudge
+                              </button>
+                            </div>
+                            {(() => {
+                              const prop = evaluatedProps.find(
+                                (item) => item.assetId === asset.id,
+                              );
+                              if (!prop) return null;
+                              return (
+                                <div className="asset-transform-editor">
+                                  <span>At playhead</span>
+                                  <label>
+                                    X
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="100"
+                                      step="0.1"
+                                      aria-label={`X for ${asset.label}`}
+                                      value={prop.x.toFixed(1)}
+                                      onChange={(event) =>
+                                        updatePropTransform(
+                                          asset,
+                                          'x',
+                                          Number(event.target.value),
+                                        )
+                                      }
+                                    />
+                                    <b>%</b>
+                                  </label>
+                                  <label>
+                                    Y
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="100"
+                                      step="0.1"
+                                      aria-label={`Y for ${asset.label}`}
+                                      value={prop.y.toFixed(1)}
+                                      onChange={(event) =>
+                                        updatePropTransform(
+                                          asset,
+                                          'y',
+                                          Number(event.target.value),
+                                        )
+                                      }
+                                    />
+                                    <b>%</b>
+                                  </label>
+                                  <label>
+                                    Scale
+                                    <input
+                                      type="number"
+                                      min="0.25"
+                                      max="2.5"
+                                      step="0.05"
+                                      aria-label={`Scale for ${asset.label}`}
+                                      value={prop.scale.toFixed(2)}
+                                      onChange={(event) =>
+                                        updatePropTransform(
+                                          asset,
+                                          'scale',
+                                          Number(event.target.value),
+                                        )
+                                      }
+                                    />
+                                    <b>×</b>
+                                  </label>
+                                  <label>
+                                    Rot
+                                    <input
+                                      type="number"
+                                      min="-180"
+                                      max="180"
+                                      step="1"
+                                      aria-label={`Rotation for ${asset.label}`}
+                                      value={prop.rotation.toFixed(0)}
+                                      onChange={(event) =>
+                                        updatePropTransform(
+                                          asset,
+                                          'rotation',
+                                          Number(event.target.value),
+                                        )
+                                      }
+                                    />
+                                    <b>°</b>
+                                  </label>
+                                </div>
+                              );
+                            })()}
+                          </>
+                        )}
+                        <textarea
+                          className="asset-brief"
+                          aria-label={`Brief for ${asset.label}`}
+                          value={
+                            assetBriefDrafts[asset.id] ??
+                            asset.brief ??
+                            defaultAssetBrief(asset.kind)
+                          }
+                          onChange={(event) =>
+                            setAssetBriefDrafts((drafts) => ({
+                              ...drafts,
+                              [asset.id]: event.target.value,
+                            }))
+                          }
+                          onBlur={(event) =>
+                            updateAssetBrief(asset, event.target.value)
+                          }
+                          rows={2}
+                        />
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={`Remove ${asset.label}`}
+                        title={`Remove ${asset.label}`}
+                        onClick={() => removeAsset(asset)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
               <div className="asset-add-label">ADD PLACEHOLDER</div>
               <div className="asset-add-grid">

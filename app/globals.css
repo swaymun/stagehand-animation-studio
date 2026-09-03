@@ -833,6 +833,85 @@ button {
   outline: 2px solid rgb(31 29 27 / 10%);
   outline-offset: 1px;
 }
+.asset-list .asset-style-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  margin-top: 4px;
+  padding: 0;
+  color: #8f867c;
+  font-size: 8px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.asset-style-summary span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.asset-style-summary button {
+  flex: 0 0 auto;
+  padding: 2px 5px;
+  border: 1px solid #d9cfc2;
+  border-radius: 4px;
+  color: var(--blue);
+  background: #fffdf8;
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: none;
+}
+.asset-style-summary button:hover,
+.asset-style-summary button[aria-expanded='true'] {
+  border-color: var(--blue);
+  background: #f3f7f4;
+}
+.asset-list .asset-style-editor {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin-top: 6px;
+  padding: 7px;
+  align-items: stretch;
+  border: 1px solid #e6ddd2;
+  border-radius: 5px;
+  background: #faf5ed;
+  color: #8f867c;
+  font-size: 8px;
+}
+.asset-style-editor label {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.asset-style-editor select,
+.asset-style-editor input,
+.asset-style-editor textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 4px;
+  border: 1px solid #ded4c8;
+  border-radius: 3px;
+  color: var(--ink);
+  background: #fffdf8;
+  font: inherit;
+  font-size: 9px;
+}
+.asset-style-editor textarea {
+  line-height: 1.25;
+  resize: vertical;
+}
+.asset-style-editor select:focus-visible,
+.asset-style-editor input:focus-visible,
+.asset-style-editor textarea:focus-visible {
+  border-color: var(--blue);
+  outline: 2px solid rgb(50 116 143 / 16%);
+  outline-offset: 1px;
+}
+.asset-style-palette,
+.asset-style-notes {
+  grid-column: 1 / -1;
+}
 .asset-row > button {
   width: 20px;
   height: 20px;
