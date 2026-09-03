@@ -43,6 +43,7 @@ import {
 
 type Pose = 'idle' | 'nervous' | 'wave' | 'lean-in';
 type AssetKind = 'rigged-character' | 'background' | 'prop' | 'audio';
+type AssetFrameLayout = 'single' | 'four-column';
 type TemplateId =
   | 'first-meeting'
   | 'coffee-spill'
@@ -54,6 +55,7 @@ type Asset = {
   label: string;
   brief?: string;
   source: 'starter' | 'placeholder' | 'imported';
+  frameLayout?: AssetFrameLayout;
   mimeType?: string;
   dataUrl?: string;
   frameCount?: number;
@@ -190,6 +192,7 @@ const starterAssets: Asset[] = [
     brief:
       'Warm coral paper protagonist; keep her silhouette clear for awkward reactions.',
     source: 'starter',
+    frameLayout: 'single',
   },
   {
     id: 'bob',
@@ -198,6 +201,7 @@ const starterAssets: Asset[] = [
     brief:
       'Diner teal foil character; enters from upstage with a readable lean-in.',
     source: 'starter',
+    frameLayout: 'single',
   },
   {
     id: 'diner-background',
@@ -206,6 +210,7 @@ const starterAssets: Asset[] = [
     brief:
       'Warm late-night diner backdrop; leave the lower third open for captions.',
     source: 'starter',
+    frameLayout: 'single',
   },
   {
     id: 'coffee-mug',
@@ -214,6 +219,7 @@ const starterAssets: Asset[] = [
     brief:
       'Small amber prop for the coffee-spill business and close reaction beats.',
     source: 'starter',
+    frameLayout: 'single',
   },
 ];
 const starterCameraKeyframes: CameraKeyframe[] = [
@@ -965,13 +971,20 @@ const hydrateProject = (value: Partial<Project>): Project => {
     Array.isArray(value.assets) && value.assets.length > 0
       ? value.assets
       : base.assets;
-  const fallbackAssets = rawAssets.map((asset) => ({
-    ...asset,
-    brief:
-      typeof asset.brief === 'string' && asset.brief.trim()
-        ? asset.brief.trim()
-        : defaultAssetBrief(asset.kind),
-  }));
+  const fallbackAssets = rawAssets.map((asset) => {
+    const frameLayout: AssetFrameLayout =
+      asset.frameCount === 4 || asset.frameLayout === 'four-column'
+        ? 'four-column'
+        : 'single';
+    return {
+      ...asset,
+      brief:
+        typeof asset.brief === 'string' && asset.brief.trim()
+          ? asset.brief.trim()
+          : defaultAssetBrief(asset.kind),
+      frameLayout,
+    };
+  });
   const rawScenes =
     Array.isArray(value.scenes) && value.scenes.length > 0
       ? value.scenes
@@ -2529,6 +2542,7 @@ export default function Home() {
           label,
           brief: defaultAssetBrief(input.kind),
           source: 'placeholder',
+          frameLayout: 'single',
         };
         commitRef.current(
           (next) => {
@@ -3722,6 +3736,7 @@ export default function Home() {
         label,
         brief: defaultAssetBrief(kind),
         source: 'placeholder',
+        frameLayout: 'single',
       });
     }, `Add asset ${label}`);
   };
@@ -3808,34 +3823,46 @@ export default function Home() {
       }
       const label = file.name.replace(/\.[^/.]+$/, '') || 'Imported image';
       const assetId = nextAssetId(project.assets, assetImportKind);
-      const frameCount =
+      const requestedPoseSheet =
         assetImportKind === 'rigged-character' &&
-        assetImportMode === 'pose-sheet'
-          ? 4
-          : 1;
-      commit(
-        (next) => {
-          next.assets.push({
-            id: assetId,
-            kind: assetImportKind,
-            label,
-            brief: defaultAssetBrief(assetImportKind),
-            source: 'imported',
-            mimeType: file.type,
-            dataUrl: reader.result as string,
-            ...(frameCount > 1 ? { frameCount } : {}),
-          });
-          if (assetImportKind === 'rigged-character') {
-            const character = next.characters.find(
-              (item) => item.id === next.selectedId,
-            );
-            if (character) character.assetId = assetId;
-          }
-        },
-        assetImportKind === 'rigged-character'
-          ? `Import and bind ${assetImportMode === 'pose-sheet' ? 'pose sheet' : 'character art'} ${label}`
-          : `Import asset ${label}`,
-      );
+        assetImportMode === 'pose-sheet';
+      const image = new Image();
+      image.onload = () => {
+        const frameLayout: AssetFrameLayout =
+          requestedPoseSheet && image.naturalWidth >= image.naturalHeight * 2.1
+            ? 'four-column'
+            : 'single';
+        const frameCount = frameLayout === 'four-column' ? 4 : 1;
+        commit(
+          (next) => {
+            next.assets.push({
+              id: assetId,
+              kind: assetImportKind,
+              label,
+              brief: defaultAssetBrief(assetImportKind),
+              source: 'imported',
+              frameLayout,
+              mimeType: file.type,
+              dataUrl: reader.result as string,
+              ...(frameCount > 1 ? { frameCount } : {}),
+            });
+            if (assetImportKind === 'rigged-character') {
+              const character = next.characters.find(
+                (item) => item.id === next.selectedId,
+              );
+              if (character) character.assetId = assetId;
+            }
+          },
+          assetImportKind === 'rigged-character'
+            ? `Import and bind ${frameLayout === 'four-column' ? 'pose sheet' : 'character art'} ${label}`
+            : `Import asset ${label}`,
+        );
+        if (requestedPoseSheet && frameLayout === 'single') {
+          setNotice('Auto-detected single image · imported without pose crops');
+        }
+      };
+      image.onerror = () => setNotice('Image decode failed');
+      image.src = reader.result;
     };
     reader.onerror = () => setNotice('Image import failed');
     reader.readAsDataURL(file);
@@ -4708,7 +4735,8 @@ export default function Home() {
                     <span className="asset-copy">
                       <strong>{asset.label}</strong>
                       <small>
-                        {asset.frameCount === 4
+                        {asset.frameLayout === 'four-column' ||
+                        asset.frameCount === 4
                           ? '4-pose sheet'
                           : assetKindLabel(asset.kind)}{' '}
                         · {asset.source}
@@ -4787,7 +4815,7 @@ export default function Home() {
                     assetImportInputRef.current?.click();
                   }}
                 >
-                  <Layers3 size={11} /> Import pose sheet
+                  <Layers3 size={11} /> Import pose sheet · auto
                 </button>
                 <button
                   type="button"
@@ -4810,8 +4838,8 @@ export default function Home() {
               </div>
               <small className="panel-hint asset-hint">
                 Import character art to bind it to the selected rig; poses and
-                keyframes stay editable. Use a four-column pose sheet to swap
-                art with the existing pose keyframes.
+                keyframes stay editable. Pose-sheet imports auto-detect a wide
+                four-column image and fall back to single art when needed.
               </small>
               <input
                 ref={assetImportInputRef}
