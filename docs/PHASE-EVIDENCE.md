@@ -6,9 +6,9 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement �
 
 - Date: 2026-09-03
 - Private source: [github.com/swaymun/stagehand-animation-studio](https://github.com/swaymun/stagehand-animation-studio)
-- Verified source commit: `819b5504e3b94fb67931605260900324d9885f59`
+- Verified source commit: `430b7a687962be8c58695ad64f5ab1ee45a1a31d`
 - Public Site: [stagehand-animation-studio.saimun-h-shahee.chatgpt.site](https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site)
-- Sites version: `76`
+- Sites version: `77`
 - Scope at this checkpoint: structured per-asset visual direction, clarified motion actions, revision-safe and idempotent WebMCP mutations, partial render-settings preservation, synchronized Storyboard/Board navigation, review-first Preview with editing controls removed, readable two-line scene labels, semantic heading/dialog landmarks, accessible transform controls, wide four-column pose-sheet detection, and imported-prop/sequence coverage.
 
 ## Implement
@@ -71,12 +71,12 @@ Result: PASS. The hosted run verified the same 51-tool injected bridge, stale-wr
 
 ## UI roast and fixes
 
-Evidence screenshots are captured from the hosted v76 build at 1440×960:
+Evidence screenshots are captured from the hosted v77 build at 1440×960:
 
-- [`v76-animate.png`](evidence/v76-animate.png): editing workspace with clarified motion actions and readable scene labels.
-- [`v76-assets-style.png`](evidence/v76-assets-style.png): expandable per-asset style editor.
-- [`v76-storyboard.png`](evidence/v76-storyboard.png): Storyboard mode with the Board rail selected.
-- [`v76-preview.png`](evidence/v76-preview.png): clean review-first Preview player with only review outputs in the header.
+- [`v77-animate.png`](evidence/v77-animate.png): editing workspace with clarified motion actions and readable scene labels.
+- [`v77-assets-style.png`](evidence/v77-assets-style.png): expandable per-asset style editor.
+- [`v77-storyboard.png`](evidence/v77-storyboard.png): Storyboard mode with the Board rail selected.
+- [`v77-preview.png`](evidence/v77-preview.png): clean review-first Preview player with only review outputs in the header.
 
 Findings from the current screenshot review:
 

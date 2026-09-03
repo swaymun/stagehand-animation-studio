@@ -43,10 +43,10 @@ def bullets(items):
 
 story = [
     p("Stagehand Phase Evidence", title),
-    p("Current checkpoint: public Site v76, verified 2026-09-03.", subtitle),
+    p("Current checkpoint: public Site v77, verified 2026-09-03.", subtitle),
     p("Project", heading),
     p("Stagehand is a WebMCP-native 2D animation studio for editable paper-cutout scenes. The current cut supports rigged characters, imported image props, per-asset visual direction, camera work, captions, non-voice audio cues, storyboard beats, multi-scene Preview, and deterministic WebM export.", body),
-    p("Private source: github.com/swaymun/stagehand-animation-studio<br/>Commit: 819b5504e3b94fb67931605260900324d9885f59<br/>Public Site: stagehand-animation-studio.saimun-h-shahee.chatgpt.site<br/>Sites version: 76", body),
+    p("Private source: github.com/swaymun/stagehand-animation-studio<br/>Commit: 430b7a687962be8c58695ad64f5ab1ee45a1a31d<br/>Public Site: stagehand-animation-studio.saimun-h-shahee.chatgpt.site<br/>Sites version: 77", body),
     p("Acceptance loop", heading),
     p("Implement - local tests - Sites deployment - hosted test - UI roast - fixes - second review.", body),
     p("Implemented at this checkpoint", heading),
@@ -66,10 +66,10 @@ story = [
 ]
 
 screens = [
-    ("Animate editing workspace", "v76-animate.png", "Hosted Playwright capture at 1440 x 960. Motion actions identify their target character and duration; the scene label remains readable."),
-    ("Assets style editor", "v76-assets-style.png", "Hosted Playwright capture at 1440 x 960. The expandable Style control exposes structured visual direction without taking over the asset rail."),
-    ("Storyboard mode with Board rail", "v76-storyboard.png", "Hosted Playwright capture at 1440 x 960. The selected top-level mode and project rail stay synchronized."),
-    ("Review-first Preview player", "v76-preview.png", "Hosted Playwright capture at 1440 x 960. Scene-only context, transport, and Exit preview remain; global editing controls are hidden."),
+    ("Animate editing workspace", "v77-animate.png", "Hosted Playwright capture at 1440 x 960. Motion actions identify their target character and duration; the scene label remains readable."),
+    ("Assets style editor", "v77-assets-style.png", "Hosted Playwright capture at 1440 x 960. The expandable Style control exposes structured visual direction without taking over the asset rail."),
+    ("Storyboard mode with Board rail", "v77-storyboard.png", "Hosted Playwright capture at 1440 x 960. The selected top-level mode and project rail stay synchronized."),
+    ("Review-first Preview player", "v77-preview.png", "Hosted Playwright capture at 1440 x 960. Scene-only context, transport, and Exit preview remain; global editing controls are hidden."),
 ]
 
 for index, (heading_text, filename, caption_text) in enumerate(screens):
