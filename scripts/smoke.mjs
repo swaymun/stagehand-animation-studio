@@ -326,6 +326,7 @@ const frameDownloadedBytes = frameDownloadPath
 const volume = page.locator('.audio-volume-control input').first();
 await volume.fill('0.02');
 await page.waitForTimeout(80);
+const humanAudioVolume = await volume.inputValue();
 await page.getByRole('tab', { name: 'Storyboard' }).click();
 await page.waitForTimeout(100);
 const storyboardCards = await page.locator('.storyboard-beat').count();
@@ -339,6 +340,22 @@ if (storyboardRail !== 'true') {
 }
 await page.getByRole('tab', { name: 'Preview' }).click();
 await page.waitForTimeout(120);
+const previewSceneBefore = (
+  await page.locator('.preview-banner strong').textContent()
+)?.trim();
+await page.waitForTimeout(700);
+const previewSceneAfter = (
+  await page.locator('.preview-banner strong').textContent()
+)?.trim();
+if (
+  !previewSceneBefore ||
+  !previewSceneAfter ||
+  previewSceneBefore === previewSceneAfter
+) {
+  throw new Error(
+    `preview did not advance to another scene: ${JSON.stringify({ previewSceneBefore, previewSceneAfter })}`,
+  );
+}
 const preview = {
   banner: await page.locator('.preview-banner').count(),
   canvas: await page.locator('.stage-canvas').count(),
@@ -403,9 +420,14 @@ const result = {
     downloadedBytes: await frameDownloadedBytes,
     suggestedFilename: frameDownload.suggestedFilename(),
   },
-  humanAudioVolume: await volume.inputValue(),
+  humanAudioVolume,
   humanPropX,
   storyboardCards,
+  sequencePreview: {
+    advanced: previewSceneBefore !== previewSceneAfter,
+    before: previewSceneBefore,
+    after: previewSceneAfter,
+  },
   preview,
   summary: {
     name: summary.name,
@@ -458,6 +480,7 @@ if (
   !frameDownload.suggestedFilename().endsWith('.png') ||
   result.humanAudioVolume !== '0.02' ||
   storyboardCards !== 3 ||
+  !result.sequencePreview.advanced ||
   preview.banner !== 1 ||
   preview.canvas !== 1 ||
   preview.inspector ||

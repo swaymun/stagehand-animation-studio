@@ -58,6 +58,7 @@ The local smoke result verified:
 - Preview banner and canvas: present; inspector hidden; Board/Assets tabs and scene mutation actions hidden; Exit preview present.
 - Help dialog: labelled heading and `aria-modal="true"` landmark present; close action works.
 - Reload recovery: renamed two-scene project and imported asset restored from local storage: PASS.
+- Sequence Preview: playback advanced from Scene 02 to Scene 01 across the 500 ms scene boundary: PASS.
 
 ## Hosted verification
 
@@ -65,7 +66,7 @@ The local smoke result verified:
 STAGEHAND_URL=https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site npm run smoke
 ```
 
-Result: PASS. The hosted run verified the same 51-tool injected bridge, stale-write conflict, idempotent replay, frame inspection, PNG frame download, asset-style update, partial render-settings preservation, prop workflow, two-scene WebM download, synchronized Storyboard/Board context, clarified motion copy, clean Preview state with global editing controls removed, readable scene-label layout, semantic `h1`, labelled Help modal, reload recovery, and zero page errors. This is labeled a Playwright fallback: the public Site did not expose live WebMCP enumeration to the available runner, so it does not prove that ChatGPT’s production host enumerates the tools.
+Result: PASS. The hosted run verified the same 51-tool injected bridge, stale-write conflict, idempotent replay, frame inspection, PNG frame download, asset-style update, partial render-settings preservation, prop workflow, two-scene WebM download, sequence Preview scene transition, synchronized Storyboard/Board context, clarified motion copy, clean Preview state with global editing controls removed, readable scene-label layout, semantic `h1`, labelled Help modal, reload recovery, and zero page errors. This is labeled a Playwright fallback: the public Site did not expose live WebMCP enumeration to the available runner, so it does not prove that ChatGPT’s production host enumerates the tools.
 
 ## UI roast and fixes
 
@@ -91,7 +92,7 @@ Findings from the current screenshot review:
 11. Preview still exposed global project-editing controls. Fixed by hiding Settings, Import, Export JSON, and the project rename affordance while keeping WebM and PNG review actions.
 12. Scene titles competed with the ready badge and were visually shortened. Fixed with a two-line title clamp and a badge positioned outside the text flow; hosted smoke asserts two rendered title lines.
 13. The brand lacked a document-level heading and the modal lacked an explicit modal landmark. Fixed with a descriptive `h1` and `aria-modal="true"`.
-14. The existing smoke gate did not exercise the recovery or modal paths. Added a real Help open/close assertion and a post-mutation reload assertion to both local and hosted runs.
+14. The existing smoke gate did not exercise the recovery, modal, or sequence transition paths. Added a real Help open/close assertion, a post-mutation reload assertion, and a cross-scene Preview playback assertion to both local and hosted runs.
 
 ## Limits and warnings
 
