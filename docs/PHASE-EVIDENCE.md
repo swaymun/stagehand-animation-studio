@@ -6,10 +6,10 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement �
 
 - Date: 2026-09-03
 - Private source: [github.com/swaymun/stagehand-animation-studio](https://github.com/swaymun/stagehand-animation-studio)
-- Verified source commit: `bf9a9a8933c88637a632ba3f74b1d67f43621354`
+- Verified source commit: `280b8f5a7a613c033eb053fa05be4ad12d4ff252`
 - Public Site: [stagehand-animation-studio.saimun-h-shahee.chatgpt.site](https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site)
-- Sites version: `83`
-- Scope at this checkpoint: structured per-asset visual direction, clarified motion actions, revision-safe and idempotent WebMCP mutations, partial render-settings preservation, synchronized human/agent playhead reads, semantic scene speed retiming across timed tracks, synchronized Storyboard/Board navigation, review-first Preview with editing controls removed, readable two-line scene labels, semantic heading/dialog landmarks, accessible transform controls, wide four-column pose-sheet detection, and imported-prop/sequence coverage.
+- Sites version: `84`
+- Scope at this checkpoint: renderer-applied per-asset visual treatments, palette chips and stage/library placement, manifest-derived asset usage state, clarified motion actions, revision-safe and idempotent WebMCP mutations, partial render-settings preservation, synchronized human/agent playhead reads, semantic scene speed retiming across timed tracks, synchronized Storyboard/Board navigation, review-first Preview with editing controls removed, readable two-line scene labels, semantic heading/dialog landmarks, accessible transform controls, wide four-column pose-sheet detection, and imported-prop/sequence coverage.
 
 ## Implement
 
@@ -32,6 +32,7 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement �
 - Human scrubbing, beat jumps, and canvas selection now synchronize the project snapshot read by WebMCP tools before the next agent command.
 - Human `0.8×` / `1.25×` controls and agent `retime_scene` synchronize scene duration, keyframes, captions, cues, and storyboard beats.
 - The timeline now has symmetric one-frame step controls and stage-focused `← / →` keyboard stepping.
+- Asset treatment choices now reach the canvas, thumbnails, Preview, and WebM draw path; `get_asset_manifest` reports bound/stage/library placement and prop keyframe count.
 
 ## Local verification
 
@@ -52,7 +53,7 @@ The local smoke result verified:
 - Human asset-style editor and agent `set_asset_style` update: PASS.
 - Agent partial render-settings update preserves 1080p before an explicit reset to 720p: PASS.
 - Agent `inspect_frame` at 125 ms returns deterministic scene state and 720×405 render metadata: PASS.
-- Agent `export_frame` produced a 720×405 PNG download (`29,592` bytes): PASS.
+- Agent `export_frame` produced a 720×405 PNG download (`29,587` bytes): PASS.
 - Human prop X edit: `63.0`.
 - Agent prop keyframe at explicit time and Pop in preset: PASS.
 - Undo/redo revisions: PASS.
@@ -68,6 +69,8 @@ The local smoke result verified:
 - Human scrub parity: a scrub to approximately 1.25 s is immediately returned by `get_timeline`: PASS.
 - Scene retiming: human 1.25× / 0.8× controls and agent `retime_scene` preserve synchronized track timing while changing 5.00 s → 4.00 s → 5.00 s: PASS.
 - Keyboard stepping: focused stage `ArrowRight` advances the same playhead returned by `get_timeline`: PASS.
+- Asset manifest placement: imported prop reports `placement: stage` and a nonzero prop keyframe count: PASS.
+- Asset renderer treatment: agent `set_asset_style` to `inked` produces the expected grayscale/contrast filter during canvas drawing: PASS.
 
 ## Hosted verification
 
@@ -75,14 +78,14 @@ The local smoke result verified:
 STAGEHAND_URL=https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site npm run smoke
 ```
 
-Result: PASS. The hosted run verified the same 52-tool injected bridge, 39 guarded mutations, stale-write conflict, idempotent replay, human and agent scene retiming, focused-stage keyboard stepping, frame inspection, PNG frame download, wide pose-sheet auto-detection, asset-style update, partial render-settings preservation, prop workflow, two-scene WebM download, sequence Preview scene transition, synchronized Storyboard/Board context, human-scrubbed playhead visibility through `get_timeline`, clarified motion copy, collapsible Inspector groups, clean Preview state with global editing controls removed, readable scene-label layout, semantic `h1`, labelled Help modal, reload recovery, and zero page errors. This is labeled a Playwright fallback: the public Site did not expose live WebMCP enumeration to the available runner, so it does not prove that ChatGPT’s production host enumerates the tools.
+Result: PASS. The hosted run verified the same 52-tool injected bridge, 39 guarded mutations, stale-write conflict, idempotent replay, human and agent scene retiming, focused-stage keyboard stepping, frame inspection, PNG frame download, wide pose-sheet auto-detection, manifest stage placement, renderer-applied `inked` treatment, asset-style update, partial render-settings preservation, prop workflow, two-scene WebM download, sequence Preview scene transition, synchronized Storyboard/Board context, human-scrubbed playhead visibility through `get_timeline`, clarified motion copy, collapsible Inspector groups, clean Preview state with global editing controls removed, readable scene-label layout, semantic `h1`, labelled Help modal, reload recovery, and zero page errors. This is labeled a Playwright fallback: the public Site did not expose live WebMCP enumeration to the available runner, so it does not prove that ChatGPT’s production host enumerates the tools.
 
 ## UI roast and fixes
 
-Evidence screenshots are captured from the hosted v83 build at 1440×960:
+Evidence screenshots are captured from the hosted v84 build at 1440×960:
 
-- [`v83-animate.png`](evidence/v83-animate.png): editing workspace with semantic scene speed controls, symmetric frame stepping, clarified motion actions, readable scene labels, and synchronized Inspector groups.
-- [`v83-assets-style.png`](evidence/v83-assets-style.png): expandable per-asset style editor.
+- [`v84-animate.png`](evidence/v84-animate.png): editing workspace with semantic scene speed controls, symmetric frame stepping, clarified motion actions, readable scene labels, and synchronized Inspector groups.
+- [`v84-assets-style.png`](evidence/v84-assets-style.png): expandable per-asset style editor with palette chips and stage/library placement cues.
 - [`v83-storyboard.png`](evidence/v83-storyboard.png): Storyboard mode with the Board rail selected.
 - [`v83-preview.png`](evidence/v83-preview.png): clean review-first Preview player with only review outputs in the header.
 
@@ -106,6 +109,7 @@ Findings from the current screenshot review:
 16. Human timeline scrubbing could leave agent reads one event behind. Synchronized ephemeral view updates through the shared project reference and added a smoke assertion that `get_timeline` sees the scrubbed playhead immediately.
 17. Basic speed-up/slow-down editing was missing. Added human 0.8× / 1.25× controls and the guarded `retime_scene` operation across all timed tracks, with local and hosted coverage.
 18. The timeline exposed step-back only and keyboard stepping was unreliable after scrub focus. Added a symmetric step-forward control, a keyboard-focusable stage target, and hosted smoke coverage.
+19. Asset treatment choices were structured but did not affect the render path, and asset cards did not make stage usage obvious. Added deterministic canvas/thumbnail/Preview/WebM treatment filters, palette chips, placement cues, and manifest parity with hosted smoke coverage.
 
 ## Limits and warnings
 

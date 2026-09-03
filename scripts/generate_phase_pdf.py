@@ -43,10 +43,10 @@ def bullets(items):
 
 story = [
     p("Stagehand Phase Evidence", title),
-    p("Current checkpoint: public Site v83, verified 2026-09-03.", subtitle),
+    p("Current checkpoint: public Site v84, verified 2026-09-03.", subtitle),
     p("Project", heading),
     p("Stagehand is a WebMCP-native 2D animation studio for editable paper-cutout scenes. The current cut supports rigged characters, imported image props, per-asset visual direction, camera work, captions, non-voice audio cues, storyboard beats, multi-scene Preview, and deterministic WebM export.", body),
-    p("Private source: github.com/swaymun/stagehand-animation-studio<br/>Commit: bf9a9a8933c88637a632ba3f74b1d67f43621354<br/>Public Site: stagehand-animation-studio.saimun-h-shahee.chatgpt.site<br/>Sites version: 83", body),
+    p("Private source: github.com/swaymun/stagehand-animation-studio<br/>Commit: 280b8f5a7a613c033eb053fa05be4ad12d4ff252<br/>Public Site: stagehand-animation-studio.saimun-h-shahee.chatgpt.site<br/>Sites version: 84", body),
     p("Acceptance loop", heading),
     p("Implement - local tests - Sites deployment - hosted test - UI roast - fixes - second review.", body),
     p("Implemented at this checkpoint", heading),
@@ -54,6 +54,7 @@ story = [
         "Revision-safe WebMCP mutations with optional expectedRevision and structured REVISION_CONFLICT results.",
         "Idempotent WebMCP mutations with optional idempotencyKey replay protection.",
         "Structured per-asset role, treatment, silhouette, palette, and direction notes with human and agent parity.",
+        "Asset treatment choices reach canvas, thumbnails, Preview, and WebM; the manifest reports bound, stage, or library placement and prop keyframe count.",
         "Motion actions show affected character and bounded duration; pose presets remain a separate group.",
         "Agent frame-rate-only render updates preserve the existing resolution until a new preset is explicitly chosen.",
         "Storyboard mode selects the Board rail; Preview hides editing mutation surfaces and selection chrome.",
@@ -61,13 +62,13 @@ story = [
     p("Verification", heading),
     p("Local gate:", body),
     p("npm run format<br/>npm run lint<br/>npm run build<br/>git diff --check<br/>npm run smoke", code),
-    p("Local and hosted smoke passed: 52 tools, 39 guarded mutations, stale-write conflict, idempotent replay, human-scrubbed playhead visibility, keyboard stepping, scene speed retiming, frame and PNG export, wide pose-sheet detection, asset-style parity, prop animation, undo/redo, two-scene WebM, sequence Preview transition, collapsible Inspector groups, Help modal semantics, reload recovery, and zero page errors.", body),
+    p("Local and hosted smoke passed: 52 tools, 39 guarded mutations, synchronized timing and retiming, renderer treatment and placement, media import and animation, recovery, Preview, PNG/WebM export, and zero errors.", body),
     PageBreak(),
 ]
 
 screens = [
-    ("Animate editing workspace", "v83-animate.png", "Hosted Playwright capture at 1440 x 960. Motion actions identify their target character and duration; scene speed controls, frame steps, and labels remain readable."),
-    ("Assets style editor", "v83-assets-style.png", "Hosted Playwright capture at 1440 x 960. The expandable Style control exposes structured visual direction without taking over the asset rail."),
+    ("Animate editing workspace", "v84-animate.png", "Hosted Playwright capture at 1440 x 960. Motion actions identify their target character and duration; scene speed controls, frame steps, and labels remain readable."),
+    ("Assets style editor", "v84-assets-style.png", "Hosted Playwright capture at 1440 x 960. Palette chips and stage/library cues make the structured Style direction legible without taking over the asset rail."),
     ("Storyboard mode with Board rail", "v83-storyboard.png", "Hosted Playwright capture at 1440 x 960. The selected top-level mode and project rail stay synchronized."),
     ("Review-first Preview player", "v83-preview.png", "Hosted Playwright capture at 1440 x 960. Scene-only context, transport, and Exit preview remain; global editing controls are hidden."),
 ]
@@ -88,7 +89,7 @@ story.extend([
         "Agent retries could duplicate successful writes. Added optional idempotency-key replay protection and a hosted smoke assertion.",
         "Switching top-level Storyboard mode could leave Assets selected. Synced mode selection to its companion project rail.",
         "Character transform inputs lacked explicit accessible names. Added dynamic X/Y/rotation/opacity labels and a smoke check.",
-        "Asset briefs carried style intent only as prose. Added structured role, treatment, silhouette, palette, and direction fields.",
+        "Asset briefs carried style intent only as prose. Added structured role, treatment, silhouette, palette, and direction fields; later made those treatments visible in the canvas and manifest placement cues.",
         "Motion action buttons were visually mixed with pose presets. Added explicit durations, affected-character copy, and a Pose presets label.",
         "Agent frame-rate-only render updates reset an existing 1080p choice. Preserved the current resolution when the preset is omitted and added smoke coverage.",
         "Preview still exposed global project-editing controls. Hid Settings, Import, Export JSON, and rename while retaining WebM and PNG review actions.",
