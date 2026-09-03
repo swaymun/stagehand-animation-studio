@@ -4632,6 +4632,31 @@ export default function Home() {
     setRendering(true);
     setPlaying(false);
     setNotice('Preparing local media for WebM render');
+    const renderBase = copy(project);
+    syncActiveScene(renderBase);
+    const sceneProjects =
+      renderBase.scenes.length > 0
+        ? renderBase.scenes.map((scene) => {
+            const sceneProject = copy(renderBase);
+            loadSceneContent(sceneProject, scene.id);
+            sceneProject.currentTime = 0;
+            return sceneProject;
+          })
+        : [renderBase];
+    const totalDuration = sceneProjects.reduce(
+      (total, scene) => total + scene.duration,
+      0,
+    );
+    const sequenceAudioCues = sceneProjects.flatMap((scene, sceneIndex) => {
+      const offset = sceneProjects
+        .slice(0, sceneIndex)
+        .reduce((total, previous) => total + previous.duration, 0);
+      return scene.audioCues.map((cue) => ({
+        ...cue,
+        start: cue.start + offset,
+        end: cue.end + offset,
+      }));
+    });
     const imageMap = new Map<string, HTMLImageElement>();
     await Promise.all(
       project.assets
@@ -4656,8 +4681,8 @@ export default function Home() {
         ),
     );
     const output = document.createElement('canvas');
-    output.width = project.renderWidth;
-    output.height = project.renderHeight;
+    output.width = renderBase.renderWidth;
+    output.height = renderBase.renderHeight;
     const outputContext = output.getContext('2d');
     if (!outputContext) {
       setRendering(false);
@@ -4670,7 +4695,7 @@ export default function Home() {
     const audioContext = 'AudioContext' in window ? new AudioContext() : null;
     let stream = canvasStream;
     let audioStream: MediaStream | null = null;
-    if (audioContext && project.audioCues.length > 0) {
+    if (audioContext && sequenceAudioCues.length > 0) {
       const destination = audioContext.createMediaStreamDestination();
       audioStream = destination.stream;
       stream = new MediaStream([
@@ -4680,7 +4705,7 @@ export default function Home() {
       scheduleAudioCues(
         audioContext,
         destination,
-        project.audioCues,
+        sequenceAudioCues,
         audioContext.currentTime + 0.08,
       );
       void audioContext.resume();
@@ -4710,24 +4735,37 @@ export default function Home() {
       void audioContext?.close();
       setPlaying(false);
       setRendering(false);
-      setNotice('WebM downloaded · preview render complete');
+      setNotice(
+        `WebM downloaded · ${sceneProjects.length} scene${sceneProjects.length === 1 ? '' : 's'} rendered`,
+      );
     };
     setProject((current) => ({ ...current, currentTime: 0 }));
     setNotice(
-      `Rendering ${timecode(project.duration)} WebM · ${project.fps} fps · ${project.renderWidth}×${project.renderHeight}`,
+      `Rendering ${timecode(totalDuration)} WebM · ${sceneProjects.length} scene${sceneProjects.length === 1 ? '' : 's'} · ${project.fps} fps · ${project.renderWidth}×${project.renderHeight}`,
     );
     recorder.start();
     const drawNextFrame = () => {
+      let sceneOffset = 0;
+      let scene = sceneProjects[sceneProjects.length - 1];
+      let localTime = scene.duration;
+      for (const candidate of sceneProjects) {
+        if (frame < sceneOffset + candidate.duration) {
+          scene = candidate;
+          localTime = frame - sceneOffset;
+          break;
+        }
+        sceneOffset += candidate.duration;
+      }
       drawRenderFrame(
         outputContext,
-        { ...project, currentTime: frame },
+        { ...scene, currentTime: localTime },
         output.width,
         output.height,
         imageMap,
       );
       track.requestFrame();
       frame += 1000 / project.fps;
-      if (frame > project.duration) {
+      if (frame > totalDuration) {
         window.clearInterval(timer);
         window.setTimeout(() => recorder.stop(), 300);
       }
