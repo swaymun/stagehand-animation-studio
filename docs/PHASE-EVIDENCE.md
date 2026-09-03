@@ -6,16 +6,17 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement �
 
 - Date: 2026-09-03
 - Private source: [github.com/swaymun/stagehand-animation-studio](https://github.com/swaymun/stagehand-animation-studio)
-- Verified source commit: `73432fa4360fed9dc406c7579f395954edf1391f`
+- Verified source commit: `b4e95cf02541837594486481ce18e9fac6452042`
 - Public Site: [stagehand-animation-studio.saimun-h-shahee.chatgpt.site](https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site)
-- Sites version: `63`
-- Scope at this checkpoint: imported-prop human/agent animation parity, review-first Preview, sequence smoke coverage, and larger timeline hit targets.
+- Sites version: `69`
+- Scope at this checkpoint: revision-safe and idempotent WebMCP mutations, synchronized Storyboard/Board navigation, review-first Preview, accessible transform controls, and the existing imported-prop/sequence coverage.
 
 ## Implement
 
 - Imported props now have structured `PropKeyframe` data with interpolated X/Y/scale/rotation.
 - WebMCP exposes `get_prop_keyframes`, `set_prop_keyframe`, and `apply_prop_preset`.
 - Mutating WebMCP tools now expose an optional `expectedRevision` optimistic-concurrency guard; stale commands return `REVISION_CONFLICT` with the current revision and a reread hint.
+- Mutating WebMCP tools also expose an optional `idempotencyKey`; repeated successful commands replay the original result without incrementing the project revision or duplicating edits.
 - Human Assets controls expose Pop in, Nudge, and four transform fields at the playhead.
 - Prop keyframes flow through scene duplication, splitting, templates, persistence, validation, thumbnails, Preview, and WebM rendering.
 - Preview hides the inspector, scene tools, duration editing, and mutation actions while retaining transport, scrubber, scene context, and Exit preview.
@@ -36,13 +37,14 @@ npm run smoke        PASS
 The local smoke result verified:
 
 - 50 registered tools and no page errors.
+- 37 mutating tools expose the concurrency/retry contract; a stale pose command returns `REVISION_CONFLICT`, and a repeated rename replays at the same revision.
 - Human prop X edit: `63.0`.
 - Agent prop keyframe at explicit time and Pop in preset: PASS.
 - Undo/redo revisions: PASS.
 - Second scene: PASS.
 - Agent-triggered WebM: `sceneCount: 2`, `durationMs: 1000`, downloaded bytes > 0.
 - Storyboard cards: `3`.
-- Preview banner and canvas: present; inspector hidden; Exit preview present.
+- Preview banner and canvas: present; inspector hidden; Board/Assets tabs and scene mutation actions hidden; Exit preview present.
 
 ## Hosted verification
 
@@ -50,15 +52,16 @@ The local smoke result verified:
 STAGEHAND_URL=https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site npm run smoke
 ```
 
-Result: PASS. The hosted run verified the same 50-tool injected bridge, prop workflow, two-scene WebM download, Preview state, and zero page errors. This is labeled a Playwright fallback: the public Site did not expose live WebMCP enumeration to the available runner, so it does not prove that ChatGPT’s production host enumerates the tools.
+Result: PASS. The hosted run verified the same 50-tool injected bridge, stale-write conflict, idempotent replay, prop workflow, two-scene WebM download, synchronized Storyboard/Board context, clean Preview state, and zero page errors. This is labeled a Playwright fallback: the public Site did not expose live WebMCP enumeration to the available runner, so it does not prove that ChatGPT’s production host enumerates the tools.
 
 ## UI roast and fixes
 
-Evidence screenshots are captured from the hosted v63 build at 1440×960:
+Evidence screenshots are captured from the hosted v69 build at 1440×960:
 
-- [`v63-animate.png`](evidence/v63-animate.png): baseline editing workspace.
-- [`v63-assets-prop.png`](evidence/v63-assets-prop.png): imported prop with motion controls and timeline row.
-- [`v63-preview.png`](evidence/v63-preview.png): review-first Preview player.
+- [`v69-animate.png`](evidence/v69-animate.png): baseline editing workspace.
+- [`v69-assets.png`](evidence/v69-assets.png): asset library and imported-prop workflow surface.
+- [`v69-storyboard.png`](evidence/v69-storyboard.png): Storyboard mode with the Board rail selected.
+- [`v69-preview.png`](evidence/v69-preview.png): clean review-first Preview player with scene-only context.
 
 Findings from the current screenshot review:
 
@@ -66,6 +69,9 @@ Findings from the current screenshot review:
 2. Four prop transform fields initially collided with the asset-list flex rule and truncated. Fixed with an explicit two-column grid; computed field boxes are 57 px wide in two rows.
 3. Preview carried too much editing chrome. Fixed by hiding the inspector, scene tools, duration input, timeline mutation actions, and adding Exit preview.
 4. Timeline diamonds had 7×7 px hit targets. Fixed with 22×22 px buttons while preserving the 7 px visual diamond.
+5. Agent retries could duplicate successful writes. Fixed with optional idempotency-key replay protection and a hosted smoke assertion.
+6. Switching top-level Storyboard mode could leave the Assets rail selected. Fixed by syncing mode selection to its companion project rail.
+7. Character transform inputs lacked explicit accessible names. Fixed with dynamic X/Y/rotation/opacity labels and a smoke check for unnamed numeric controls.
 
 ## Limits and warnings
 
