@@ -2720,9 +2720,9 @@ export default function Home() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [updateProjectView]);
   useEffect(() => {
-    const modelContext = (
-      document as Document & { modelContext?: ModelContext }
-    ).modelContext;
+    const modelContext =
+      (document as Document & { modelContext?: ModelContext }).modelContext ??
+      (navigator as Navigator & { modelContext?: ModelContext }).modelContext;
     if (!modelContext?.registerTool) return;
     const lifecycle = new AbortController();
     const register = (

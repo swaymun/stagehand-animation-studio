@@ -37,6 +37,7 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement â
 - Empty editable asset, storyboard, and audio collections now remain empty after local recovery instead of silently repopulating starter defaults.
 - New and imported assets receive a complete structured style direction before the first validation pass.
 - Human audio cue Start/End fields now share bounded, undoable timing updates with the agent cue editor.
+- WebMCP registration now supports both `document.modelContext` and the current experimental Chromium `navigator.modelContext` location.
 
 ## Local verification
 
@@ -48,6 +49,7 @@ npm run lint         PASS
 npm run build        PASS
 git diff --check     PASS
 npm run smoke        PASS
+npm run smoke:native PASS
 ```
 
 The local smoke result verified:
@@ -79,6 +81,7 @@ The local smoke result verified:
 - Fresh asset readiness: imported prop and four-pose sheet assets carry valid default style metadata immediately; `validate_project` returns zero issues before reload: PASS.
 - Human audio timing: Start for the quiet diner bed changes from 0 ms to 120 ms through the Inspector and remains valid for render: PASS.
 - Empty collection recovery: deleting all six assets, six storyboard beats, and the active scene's audio cue, then reloading, preserves `assetCount: 0`, `storyboardBeatCount: 0`, and `audioCueCount: 0`: PASS.
+- Native WebMCP registration: Chromium experimental WebMCP context captured all 52 unique tools with zero registration errors; valid `set_playhead` moved to 250 ms, invalid input returned `INVALID_INPUT`, and the read-back revision advanced by one: PASS.
 
 ## Hosted verification
 
@@ -123,10 +126,12 @@ Findings from the current screenshot review:
 22. Newly added/imported assets lacked style metadata until reload, which could make a fresh project fail readiness validation. Seeded `defaultAssetStyle` in both human and agent creation paths and added local/hosted validation coverage.
 23. Human audio rows exposed levels but not timing, creating a parity gap with the agent cue editor. Added compact Start/End editors with bounded updates and hosted smoke coverage.
 24. Export checks only proved that downloads were non-empty. Added binary signature assertions for WebM/EBML and PNG outputs in local and hosted smoke runs.
+25. Experimental Chromium exposed `navigator.modelContext` while the app only checked `document.modelContext`. Added a compatibility fallback and a native registration smoke gate covering all 52 tools plus valid/invalid calls.
 
 ## Limits and warnings
 
 - Direct CUA inspection was unavailable because the Mac was locked; Playwright was used for hosted interaction and screenshots.
 - The smoke harness proves injected `modelContext` registration and tool execution, not live production ChatGPT WebMCP discovery.
+- Native Chromium smoke requires the experimental WebMCP flag and validates registration/callback behavior; it does not substitute for ChatGPT's in-app browser access path.
 - Generated PNG fixtures are intentionally tiny test assets; production art quality is not evaluated by this gate.
 - TTS and lip-sync remain out of scope.

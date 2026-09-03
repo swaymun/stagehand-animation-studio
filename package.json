@@ -10,6 +10,7 @@
     "build": "vinext build",
     "start": "wrangler dev --config dist/server/wrangler.json",
     "smoke": "node scripts/smoke.mjs",
+    "smoke:native": "node scripts/native-webmcp-smoke.mjs",
     "lint": "oxlint",
     "format": "oxfmt"
   },
