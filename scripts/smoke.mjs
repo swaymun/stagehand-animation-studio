@@ -28,6 +28,13 @@ await page.evaluate(() => localStorage.clear());
 await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
 await page.waitForTimeout(700);
 await page.waitForFunction(() => window.__stagehandTools?.size === 51);
+const h1 = page.locator('h1');
+if (
+  (await h1.count()) !== 1 ||
+  (await h1.textContent())?.trim() !== 'stagehand'
+) {
+  throw new Error('studio should expose one descriptive h1 brand heading');
+}
 const sceneTitleLines = await page
   .locator('.scene-meta strong')
   .first()
@@ -346,6 +353,7 @@ const result = {
     after: afterDrag,
   },
   sceneTitleLines,
+  h1: (await h1.textContent())?.trim(),
   bridge,
   render: {
     ok: rendered.ok,
@@ -380,6 +388,7 @@ if (
   result.toolCount !== 51 ||
   !result.timelineDrag.moved ||
   result.sceneTitleLines < 2 ||
+  result.h1 !== 'stagehand' ||
   !bridge.audio.ok ||
   bridge.audio.volume !== 0.03 ||
   !bridge.inspected.ok ||

@@ -5788,7 +5788,7 @@ export default function Home() {
             <Clapperboard size={17} />
           </div>
           <div>
-            <div className="brand-name">stagehand</div>
+            <h1 className="brand-name">stagehand</h1>
             <div className="brand-subtitle">
               animation studio <span>·</span> local project
             </div>
@@ -7539,6 +7539,7 @@ export default function Home() {
             className="studio-dialog"
             open
             aria-labelledby="studio-dialog-title"
+            aria-modal="true"
           >
             <div className="dialog-heading">
               <div>
