@@ -70,6 +70,14 @@ type SceneMeta = {
   keyframes?: Keyframe[];
   captions?: Caption[];
 };
+type StoryBeat = {
+  id: string;
+  index: string;
+  title: string;
+  description: string;
+  startMs: number;
+  endMs: number;
+};
 type Project = {
   revision: number;
   duration: number;
@@ -104,6 +112,32 @@ const starterScenes: SceneMeta[] = [
     title: 'Diner · first meeting',
     description: 'Alice waits. Bob arrives behind her.',
     duration: 5000,
+  },
+];
+const storyboardBeats: StoryBeat[] = [
+  {
+    id: 'beat-01',
+    index: '01',
+    title: 'The wait',
+    description: 'Alice practices what to say.',
+    startMs: 0,
+    endMs: 1550,
+  },
+  {
+    id: 'beat-02',
+    index: '02',
+    title: 'The entrance',
+    description: 'Bob arrives behind her.',
+    startMs: 1550,
+    endMs: 3100,
+  },
+  {
+    id: 'beat-03',
+    index: '03',
+    title: 'The pause',
+    description: 'Neither knows what to do.',
+    startMs: 3100,
+    endMs: 5000,
   },
 ];
 const starterProject: Project = {
@@ -657,6 +691,7 @@ export default function Home() {
     activeCaption = project.captions.find(
       (c) => project.currentTime >= c.start && project.currentTime <= c.end,
     ),
+    selectedCaption = activeCaption ?? project.captions[0],
     ratio = project.currentTime / project.duration;
   const commit = useCallback(
     (mutate: (next: Project) => void, label: string, agent = false) => {
@@ -751,6 +786,22 @@ export default function Home() {
     return () => window.clearInterval(timer);
   }, [playing]);
   useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (
+        event.code !== 'Space' ||
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.tagName === 'SELECT'
+      )
+        return;
+      event.preventDefault();
+      setPlaying((value) => !value);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+  useEffect(() => {
     const modelContext = (
       document as Document & { modelContext?: ModelContext }
     ).modelContext;
@@ -803,7 +854,7 @@ export default function Home() {
     register(
       'get_scene',
       'Get active scene',
-      'Inspect the active scene metadata and timing.',
+      'Inspect the active scene metadata, timing, and structured content counts.',
       { type: 'object', properties: {}, additionalProperties: false },
       () => {
         const current = projectRef.current;
@@ -828,16 +879,7 @@ export default function Home() {
       () => ({
         ok: true,
         revision: projectRef.current.revision,
-        beats: [
-          { id: 'beat-01', title: 'The wait', startMs: 0, endMs: 1550 },
-          {
-            id: 'beat-02',
-            title: 'The entrance',
-            startMs: 1550,
-            endMs: 3100,
-          },
-          { id: 'beat-03', title: 'The pause', startMs: 3100, endMs: 5000 },
-        ],
+        beats: storyboardBeats,
       }),
       true,
     );
@@ -1052,7 +1094,7 @@ export default function Home() {
     register(
       'add_scene',
       'Add scene',
-      'Append a new editable scene without changing existing scene content.',
+      'Append an editable scene with an independent copy of the current structured content.',
       {
         type: 'object',
         additionalProperties: false,
@@ -1401,6 +1443,36 @@ export default function Home() {
     commit((next) => {
       upsertCharacterKeyframe(next, next.selectedId, next.currentTime, {});
     }, `Keyframe ${selected.name}`);
+  const updateCaption = (patch: Partial<Caption>) => {
+    if (!selectedCaption) return;
+    commit((next) => {
+      const caption = next.captions.find(
+        (item) => item.id === selectedCaption.id,
+      );
+      if (!caption) return;
+      if (typeof patch.text === 'string') caption.text = patch.text;
+      if (typeof patch.start === 'number' && Number.isFinite(patch.start))
+        caption.start = clamp(patch.start, 0, caption.end - 1);
+      if (typeof patch.end === 'number' && Number.isFinite(patch.end))
+        caption.end = clamp(patch.end, caption.start + 1, next.duration);
+    }, `Edit ${selectedCaption.id}`);
+  };
+  const applyNervousPreset = () => {
+    const start = project.currentTime;
+    const rotation = selected.rotation;
+    commit((next) => {
+      [
+        { time: start, rotation: rotation - 3 },
+        { time: start + 250, rotation: rotation + 3 },
+        { time: start + 500, rotation },
+      ].forEach((frame) =>
+        upsertCharacterKeyframe(next, next.selectedId, frame.time, {
+          rotation: frame.rotation,
+          pose: 'nervous',
+        }),
+      );
+    }, 'Apply nervous motion');
+  };
   const addScene = () => {
     const sceneNumber = project.scenes.length + 1;
     const scene = {
@@ -1418,7 +1490,9 @@ export default function Home() {
     }, `Add ${scene.title}`);
   };
   const exportProject = useCallback(() => {
-    const blob = new Blob([JSON.stringify(project, null, 2)], {
+    const exportable = copy(project);
+    syncActiveScene(exportable);
+    const blob = new Blob([JSON.stringify(exportable, null, 2)], {
       type: 'application/json',
     });
     const url = URL.createObjectURL(blob);
@@ -1706,23 +1780,35 @@ export default function Home() {
             <div className="rail-content">
               <div className="section-label">
                 <span>
-                  BEATS <b>3</b>
+                  BEATS <b>{storyboardBeats.length}</b>
                 </span>
               </div>
-              {[
-                ['01', 'The wait', 'Alice practices what to say.'],
-                ['02', 'The entrance', 'Bob arrives behind her.'],
-                ['03', 'The pause', 'Neither knows what to do.'],
-              ].map(([id, title, desc], index) => (
-                <div
-                  className={`board-card ${index === 0 ? 'active' : ''}`}
-                  key={id}
-                >
-                  <span className="beat-index">{id}</span>
-                  <strong>{title}</strong>
-                  <small>{desc}</small>
-                </div>
-              ))}
+              <small className="panel-hint">
+                Select a beat to move the playhead before promoting timing.
+              </small>
+              {storyboardBeats.map((beat) => {
+                const active =
+                  project.currentTime >= beat.startMs &&
+                  project.currentTime < beat.endMs;
+                return (
+                  <button
+                    className={`board-card ${active ? 'active' : ''}`}
+                    key={beat.id}
+                    type="button"
+                    onClick={() =>
+                      setProject((current) => ({
+                        ...current,
+                        currentTime: beat.startMs,
+                      }))
+                    }
+                    aria-label={`Select beat ${beat.index}: ${beat.title}`}
+                  >
+                    <span className="beat-index">{beat.index}</span>
+                    <strong>{beat.title}</strong>
+                    <small>{beat.description}</small>
+                  </button>
+                );
+              })}
             </div>
           )}
           {panel === 'assets' && (
@@ -2040,7 +2126,22 @@ export default function Home() {
               <strong>{selected.name}</strong>
               <span>Character · rigged</span>
             </div>
-            <ChevronDown size={14} />
+            <select
+              className="character-select"
+              aria-label="Select character"
+              value={project.selectedId}
+              onChange={(event) =>
+                commit((next) => {
+                  next.selectedId = event.target.value;
+                }, `Select ${event.target.value}`)
+              }
+            >
+              {project.characters.map((character) => (
+                <option value={character.id} key={character.id}>
+                  {character.name}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="inspector-section">
             <div className="inspector-label">
@@ -2094,7 +2195,8 @@ export default function Home() {
               POSE{' '}
               <button
                 type="button"
-                onClick={() => setNotice('Preset applied to the selected rig')}
+                onClick={applyNervousPreset}
+                title="Add a three-keyframe nervous motion preset"
               >
                 <WandSparkles size={13} /> Apply preset
               </button>
@@ -2123,6 +2225,56 @@ export default function Home() {
                 ),
               )}
             </div>
+          </div>
+          <div className="inspector-section caption-editor">
+            <div className="inspector-label">
+              CAPTION <span>{selectedCaption?.speaker ?? 'none'}</span>
+            </div>
+            {selectedCaption ? (
+              <>
+                <textarea
+                  aria-label="Caption text"
+                  value={selectedCaption.text}
+                  onChange={(event) =>
+                    updateCaption({ text: event.target.value })
+                  }
+                  rows={2}
+                />
+                <div className="field-row">
+                  <label>
+                    Start
+                    <input
+                      type="number"
+                      aria-label="Caption start"
+                      value={selectedCaption.start}
+                      onChange={(event) =>
+                        updateCaption({ start: Number(event.target.value) })
+                      }
+                    />
+                    <b>ms</b>
+                  </label>
+                  <label>
+                    End
+                    <input
+                      type="number"
+                      aria-label="Caption end"
+                      value={selectedCaption.end}
+                      onChange={(event) =>
+                        updateCaption({ end: Number(event.target.value) })
+                      }
+                    />
+                    <b>ms</b>
+                  </label>
+                </div>
+                <small className="transform-help">
+                  Caption edits preserve the rest of the scene and are undoable.
+                </small>
+              </>
+            ) : (
+              <small className="transform-help">
+                No captions in this scene.
+              </small>
+            )}
           </div>
           <div className="inspector-section">
             <div className="inspector-label">STYLE BIBLE</div>
