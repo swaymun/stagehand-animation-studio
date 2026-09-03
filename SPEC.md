@@ -4,7 +4,7 @@ Stagehand is a WebMCP-native 2D animation studio where a person and ChatGPT can 
 
 ## Current cut
 
-The current cut is a deterministic, local-first Paper Cutout Comedy scene: two pre-rigged placeholder characters, a diner background, captions, an interpolated keyframe timeline, command-backed transforms and poses, undo/redo, local recovery, multi-scene metadata, JSON import/export, silent WebM export, and seventeen WebMCP tools. TTS, voice cloning, dialogue recording, phoneme extraction, and lip-sync remain explicitly out of scope.
+The current cut is a deterministic, local-first Paper Cutout Comedy scene: two pre-rigged placeholder characters, a diner background, captions, an interpolated keyframe timeline, command-backed transforms and poses, undo/redo, local recovery, independent multi-scene content with add/rename/duplicate/delete operations, JSON import/export, visible readiness validation, silent WebM export, and twenty WebMCP tools. TTS, voice cloning, dialogue recording, phoneme extraction, and lip-sync remain explicitly out of scope.
 
 ## Product rules
 
@@ -21,13 +21,13 @@ Start from Paper Cutout Comedy. Alice waits nervously in a diner; Bob enters beh
 
 ## Roadmap gates
 
-1. Feasibility spikes: deterministic timestamp evaluation, nested rig anchors, playable WebM, minimal WebMCP mutation/undo, imported asset renderability.
-2. Editable vertical slice: model, persistence, commands, one scene, rig editing, timeline, preview, import/export.
-3. Multi-scene animation core: storyboard promotion, scene operations, interpolation, motion presets, camera effects.
-4. Agent-native control: P0 WebMCP tools, revisions, idempotency, preserve/lock, structured errors, parity tests.
-5. Mixed media/templates: media compositing, asset briefs/import, character-sheet rig import, four starters, style bible.
-6. Captions/audio/validation/render: captions, bundled SFX/music, deterministic issues, WebM export.
-7. UX/challenge polish: onboarding, recovery, accessibility, performance, README, architecture, demo script.
+1. Feasibility spikes — complete: deterministic timestamp evaluation, playable WebM, imperative WebMCP registration, and imported-project recovery are proven.
+2. Editable vertical slice — complete: model, persistence, commands, one scene, rig editing, timeline, preview, import/export.
+3. Multi-scene animation core — in progress: independent scene content and scene operations are complete; camera effects and richer storyboard promotion remain.
+4. Agent-native control — in progress: twenty registered tools, revisions, undo, structured validation, and visible/agent parity are present; hosted live WebMCP enumeration is still a platform/browser capability gap.
+5. Mixed media/templates — next: media compositing, asset briefs/import, character-sheet rig import, four starters, and an expanded style bible.
+6. Captions/audio/validation/render — partial: captions, deterministic validation, and silent WebM export are present; bundled SFX/music and richer render controls remain.
+7. UX/challenge polish — ongoing: accessibility, recovery, performance, README, architecture, and demo script continue through the implementation loop.
 
 ## Phase evidence contract
 
