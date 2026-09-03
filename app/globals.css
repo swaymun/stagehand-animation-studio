@@ -716,6 +716,18 @@ button {
   background: #e9d6b8;
   box-shadow: 0 8px 25px rgba(77, 59, 44, 0.13);
 }
+.canvas-frame.pan-mode {
+  cursor: grab;
+}
+.canvas-frame.pan-mode:active {
+  cursor: grabbing;
+}
+.canvas-viewport {
+  position: absolute;
+  inset: 0;
+  transform-origin: center;
+  touch-action: none;
+}
 .canvas-frame.safe-area-visible::after {
   content: '';
   position: absolute;

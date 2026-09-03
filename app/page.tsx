@@ -829,10 +829,12 @@ function StageCanvas({
   project,
   onSelect,
   sceneLabel,
+  interactionMode,
 }: {
   project: Project;
   onSelect: (id: string) => void;
   sceneLabel: string;
+  interactionMode: 'select' | 'pan';
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const draw = useCallback(() => {
@@ -889,6 +891,7 @@ function StageCanvas({
       className="stage-canvas"
       aria-label="Diner scene canvas"
       onClick={(e) => {
+        if (interactionMode === 'pan') return;
         const rect = e.currentTarget.getBoundingClientRect();
         const camera = evaluateCamera(project, project.currentTime);
         const clickX = e.clientX - rect.left;
@@ -939,6 +942,9 @@ export default function Home() {
     [viewMode, setViewMode] = useState<'animate' | 'storyboard' | 'preview'>(
       'animate',
     ),
+    [stageTool, setStageTool] = useState<'select' | 'pan'>('select'),
+    [viewportZoom, setViewportZoom] = useState(100),
+    [viewportPan, setViewportPan] = useState({ x: 0, y: 0 }),
     [dialog, setDialog] = useState<'help' | 'settings' | null>(null),
     [rendering, setRendering] = useState(false),
     [notice, setNotice] = useState('Ready for direction'),
@@ -950,6 +956,12 @@ export default function Home() {
   const [editingSceneId, setEditingSceneId] = useState<string | null>(null);
   const [sceneTitleDraft, setSceneTitleDraft] = useState('');
   const [sceneDescriptionDraft, setSceneDescriptionDraft] = useState('');
+  const panStartRef = useRef<{
+    x: number;
+    y: number;
+    originX: number;
+    originY: number;
+  } | null>(null);
   const evaluatedCharacters = evaluateCharacters(project, project.currentTime),
     selected =
       evaluatedCharacters.find((c) => c.id === project.selectedId) ??
@@ -2603,19 +2615,45 @@ export default function Home() {
               </button>
             </div>
             <div className="scene-tools">
-              <IconButton label="Select tool" active>
+              <IconButton
+                label="Select tool"
+                active={stageTool === 'select'}
+                onClick={() => setStageTool('select')}
+              >
                 <MousePointer2 size={15} />
               </IconButton>
-              <IconButton label="Pan tool">
+              <IconButton
+                label="Pan tool"
+                active={stageTool === 'pan'}
+                onClick={() => setStageTool('pan')}
+              >
                 <Hand size={15} />
               </IconButton>
               <span className="divider" />
-              <IconButton label="Zoom out">−</IconButton>
-              <span className="zoom-readout">100%</span>
-              <IconButton label="Zoom in">
+              <IconButton
+                label="Zoom out"
+                onClick={() =>
+                  setViewportZoom((value) => Math.max(75, value - 10))
+                }
+              >
+                −
+              </IconButton>
+              <span className="zoom-readout">{viewportZoom}%</span>
+              <IconButton
+                label="Zoom in"
+                onClick={() =>
+                  setViewportZoom((value) => Math.min(150, value + 10))
+                }
+              >
                 <ZoomIn size={15} />
               </IconButton>
-              <IconButton label="Fit stage">
+              <IconButton
+                label="Fit stage"
+                onClick={() => {
+                  setViewportZoom(100);
+                  setViewportPan({ x: 0, y: 0 });
+                }}
+              >
                 <Maximize2 size={15} />
               </IconButton>
             </div>
@@ -2659,21 +2697,55 @@ export default function Home() {
               </span>
             </div>
             <div
-              className={`canvas-frame ${showSafeArea ? 'safe-area-visible' : ''}`}
+              className={`canvas-frame ${showSafeArea ? 'safe-area-visible' : ''} ${stageTool === 'pan' ? 'pan-mode' : ''}`}
+              onPointerDown={(event) => {
+                if (stageTool !== 'pan') return;
+                event.currentTarget.setPointerCapture(event.pointerId);
+                panStartRef.current = {
+                  x: event.clientX,
+                  y: event.clientY,
+                  originX: viewportPan.x,
+                  originY: viewportPan.y,
+                };
+              }}
+              onPointerMove={(event) => {
+                const start = panStartRef.current;
+                if (!start) return;
+                setViewportPan({
+                  x: start.originX + event.clientX - start.x,
+                  y: start.originY + event.clientY - start.y,
+                });
+              }}
+              onPointerUp={(event) => {
+                if (event.currentTarget.hasPointerCapture(event.pointerId))
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+                panStartRef.current = null;
+              }}
+              onPointerCancel={() => {
+                panStartRef.current = null;
+              }}
             >
-              <StageCanvas
-                project={project}
-                sceneLabel={activeScene.title}
-                onSelect={(id) =>
-                  setProject((current) => ({ ...current, selectedId: id }))
-                }
-              />
-              {activeCaption && (
-                <div className="canvas-caption">
-                  <span>{activeCaption.speaker}</span>
-                  {activeCaption.text}
-                </div>
-              )}
+              <div
+                className="canvas-viewport"
+                style={{
+                  transform: `translate(${viewportPan.x}px, ${viewportPan.y}px) scale(${viewportZoom / 100})`,
+                }}
+              >
+                <StageCanvas
+                  project={project}
+                  sceneLabel={activeScene.title}
+                  interactionMode={stageTool}
+                  onSelect={(id) =>
+                    setProject((current) => ({ ...current, selectedId: id }))
+                  }
+                />
+                {activeCaption && (
+                  <div className="canvas-caption">
+                    <span>{activeCaption.speaker}</span>
+                    {activeCaption.text}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="stage-footer">
               <span>Paper cutout / limited motion</span>
