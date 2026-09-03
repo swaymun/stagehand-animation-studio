@@ -5122,7 +5122,9 @@ export default function Home() {
             {viewMode === 'storyboard' && (
               <div className="mode-banner">
                 <span>STORYBOARD</span>
-                <strong>Three beats · one awkward pause</strong>
+                <strong>
+                  {project.storyboardBeats.length} beats · one awkward pause
+                </strong>
                 <small>Review the beat plan before promoting timing.</small>
               </div>
             )}
@@ -5138,6 +5140,56 @@ export default function Home() {
                   Preview uses the same deterministic scene clock as render.
                 </small>
               </div>
+            )}
+            {viewMode === 'storyboard' && (
+              <section
+                className="storyboard-mode-grid"
+                aria-label="Storyboard beat board"
+              >
+                <div className="storyboard-grid-heading">
+                  <span>BEAT BOARD</span>
+                  <strong>Block the awkward moment</strong>
+                  <small>Click a beat to move the playhead.</small>
+                </div>
+                <div className="storyboard-cards">
+                  {project.storyboardBeats.map((beat) => {
+                    const active =
+                      project.currentTime >= beat.startMs &&
+                      project.currentTime <= beat.endMs;
+                    return (
+                      <button
+                        className={`storyboard-beat ${active ? 'active' : ''}`}
+                        type="button"
+                        key={beat.id}
+                        onClick={() =>
+                          setProject((current) => ({
+                            ...current,
+                            currentTime: beat.startMs,
+                          }))
+                        }
+                        aria-label={`Go to beat ${beat.index}: ${beat.title}`}
+                      >
+                        <span className="storyboard-thumb">
+                          <span>{beat.index}</span>
+                          <i />
+                          <b />
+                        </span>
+                        <span className="storyboard-beat-copy">
+                          <strong>{beat.title}</strong>
+                          <small>{beat.description}</small>
+                          <em>
+                            {timecode(beat.startMs)} — {timecode(beat.endMs)}
+                          </em>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <small className="storyboard-grid-hint">
+                  Edit titles and timing in the Board rail · Promote a beat to
+                  make a trimmed scene.
+                </small>
+              </section>
             )}
             <div className="stage-header">
               <span>
