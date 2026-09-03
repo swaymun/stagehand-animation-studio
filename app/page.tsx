@@ -1863,7 +1863,7 @@ function StageCanvas({
   project: Project;
   onSelect: (id: string) => void;
   sceneLabel: string;
-  interactionMode: 'select' | 'pan';
+  interactionMode: 'select' | 'pan' | 'preview';
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const imageCacheRef = useRef(new Map<string, HTMLImageElement>());
@@ -1931,7 +1931,7 @@ function StageCanvas({
         c,
         width,
         height,
-        c.id === project.selectedId,
+        interactionMode !== 'preview' && c.id === project.selectedId,
         c.assetId ? imageCacheRef.current.get(c.assetId) : undefined,
         c.assetId
           ? project.assets.find((asset) => asset.id === c.assetId)
@@ -1964,7 +1964,7 @@ function StageCanvas({
       16,
       height - 14,
     );
-  }, [project, sceneLabel]);
+  }, [interactionMode, project, sceneLabel]);
   useEffect(() => {
     redrawRef.current = draw;
     draw();
@@ -1977,7 +1977,7 @@ function StageCanvas({
       className="stage-canvas"
       aria-label="Diner scene canvas"
       onClick={(e) => {
-        if (interactionMode === 'pan') return;
+        if (interactionMode === 'pan' || interactionMode === 'preview') return;
         const rect = e.currentTarget.getBoundingClientRect();
         const camera = evaluateCamera(project, project.currentTime);
         const clickX = e.clientX - rect.left;
@@ -2354,15 +2354,63 @@ export default function Home() {
       execute: ModelTool['execute'],
       readOnlyHint = false,
     ) => {
+      const schema = readOnlyHint
+        ? inputSchema
+        : {
+            ...(inputSchema as {
+              type?: string;
+              properties?: Record<string, unknown>;
+              [key: string]: unknown;
+            }),
+            properties: {
+              ...(inputSchema as { properties?: Record<string, unknown> })
+                .properties,
+              expectedRevision: {
+                type: 'integer',
+                minimum: 0,
+                description:
+                  'Optional optimistic-concurrency check. Use the revision from a fresh read; the command is rejected if it is stale.',
+              },
+            },
+          };
+      const guardedExecute: ModelTool['execute'] = readOnlyHint
+        ? execute
+        : (input) => {
+            const expectedRevision = input.expectedRevision;
+            const actualRevision = projectRef.current.revision;
+            if (
+              expectedRevision !== undefined &&
+              (typeof expectedRevision !== 'number' ||
+                !Number.isInteger(expectedRevision) ||
+                expectedRevision !== actualRevision)
+            ) {
+              setNotice(
+                `Agent · revision conflict · current rev ${actualRevision}`,
+              );
+              return {
+                ok: false,
+                code: 'REVISION_CONFLICT',
+                expectedRevision:
+                  typeof expectedRevision === 'number'
+                    ? expectedRevision
+                    : null,
+                actualRevision,
+                retryFrom: 'get_project_summary',
+              };
+            }
+            const { expectedRevision: _expectedRevision, ...commandInput } =
+              input;
+            return execute(commandInput);
+          };
       void Promise.resolve(
         modelContext.registerTool(
           {
             name,
             title,
             description,
-            inputSchema,
+            inputSchema: schema,
             annotations: { readOnlyHint, untrustedContentHint: false },
-            execute,
+            execute: guardedExecute,
           },
           { signal: lifecycle.signal },
         ),
@@ -5589,30 +5637,34 @@ export default function Home() {
               <Layers3 size={15} />
               Scenes
             </button>
-            <button
-              className={panel === 'storyboard' ? 'selected' : ''}
-              onClick={() => setPanel('storyboard')}
-              type="button"
-              role="tab"
-              aria-selected={panel === 'storyboard'}
-              tabIndex={panel === 'storyboard' ? 0 : -1}
-              onKeyDown={handleTabListKeyDown}
-            >
-              <Grid2X2 size={15} />
-              Board
-            </button>
-            <button
-              className={panel === 'assets' ? 'selected' : ''}
-              onClick={() => setPanel('assets')}
-              type="button"
-              role="tab"
-              aria-selected={panel === 'assets'}
-              tabIndex={panel === 'assets' ? 0 : -1}
-              onKeyDown={handleTabListKeyDown}
-            >
-              <FolderOpen size={15} />
-              Assets
-            </button>
+            {viewMode !== 'preview' && (
+              <>
+                <button
+                  className={panel === 'storyboard' ? 'selected' : ''}
+                  onClick={() => setPanel('storyboard')}
+                  type="button"
+                  role="tab"
+                  aria-selected={panel === 'storyboard'}
+                  tabIndex={panel === 'storyboard' ? 0 : -1}
+                  onKeyDown={handleTabListKeyDown}
+                >
+                  <Grid2X2 size={15} />
+                  Board
+                </button>
+                <button
+                  className={panel === 'assets' ? 'selected' : ''}
+                  onClick={() => setPanel('assets')}
+                  type="button"
+                  role="tab"
+                  aria-selected={panel === 'assets'}
+                  tabIndex={panel === 'assets' ? 0 : -1}
+                  onKeyDown={handleTabListKeyDown}
+                >
+                  <FolderOpen size={15} />
+                  Assets
+                </button>
+              </>
+            )}
           </div>
           {panel === 'scenes' && (
             <div className="rail-content">
@@ -5709,83 +5761,95 @@ export default function Home() {
                         </div>
                         <span className="scene-status">ready</span>
                       </button>
-                      <button
-                        className="scene-more"
-                        type="button"
-                        aria-label={`Actions for ${scene.title}`}
-                        aria-expanded={sceneMenuId === scene.id}
-                        onClick={() =>
-                          setSceneMenuId((current) =>
-                            current === scene.id ? null : scene.id,
-                          )
-                        }
-                      >
-                        <MoreHorizontal size={15} />
-                      </button>
-                      {sceneMenuId === scene.id && (
-                        <div className="scene-actions">
+                      {viewMode !== 'preview' && (
+                        <>
                           <button
+                            className="scene-more"
                             type="button"
-                            onClick={() => beginSceneEdit(scene)}
+                            aria-label={`Actions for ${scene.title}`}
+                            aria-expanded={sceneMenuId === scene.id}
+                            onClick={() =>
+                              setSceneMenuId((current) =>
+                                current === scene.id ? null : scene.id,
+                              )
+                            }
                           >
-                            <Pencil size={12} /> Rename
+                            <MoreHorizontal size={15} />
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => duplicateScene(scene)}
-                          >
-                            <CopyPlus size={12} /> Duplicate
-                          </button>
-                          <button
-                            type="button"
-                            disabled={index === 0}
-                            onClick={() => moveScene(scene, 'up')}
-                          >
-                            <ChevronUp size={12} /> Move up
-                          </button>
-                          <button
-                            type="button"
-                            disabled={index === project.scenes.length - 1}
-                            onClick={() => moveScene(scene, 'down')}
-                          >
-                            <ChevronDown size={12} /> Move down
-                          </button>
-                          <button
-                            className="delete-scene-action"
-                            type="button"
-                            onClick={() => deleteScene(scene)}
-                          >
-                            <Trash2 size={12} /> Delete
-                          </button>
-                        </div>
+                          {sceneMenuId === scene.id && (
+                            <div className="scene-actions">
+                              <button
+                                type="button"
+                                onClick={() => beginSceneEdit(scene)}
+                              >
+                                <Pencil size={12} /> Rename
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => duplicateScene(scene)}
+                              >
+                                <CopyPlus size={12} /> Duplicate
+                              </button>
+                              <button
+                                type="button"
+                                disabled={index === 0}
+                                onClick={() => moveScene(scene, 'up')}
+                              >
+                                <ChevronUp size={12} /> Move up
+                              </button>
+                              <button
+                                type="button"
+                                disabled={index === project.scenes.length - 1}
+                                onClick={() => moveScene(scene, 'down')}
+                              >
+                                <ChevronDown size={12} /> Move down
+                              </button>
+                              <button
+                                className="delete-scene-action"
+                                type="button"
+                                onClick={() => deleteScene(scene)}
+                              >
+                                <Trash2 size={12} /> Delete
+                              </button>
+                            </div>
+                          )}
+                        </>
                       )}
                     </>
                   )}
                 </div>
               ))}
-              <button className="add-scene" type="button" onClick={addScene}>
-                <span>＋</span> Add scene
-              </button>
-              <div className="section-label assets-label">
-                <span>STARTER KIT</span>
-              </div>
-              <button
-                className="starter-link"
-                type="button"
-                onClick={() => {
-                  const starter = copy(starterProject);
-                  projectRef.current = starter;
-                  historyRef.current = [];
-                  futureRef.current = [];
-                  setHistory([]);
-                  setFuture([]);
-                  setProject(starter);
-                  setLastCommand('reset_to_starter()');
-                  setNotice('Starter restored');
-                }}
-              >
-                <RotateCcw size={14} /> Reset to starter
-              </button>
+              {viewMode !== 'preview' && (
+                <>
+                  <button
+                    className="add-scene"
+                    type="button"
+                    onClick={addScene}
+                  >
+                    <span>＋</span> Add scene
+                  </button>
+                  <div className="section-label assets-label">
+                    <span>STARTER KIT</span>
+                  </div>
+                  <button
+                    className="starter-link"
+                    type="button"
+                    onClick={() => {
+                      const starter = copy(starterProject);
+                      projectRef.current = starter;
+                      historyRef.current = [];
+                      futureRef.current = [];
+                      setHistory([]);
+                      setFuture([]);
+                      setProject(starter);
+                      setLastCommand('reset_to_starter()');
+                      setNotice('Starter restored');
+                    }}
+                  >
+                    <RotateCcw size={14} /> Reset to starter
+                  </button>
+                </>
+              )}
               <div
                 className={`validation-card ${renderReady ? 'ready' : 'attention'}`}
               >
@@ -6276,6 +6340,7 @@ export default function Home() {
                 onKeyDown={handleTabListKeyDown}
                 onClick={() => {
                   setViewMode('preview');
+                  setPanel('scenes');
                   setPlaying(true);
                 }}
               >
@@ -6472,7 +6537,9 @@ export default function Home() {
                 <StageCanvas
                   project={project}
                   sceneLabel={activeScene.title}
-                  interactionMode={stageTool}
+                  interactionMode={
+                    viewMode === 'preview' ? 'preview' : stageTool
+                  }
                   onSelect={(id) =>
                     setProject((current) => ({ ...current, selectedId: id }))
                   }

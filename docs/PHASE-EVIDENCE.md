@@ -15,6 +15,7 @@ This record follows the project contract in [`SPEC.md`](../SPEC.md): Implement â
 
 - Imported props now have structured `PropKeyframe` data with interpolated X/Y/scale/rotation.
 - WebMCP exposes `get_prop_keyframes`, `set_prop_keyframe`, and `apply_prop_preset`.
+- Mutating WebMCP tools now expose an optional `expectedRevision` optimistic-concurrency guard; stale commands return `REVISION_CONFLICT` with the current revision and a reread hint.
 - Human Assets controls expose Pop in, Nudge, and four transform fields at the playhead.
 - Prop keyframes flow through scene duplication, splitting, templates, persistence, validation, thumbnails, Preview, and WebM rendering.
 - Preview hides the inspector, scene tools, duration editing, and mutation actions while retaining transport, scrubber, scene context, and Exit preview.

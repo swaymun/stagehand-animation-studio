@@ -30,7 +30,7 @@ The smoke gate injects a model-context bridge, verifies all 50 tools, imports a 
 - **Storyboard**: renderer-backed beat thumbnails that move the shared playhead; beats can be promoted into trimmed scenes.
 - **Preview**: review-first sequence player using the same deterministic evaluator as export; editing chrome is hidden while transport and scene context remain available.
 - **Render WebM**: deterministic project-sequence export with captions and cue-based audio.
-- **WebMCP surface**: read tools expose project state; narrow mutation tools share the human command path and revisioned undo/redo history.
+- **WebMCP surface**: read tools expose project state; narrow mutation tools share the human command path and revisioned undo/redo history. Every mutation also accepts an optional `expectedRevision` guard and returns a structured `REVISION_CONFLICT` result when the agent's read is stale.
 
 ## Architecture
 

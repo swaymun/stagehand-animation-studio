@@ -68,8 +68,30 @@ const humanPropX = await humanPropXInput.inputValue();
 const bridge = await page.evaluate(async () => {
   const tools = window.__stagehandTools;
   const call = (name, input = {}) => tools.get(name).execute(input);
+  const unguardedMutations = [...tools.values()]
+    .filter((tool) => !tool.annotations?.readOnlyHint)
+    .filter((tool) => !tool.inputSchema?.properties?.expectedRevision)
+    .map((tool) => tool.name);
+  if (unguardedMutations.length > 0) {
+    throw new Error(
+      `mutating tools must expose expectedRevision: ${unguardedMutations.join(', ')}`,
+    );
+  }
   const initial = await call('get_project_summary');
-  const renamed = await call('set_project_name', { name: 'Smoke Project' });
+  const stale = await call('set_pose', {
+    characterId: 'alice',
+    pose: 'wave',
+    expectedRevision: initial.revision - 1,
+  });
+  if (stale.ok !== false || stale.code !== 'REVISION_CONFLICT') {
+    throw new Error(
+      `expected stale revision conflict, got ${JSON.stringify(stale)}`,
+    );
+  }
+  const renamed = await call('set_project_name', {
+    name: 'Smoke Project',
+    expectedRevision: initial.revision,
+  });
   const posed = await call('set_pose', {
     characterId: 'alice',
     pose: 'point',
@@ -107,7 +129,16 @@ const bridge = await page.evaluate(async () => {
   const secondScene = await call('add_scene', { title: 'Smoke Outro' });
   return {
     toolCount: tools.size,
+    guardedMutations:
+      tools.size -
+      [...tools.values()].filter((tool) => tool.annotations?.readOnlyHint)
+        .length,
     initial: { revision: initial.revision, canUndo: initial.canUndo },
+    revisionConflict: {
+      ok: stale.ok,
+      code: stale.code,
+      actualRevision: stale.actualRevision,
+    },
     renamed: { ok: renamed.ok, revision: renamed.revision },
     posed: { ok: posed.ok, revision: posed.revision },
     audio: { ok: audio.ok, volume: audio.cue?.volume },
@@ -152,6 +183,14 @@ const preview = {
   canvas: await page.locator('.stage-canvas').count(),
   inspector: await page.locator('.preview-workspace .inspector').isVisible(),
   exit: await page.getByRole('button', { name: 'Exit preview' }).count(),
+  boardTab: await page.getByRole('tab', { name: 'Board', exact: true }).count(),
+  assetsTab: await page
+    .getByRole('tab', { name: 'Assets', exact: true })
+    .count(),
+  addScene: await page.getByRole('button', { name: /Add scene/ }).count(),
+  resetStarter: await page
+    .getByRole('button', { name: /Reset to starter/ })
+    .count(),
 };
 const summary = await page.evaluate(() =>
   window.__stagehandTools.get('get_project_summary').execute({}),
@@ -213,6 +252,10 @@ if (
   preview.canvas !== 1 ||
   preview.inspector ||
   preview.exit !== 1 ||
+  preview.boardTab !== 0 ||
+  preview.assetsTab !== 0 ||
+  preview.addScene !== 0 ||
+  preview.resetStarter !== 0 ||
   errors.length > 0
 )
   throw new Error(`Smoke test failed: ${JSON.stringify(result)}`);
