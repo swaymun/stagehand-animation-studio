@@ -1086,6 +1086,39 @@ button {
 .caption-editor textarea:focus {
   border-color: var(--blue);
 }
+.camera-editor .inspector-label span {
+  color: var(--blue);
+  font-size: 8px;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.camera-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin-top: 9px;
+}
+.camera-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 7px 4px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--blue);
+  background: #fffaf2;
+  font-size: 8px;
+  font-weight: 750;
+}
+.camera-actions button:last-child {
+  color: var(--violet);
+}
+.camera-actions button:hover {
+  border-color: var(--blue);
+  background: #fff6eb;
+}
 .pose-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

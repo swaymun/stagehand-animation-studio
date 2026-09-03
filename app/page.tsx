@@ -58,6 +58,14 @@ type Keyframe = {
   rotation: number;
   pose: Pose;
 };
+type CameraKeyframe = {
+  id: string;
+  time: number;
+  zoom: number;
+  panX: number;
+  panY: number;
+  rotation: number;
+};
 type Caption = {
   id: string;
   text: string;
@@ -72,6 +80,7 @@ type SceneMeta = {
   duration: number;
   characters?: Character[];
   keyframes?: Keyframe[];
+  cameraKeyframes?: CameraKeyframe[];
   captions?: Caption[];
 };
 type StoryBeat = {
@@ -89,6 +98,7 @@ type Project = {
   selectedId: string;
   characters: Character[];
   keyframes: Keyframe[];
+  cameraKeyframes: CameraKeyframe[];
   captions: Caption[];
   scenes: SceneMeta[];
   activeSceneId: string;
@@ -100,7 +110,7 @@ type ValidationIssue = {
   path: string;
   message: string;
 };
-const WEBMCP_TOOL_COUNT = 20;
+const WEBMCP_TOOL_COUNT = 23;
 type ModelTool = {
   name: string;
   title: string;
@@ -122,6 +132,48 @@ const starterScenes: SceneMeta[] = [
     title: 'Diner · first meeting',
     description: 'Alice waits. Bob arrives behind her.',
     duration: 5000,
+  },
+];
+const starterCameraKeyframes: CameraKeyframe[] = [
+  {
+    id: 'cam-0000',
+    time: 0,
+    zoom: 1,
+    panX: 0,
+    panY: 0,
+    rotation: 0,
+  },
+  {
+    id: 'cam-1550',
+    time: 1550,
+    zoom: 1,
+    panX: 0,
+    panY: 0,
+    rotation: 0,
+  },
+  {
+    id: 'cam-3100',
+    time: 3100,
+    zoom: 1.16,
+    panX: -4,
+    panY: 1,
+    rotation: 0,
+  },
+  {
+    id: 'cam-4000',
+    time: 4000,
+    zoom: 1.16,
+    panX: -4,
+    panY: 1,
+    rotation: 0,
+  },
+  {
+    id: 'cam-5000',
+    time: 5000,
+    zoom: 1,
+    panX: 0,
+    panY: 0,
+    rotation: 0,
   },
 ];
 const storyboardBeats: StoryBeat[] = [
@@ -250,6 +302,7 @@ const starterProject: Project = {
       pose: 'lean-in',
     },
   ],
+  cameraKeyframes: starterCameraKeyframes,
   captions: [
     {
       id: 'caption-1',
@@ -296,6 +349,9 @@ function loadSceneContent(project: Project, sceneId: string) {
   project.duration = target.duration;
   project.characters = copy(target.characters ?? project.characters);
   project.keyframes = copy(target.keyframes ?? project.keyframes);
+  project.cameraKeyframes = copy(
+    target.cameraKeyframes ?? project.cameraKeyframes,
+  );
   project.captions = copy(target.captions ?? project.captions);
   project.currentTime = 0;
   if (
@@ -355,6 +411,38 @@ function validateProjectState(project: Project): ValidationIssue[] {
         message: `${frame.id} points to a missing character.`,
       });
   });
+  if (project.cameraKeyframes.length === 0)
+    issues.push({
+      code: 'NO_CAMERA_KEYFRAMES',
+      severity: 'error',
+      path: 'cameraKeyframes',
+      message: 'Active scene needs at least one camera keyframe.',
+    });
+  project.cameraKeyframes.forEach((frame) => {
+    if (
+      !Number.isFinite(frame.time) ||
+      frame.time < 0 ||
+      frame.time > project.duration ||
+      !Number.isFinite(frame.zoom) ||
+      frame.zoom < 0.75 ||
+      frame.zoom > 1.8 ||
+      !Number.isFinite(frame.panX) ||
+      frame.panX < -25 ||
+      frame.panX > 25 ||
+      !Number.isFinite(frame.panY) ||
+      frame.panY < -25 ||
+      frame.panY > 25 ||
+      !Number.isFinite(frame.rotation) ||
+      frame.rotation < -8 ||
+      frame.rotation > 8
+    )
+      issues.push({
+        code: 'CAMERA_OUT_OF_BOUNDS',
+        severity: 'error',
+        path: `cameraKeyframes.${frame.id}`,
+        message: `${frame.id} has an invalid camera transform or time.`,
+      });
+  });
   return issues;
 }
 
@@ -366,6 +454,7 @@ function syncActiveScene(project: Project) {
   activeScene.duration = project.duration;
   activeScene.characters = copy(project.characters);
   activeScene.keyframes = copy(project.keyframes);
+  activeScene.cameraKeyframes = copy(project.cameraKeyframes);
   activeScene.captions = copy(project.captions);
 }
 
@@ -379,6 +468,10 @@ const hydrateProject = (value: Partial<Project>): Project => {
     Array.isArray(value.keyframes) && value.keyframes.length > 0
       ? value.keyframes
       : base.keyframes;
+  const fallbackCameraKeyframes =
+    Array.isArray(value.cameraKeyframes) && value.cameraKeyframes.length > 0
+      ? value.cameraKeyframes
+      : base.cameraKeyframes;
   const fallbackCaptions = Array.isArray(value.captions)
     ? value.captions
     : base.captions;
@@ -397,6 +490,10 @@ const hydrateProject = (value: Partial<Project>): Project => {
       Array.isArray(scene.keyframes) && scene.keyframes.length > 0
         ? scene.keyframes
         : fallbackKeyframes,
+    cameraKeyframes:
+      Array.isArray(scene.cameraKeyframes) && scene.cameraKeyframes.length > 0
+        ? scene.cameraKeyframes
+        : fallbackCameraKeyframes,
     captions: Array.isArray(scene.captions) ? scene.captions : fallbackCaptions,
   }));
   const activeScene =
@@ -409,6 +506,9 @@ const hydrateProject = (value: Partial<Project>): Project => {
     duration: activeScene.duration,
     characters: copy(activeScene.characters ?? fallbackCharacters),
     keyframes: copy(activeScene.keyframes ?? fallbackKeyframes),
+    cameraKeyframes: copy(
+      activeScene.cameraKeyframes ?? fallbackCameraKeyframes,
+    ),
     captions: copy(activeScene.captions ?? fallbackCaptions),
   };
 };
@@ -451,6 +551,122 @@ function evaluateCharacters(project: Project, time: number) {
       pose: amount < 0.5 ? left.pose : right.pose,
     };
   });
+}
+
+function evaluateCamera(project: Project, time: number): CameraKeyframe {
+  const frames = [...project.cameraKeyframes].sort((a, b) => a.time - b.time);
+  const fallback: CameraKeyframe = {
+    id: 'cam-fallback',
+    time: 0,
+    zoom: 1,
+    panX: 0,
+    panY: 0,
+    rotation: 0,
+  };
+  if (frames.length === 0) return fallback;
+  const first = frames[0];
+  if (time <= first.time) return first;
+  const last = frames.at(-1);
+  if (!last || time >= last.time) return last ?? fallback;
+  const nextIndex = frames.findIndex((frame) => frame.time > time);
+  const right = frames[nextIndex];
+  const left = frames[nextIndex - 1];
+  const amount = (time - left.time) / (right.time - left.time);
+  return {
+    id: `cam-evaluated-${Math.round(time)}`,
+    time,
+    zoom: left.zoom + (right.zoom - left.zoom) * amount,
+    panX: left.panX + (right.panX - left.panX) * amount,
+    panY: left.panY + (right.panY - left.panY) * amount,
+    rotation: left.rotation + (right.rotation - left.rotation) * amount,
+  };
+}
+
+function upsertCameraKeyframe(
+  project: Project,
+  time: number,
+  changes: Partial<Pick<CameraKeyframe, 'zoom' | 'panX' | 'panY' | 'rotation'>>,
+) {
+  const camera = evaluateCamera(project, time);
+  const safeTime = clamp(time, 0, project.duration);
+  const existing = project.cameraKeyframes.find(
+    (frame) => frame.time === safeTime,
+  );
+  const frame: CameraKeyframe = {
+    id:
+      existing?.id ?? `cam-${Math.round(safeTime).toString().padStart(4, '0')}`,
+    time: safeTime,
+    zoom: clamp(changes.zoom ?? camera.zoom, 0.75, 1.8),
+    panX: clamp(changes.panX ?? camera.panX, -25, 25),
+    panY: clamp(changes.panY ?? camera.panY, -25, 25),
+    rotation: clamp(changes.rotation ?? camera.rotation, -8, 8),
+  };
+  if (existing) Object.assign(existing, frame);
+  else project.cameraKeyframes.push(frame);
+  project.cameraKeyframes.sort((a, b) => a.time - b.time);
+  return frame;
+}
+
+function drawDinerBackground(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+) {
+  ctx.fillStyle = '#e9d6b8';
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = '#c38b62';
+  ctx.fillRect(0, height * 0.69, width, height * 0.31);
+  ctx.fillStyle = '#f4ead9';
+  ctx.fillRect(width * 0.05, height * 0.08, width * 0.9, height * 0.52);
+  ctx.strokeStyle = '#d8c4a5';
+  ctx.lineWidth = 3;
+  for (let i = 0; i < 5; i++) {
+    ctx.beginPath();
+    ctx.moveTo(width * (0.11 + i * 0.19), height * 0.08);
+    ctx.lineTo(width * (0.11 + i * 0.19), height * 0.6);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#506d72';
+  ctx.fillRect(width * 0.1, height * 0.2, width * 0.8, 7);
+  ctx.fillStyle = '#2d4448';
+  ctx.font = '700 13px ui-monospace, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(
+    'THE LATE PLATE  ·  OPEN UNTIL AWKWARD',
+    width / 2,
+    height * 0.17,
+  );
+  ctx.fillStyle = '#714b3c';
+  ctx.fillRect(width * 0.17, height * 0.55, width * 0.66, 20);
+  ctx.fillStyle = '#d6a26d';
+  ctx.fillRect(width * 0.2, height * 0.59, width * 0.6, 11);
+  ctx.fillStyle = '#b86e4e';
+  ctx.beginPath();
+  ctx.arc(width * 0.3, height * 0.52, 25, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#f5d69b';
+  ctx.beginPath();
+  ctx.arc(width * 0.3, height * 0.52, 16, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#597579';
+  ctx.fillRect(width * 0.71, height * 0.27, 32, 72);
+  ctx.fillStyle = '#f0c27f';
+  ctx.fillRect(width * 0.73, height * 0.3, 28, 40);
+}
+
+function applyCameraTransform(
+  ctx: CanvasRenderingContext2D,
+  camera: CameraKeyframe,
+  width: number,
+  height: number,
+) {
+  ctx.translate(
+    width / 2 + (camera.panX / 100) * width,
+    height / 2 + (camera.panY / 100) * height,
+  );
+  ctx.rotate((camera.rotation * Math.PI) / 180);
+  ctx.scale(camera.zoom, camera.zoom);
+  ctx.translate(-width / 2, -height / 2);
 }
 
 function upsertCharacterKeyframe(
@@ -570,47 +786,18 @@ function drawRenderFrame(
 ) {
   ctx.fillStyle = '#e9d6b8';
   ctx.fillRect(0, 0, width, height);
-  ctx.fillStyle = '#c38b62';
-  ctx.fillRect(0, height * 0.69, width, height * 0.31);
-  ctx.fillStyle = '#f4ead9';
-  ctx.fillRect(width * 0.05, height * 0.08, width * 0.9, height * 0.52);
-  ctx.strokeStyle = '#d8c4a5';
-  ctx.lineWidth = 3;
-  for (let i = 0; i < 5; i++) {
-    ctx.beginPath();
-    ctx.moveTo(width * (0.11 + i * 0.19), height * 0.08);
-    ctx.lineTo(width * (0.11 + i * 0.19), height * 0.6);
-    ctx.stroke();
-  }
-  ctx.fillStyle = '#506d72';
-  ctx.fillRect(width * 0.1, height * 0.2, width * 0.8, 7);
-  ctx.fillStyle = '#2d4448';
-  ctx.font = '700 13px ui-monospace, monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText(
-    'THE LATE PLATE  ·  OPEN UNTIL AWKWARD',
-    width / 2,
-    height * 0.17,
+  ctx.save();
+  applyCameraTransform(
+    ctx,
+    evaluateCamera(project, project.currentTime),
+    width,
+    height,
   );
-  ctx.fillStyle = '#714b3c';
-  ctx.fillRect(width * 0.17, height * 0.55, width * 0.66, 20);
-  ctx.fillStyle = '#d6a26d';
-  ctx.fillRect(width * 0.2, height * 0.59, width * 0.6, 11);
-  ctx.fillStyle = '#b86e4e';
-  ctx.beginPath();
-  ctx.arc(width * 0.3, height * 0.52, 25, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#f5d69b';
-  ctx.beginPath();
-  ctx.arc(width * 0.3, height * 0.52, 16, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#597579';
-  ctx.fillRect(width * 0.71, height * 0.27, 32, 72);
-  ctx.fillStyle = '#f0c27f';
-  ctx.fillRect(width * 0.73, height * 0.3, 28, 40);
+  drawDinerBackground(ctx, width, height);
   evaluateCharacters(project, project.currentTime).forEach((character) =>
     drawCharacter(ctx, character, width, height, false),
   );
+  ctx.restore();
   const caption = project.captions.find(
     (item) =>
       project.currentTime >= item.start && project.currentTime <= item.end,
@@ -661,46 +848,26 @@ function StageCanvas({
     const { width, height } = rect;
     ctx.fillStyle = '#e9d6b8';
     ctx.fillRect(0, 0, width, height);
-    ctx.fillStyle = '#c38b62';
-    ctx.fillRect(0, height * 0.69, width, height * 0.31);
-    ctx.fillStyle = '#f4ead9';
-    ctx.fillRect(width * 0.05, height * 0.08, width * 0.9, height * 0.52);
-    ctx.strokeStyle = '#d8c4a5';
-    ctx.lineWidth = 3;
-    for (let i = 0; i < 5; i++) {
-      ctx.beginPath();
-      ctx.moveTo(width * (0.11 + i * 0.19), height * 0.08);
-      ctx.lineTo(width * (0.11 + i * 0.19), height * 0.6);
-      ctx.stroke();
-    }
-    ctx.fillStyle = '#506d72';
-    ctx.fillRect(width * 0.1, height * 0.2, width * 0.8, 7);
-    ctx.fillStyle = '#2d4448';
-    ctx.font = '700 13px ui-monospace, monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(
-      'THE LATE PLATE  ·  OPEN UNTIL AWKWARD',
-      width / 2,
-      height * 0.17,
+    ctx.save();
+    applyCameraTransform(
+      ctx,
+      evaluateCamera(project, project.currentTime),
+      width,
+      height,
     );
-    ctx.fillStyle = '#714b3c';
-    ctx.fillRect(width * 0.17, height * 0.55, width * 0.66, 20);
-    ctx.fillStyle = '#d6a26d';
-    ctx.fillRect(width * 0.2, height * 0.59, width * 0.6, 11);
-    ctx.fillStyle = '#b86e4e';
-    ctx.beginPath();
-    ctx.arc(width * 0.3, height * 0.52, 25, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#f5d69b';
-    ctx.beginPath();
-    ctx.arc(width * 0.3, height * 0.52, 16, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#597579';
-    ctx.fillRect(width * 0.71, height * 0.27, 32, 72);
-    ctx.fillStyle = '#f0c27f';
-    ctx.fillRect(width * 0.73, height * 0.3, 28, 40);
+    drawDinerBackground(ctx, width, height);
     evaluateCharacters(project, project.currentTime).forEach((c) =>
       drawCharacter(ctx, c, width, height, c.id === project.selectedId),
+    );
+    ctx.restore();
+    const camera = evaluateCamera(project, project.currentTime);
+    ctx.fillStyle = 'rgba(41,39,42,.55)';
+    ctx.font = '10px ui-monospace, monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(
+      `CAM ${camera.zoom.toFixed(2)}×  ${camera.panX >= 0 ? '+' : ''}${camera.panX.toFixed(0)} / ${camera.panY >= 0 ? '+' : ''}${camera.panY.toFixed(0)}`,
+      width - 16,
+      height - 14,
     );
     ctx.fillStyle = 'rgba(41,39,42,.55)';
     ctx.font = '11px ui-monospace, monospace';
@@ -722,8 +889,14 @@ function StageCanvas({
       className="stage-canvas"
       aria-label="Diner scene canvas"
       onClick={(e) => {
-        const rect = e.currentTarget.getBoundingClientRect(),
-          x = ((e.clientX - rect.left) / rect.width) * 100;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const camera = evaluateCamera(project, project.currentTime);
+        const clickX = e.clientX - rect.left;
+        const sceneX =
+          (clickX - (rect.width / 2 + (camera.panX / 100) * rect.width)) /
+            camera.zoom +
+          rect.width / 2;
+        const x = (sceneX / rect.width) * 100;
         const nearest = evaluateCharacters(project, project.currentTime).reduce(
           (a, b) => (Math.abs(a.x - x) < Math.abs(b.x - x) ? a : b),
         );
@@ -785,7 +958,8 @@ export default function Home() {
       (c) => project.currentTime >= c.start && project.currentTime <= c.end,
     ),
     selectedCaption = activeCaption ?? project.captions[0],
-    ratio = project.currentTime / project.duration;
+    ratio = project.currentTime / project.duration,
+    camera = evaluateCamera(project, project.currentTime);
   const commit = useCallback(
     (mutate: (next: Project) => void, label: string, agent = false) => {
       setProject((current) => {
@@ -939,6 +1113,7 @@ export default function Home() {
           selectedId: current.selectedId,
           characterCount: current.characters.length,
           keyframeCount: current.keyframes.length,
+          cameraKeyframeCount: current.cameraKeyframes.length,
           captionCount: current.captions.length,
         };
       },
@@ -959,6 +1134,7 @@ export default function Home() {
           ),
           characterCount: current.characters.length,
           keyframeCount: current.keyframes.length,
+          cameraKeyframeCount: current.cameraKeyframes.length,
           captionCount: current.captions.length,
         };
       },
@@ -992,6 +1168,7 @@ export default function Home() {
           tracks: ['camera', 'alice', 'bob', 'captions', 'music'],
           captions: current.captions,
           keyframes: current.keyframes,
+          cameraKeyframes: current.cameraKeyframes,
         };
       },
       true,
@@ -1116,6 +1293,22 @@ export default function Home() {
       true,
     );
     register(
+      'get_camera_keyframes',
+      'Get camera keyframes',
+      'Inspect the active scene camera framing and timing keyframes.',
+      { type: 'object', properties: {}, additionalProperties: false },
+      () => {
+        const current = projectRef.current;
+        return {
+          ok: true,
+          revision: current.revision,
+          camera: evaluateCamera(current, current.currentTime),
+          cameraKeyframes: current.cameraKeyframes,
+        };
+      },
+      true,
+    );
+    register(
       'get_style_bible',
       'Get style bible',
       'Inspect the visual and motion constraints for this project.',
@@ -1213,6 +1406,7 @@ export default function Home() {
           duration: current.duration,
           characters: copy(current.characters),
           keyframes: copy(current.keyframes),
+          cameraKeyframes: copy(current.cameraKeyframes),
           captions: copy(current.captions),
         } satisfies SceneMeta;
         commitRef.current(
@@ -1502,6 +1696,139 @@ export default function Home() {
       },
     );
     register(
+      'set_camera_keyframe',
+      'Set camera keyframe',
+      'Create or update an explicit camera keyframe without changing character tracks.',
+      {
+        type: 'object',
+        required: ['timeMs'],
+        additionalProperties: false,
+        properties: {
+          timeMs: { type: 'number', minimum: 0 },
+          zoom: { type: 'number', minimum: 0.75, maximum: 1.8 },
+          panX: { type: 'number', minimum: -25, maximum: 25 },
+          panY: { type: 'number', minimum: -25, maximum: 25 },
+          rotation: { type: 'number', minimum: -8, maximum: 8 },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        if (
+          typeof input.timeMs !== 'number' ||
+          !Number.isFinite(input.timeMs) ||
+          input.timeMs < 0 ||
+          input.timeMs > current.duration
+        )
+          return { ok: false, code: 'INVALID_INPUT' };
+        const numericKeys = ['zoom', 'panX', 'panY', 'rotation'] as const;
+        if (
+          numericKeys.some(
+            (key) =>
+              input[key] !== undefined &&
+              (typeof input[key] !== 'number' || !Number.isFinite(input[key])),
+          )
+        )
+          return { ok: false, code: 'INVALID_INPUT' };
+        if (
+          (typeof input.zoom === 'number' &&
+            (input.zoom < 0.75 || input.zoom > 1.8)) ||
+          (typeof input.panX === 'number' &&
+            (input.panX < -25 || input.panX > 25)) ||
+          (typeof input.panY === 'number' &&
+            (input.panY < -25 || input.panY > 25)) ||
+          (typeof input.rotation === 'number' &&
+            (input.rotation < -8 || input.rotation > 8))
+        )
+          return { ok: false, code: 'OUT_OF_BOUNDS' };
+        let keyframe: CameraKeyframe | null = null;
+        commitRef.current(
+          (next) => {
+            keyframe = upsertCameraKeyframe(next, input.timeMs as number, {
+              zoom: typeof input.zoom === 'number' ? input.zoom : undefined,
+              panX: typeof input.panX === 'number' ? input.panX : undefined,
+              panY: typeof input.panY === 'number' ? input.panY : undefined,
+              rotation:
+                typeof input.rotation === 'number' ? input.rotation : undefined,
+            });
+          },
+          'Set camera keyframe',
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          keyframe,
+          changedEntityIds: ['camera'],
+        };
+      },
+    );
+    register(
+      'apply_camera_preset',
+      'Apply camera preset',
+      'Apply a deterministic reaction punch-in or reset across the camera track.',
+      {
+        type: 'object',
+        required: ['preset'],
+        additionalProperties: false,
+        properties: {
+          preset: { type: 'string', enum: ['reaction-cut', 'reset'] },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        if (input.preset !== 'reaction-cut' && input.preset !== 'reset')
+          return { ok: false, code: 'INVALID_INPUT' };
+        const start = current.currentTime;
+        const base = evaluateCamera(current, start);
+        const frames =
+          input.preset === 'reaction-cut'
+            ? [
+                { ...base, time: start },
+                {
+                  time: Math.min(start + 220, current.duration),
+                  zoom: Math.max(1.16, base.zoom),
+                  panX: clamp(base.panX - 4, -25, 25),
+                  panY: clamp(base.panY + 1, -25, 25),
+                  rotation: base.rotation,
+                },
+                {
+                  time: Math.min(start + 950, current.duration),
+                  zoom: base.zoom,
+                  panX: base.panX,
+                  panY: base.panY,
+                  rotation: base.rotation,
+                },
+              ]
+            : [
+                {
+                  time: start,
+                  zoom: 1,
+                  panX: 0,
+                  panY: 0,
+                  rotation: 0,
+                },
+              ];
+        const applied: CameraKeyframe[] = [];
+        commitRef.current(
+          (next) => {
+            frames.forEach((frame) => {
+              const result = upsertCameraKeyframe(next, frame.time, frame);
+              if (result) applied.push(result);
+            });
+          },
+          `Apply ${input.preset} camera`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          preset: input.preset,
+          cameraKeyframes: applied,
+          changedEntityIds: ['camera'],
+        };
+      },
+    );
+    register(
       'apply_motion_preset',
       'Apply motion preset',
       'Apply a deterministic multi-keyframe motion preset to one character.',
@@ -1668,6 +1995,40 @@ export default function Home() {
       );
     }, 'Apply nervous motion');
   };
+  const updateCamera = (
+    key: 'zoom' | 'panX' | 'panY' | 'rotation',
+    value: number,
+  ) =>
+    commit((next) => {
+      upsertCameraKeyframe(next, next.currentTime, { [key]: value });
+    }, `Adjust camera ${key}`);
+  const addCameraKeyframe = () =>
+    commit((next) => {
+      upsertCameraKeyframe(next, next.currentTime, {});
+    }, 'Keyframe camera');
+  const applyReactionCut = () => {
+    const start = project.currentTime;
+    const base = camera;
+    commit((next) => {
+      [
+        { ...base, time: start },
+        {
+          time: Math.min(start + 220, next.duration),
+          zoom: Math.max(1.16, base.zoom),
+          panX: clamp(base.panX - 4, -25, 25),
+          panY: clamp(base.panY + 1, -25, 25),
+          rotation: base.rotation,
+        },
+        {
+          time: Math.min(start + 950, next.duration),
+          zoom: base.zoom,
+          panX: base.panX,
+          panY: base.panY,
+          rotation: base.rotation,
+        },
+      ].forEach((frame) => upsertCameraKeyframe(next, frame.time, frame));
+    }, 'Apply reaction cut');
+  };
   const addScene = () => {
     const sceneNumber = project.scenes.length + 1;
     const scene = {
@@ -1677,6 +2038,7 @@ export default function Home() {
       duration: project.duration,
       characters: copy(project.characters),
       keyframes: copy(project.keyframes),
+      cameraKeyframes: copy(project.cameraKeyframes),
       captions: copy(project.captions),
     } satisfies SceneMeta;
     commit((next) => {
@@ -1841,7 +2203,13 @@ export default function Home() {
         .filter((frame) => frame.characterId === characterId)
         .map((frame) => (frame.time / project.duration) * 100);
     return [
-      { name: 'Camera', color: 'blue', marks: [0, 28, 55, 74] },
+      {
+        name: 'Camera',
+        color: 'blue',
+        marks: project.cameraKeyframes.map(
+          (frame) => (frame.time / project.duration) * 100,
+        ),
+      },
       {
         name: 'Alice · rig',
         color: 'coral',
@@ -1857,7 +2225,12 @@ export default function Home() {
       },
       { name: 'Music · low', color: 'violet', marks: [0, 100] },
     ];
-  }, [project.captions, project.duration, project.keyframes]);
+  }, [
+    project.cameraKeyframes,
+    project.captions,
+    project.duration,
+    project.keyframes,
+  ]);
   const activeSceneIndex = Math.max(
     0,
     project.scenes.findIndex((scene) => scene.id === project.activeSceneId),
@@ -1866,6 +2239,7 @@ export default function Home() {
   const selectedKeyframeCount = project.keyframes.filter(
     (frame) => frame.characterId === selected.id,
   ).length;
+  const cameraKeyframeCount = project.cameraKeyframes.length;
   const validationIssues = validateProjectState(project);
   const renderReady = validationIssues.every(
     (issue) => issue.severity !== 'error',
@@ -2530,6 +2904,87 @@ export default function Home() {
               Move the selected character in the scene. Changes are
               keyframe-ready and undoable. {selectedKeyframeCount} keyframes on
               this rig.
+            </small>
+          </div>
+          <div className="inspector-section camera-editor">
+            <div className="inspector-label">
+              CAMERA <span>{cameraKeyframeCount} keyframes</span>
+            </div>
+            <div className="field-row">
+              <label>
+                Zoom
+                <input
+                  type="number"
+                  min="0.75"
+                  max="1.8"
+                  step="0.01"
+                  aria-label="Camera zoom"
+                  value={camera.zoom.toFixed(2)}
+                  onChange={(event) =>
+                    updateCamera('zoom', Number(event.target.value))
+                  }
+                />
+                <b>×</b>
+              </label>
+              <label>
+                Pan X
+                <input
+                  type="number"
+                  min="-25"
+                  max="25"
+                  step="1"
+                  aria-label="Camera pan X"
+                  value={camera.panX.toFixed(0)}
+                  onChange={(event) =>
+                    updateCamera('panX', Number(event.target.value))
+                  }
+                />
+                <b>%</b>
+              </label>
+            </div>
+            <div className="field-row">
+              <label>
+                Pan Y
+                <input
+                  type="number"
+                  min="-25"
+                  max="25"
+                  step="1"
+                  aria-label="Camera pan Y"
+                  value={camera.panY.toFixed(0)}
+                  onChange={(event) =>
+                    updateCamera('panY', Number(event.target.value))
+                  }
+                />
+                <b>%</b>
+              </label>
+              <label>
+                Tilt
+                <input
+                  type="number"
+                  min="-8"
+                  max="8"
+                  step="1"
+                  aria-label="Camera rotation"
+                  value={camera.rotation.toFixed(0)}
+                  onChange={(event) =>
+                    updateCamera('rotation', Number(event.target.value))
+                  }
+                />
+                <b>°</b>
+              </label>
+            </div>
+            <div className="camera-actions">
+              <button type="button" onClick={addCameraKeyframe}>
+                <Sparkles size={12} /> Keyframe camera
+              </button>
+              <button type="button" onClick={applyReactionCut}>
+                <WandSparkles size={12} /> Reaction cut
+              </button>
+            </div>
+            <small className="transform-help">
+              Framing is evaluated with the same clock as character motion and
+              render.
             </small>
           </div>
           <div className="inspector-section">

@@ -4,15 +4,16 @@ Stagehand is a WebMCP-native 2D animation studio where a person and ChatGPT can 
 
 ## Current cut
 
-The current cut is a deterministic, local-first Paper Cutout Comedy scene: two pre-rigged placeholder characters, a diner background, captions, an interpolated keyframe timeline, command-backed transforms and poses, undo/redo, local recovery, independent multi-scene content with add/rename/duplicate/delete operations, JSON import/export, visible readiness validation, silent WebM export, and twenty WebMCP tools. TTS, voice cloning, dialogue recording, phoneme extraction, and lip-sync remain explicitly out of scope.
+The current cut is a deterministic, local-first Paper Cutout Comedy scene: two pre-rigged placeholder characters, a diner background, captions, interpolated character and camera keyframe timelines, command-backed transforms, poses, and reaction cuts, undo/redo, local recovery, independent multi-scene content with add/rename/duplicate/delete operations, JSON import/export, visible readiness validation, silent WebM export, and twenty-three WebMCP tools. TTS, voice cloning, dialogue recording, phoneme extraction, and lip-sync remain explicitly out of scope.
 
 ## Product rules
 
 - The artifact is editable: scenes, assets, poses, timing, captions, and camera work remain structured data.
 - Human and agent actions share one command model. Mutations are revisioned and undoable.
 - Broad reads and narrow writes are preferred. Agent writes must preserve unrelated manual edits.
-- Preview, frame inspection, and final render must share one deterministic evaluator.
+- Preview, frame inspection, and final render must share one deterministic evaluator for character motion and camera framing.
 - Character motion is stored as explicit keyframes and interpolated at the playhead; human and agent edits use the same keyframe command path.
+- Camera framing is stored as explicit zoom, pan, and rotation keyframes and interpolated at the playhead; human and agent edits use the same camera command path.
 - Browser 2D studio first; desktop Chrome is the initial target.
 
 ## Canonical demo
@@ -23,8 +24,8 @@ Start from Paper Cutout Comedy. Alice waits nervously in a diner; Bob enters beh
 
 1. Feasibility spikes — complete: deterministic timestamp evaluation, playable WebM, imperative WebMCP registration, and imported-project recovery are proven.
 2. Editable vertical slice — complete: model, persistence, commands, one scene, rig editing, timeline, preview, import/export.
-3. Multi-scene animation core — in progress: independent scene content and scene operations are complete; camera effects and richer storyboard promotion remain.
-4. Agent-native control — in progress: twenty registered tools, revisions, undo, structured validation, and visible/agent parity are present; hosted live WebMCP enumeration is still a platform/browser capability gap.
+3. Multi-scene animation core — in progress: independent scene content, scene operations, and interpolated camera framing are complete; richer storyboard promotion remains.
+4. Agent-native control — in progress: twenty-three registered tools, revisions, undo, structured validation, and visible/agent parity are present; hosted live WebMCP enumeration is still a platform/browser capability gap.
 5. Mixed media/templates — next: media compositing, asset briefs/import, character-sheet rig import, four starters, and an expanded style bible.
 6. Captions/audio/validation/render — partial: captions, deterministic validation, and silent WebM export are present; bundled SFX/music and richer render controls remain.
 7. UX/challenge polish — ongoing: accessibility, recovery, performance, README, architecture, and demo script continue through the implementation loop.
