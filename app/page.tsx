@@ -54,11 +54,21 @@ type Keyframe = {
   rotation: number;
   pose: Pose;
 };
+type Caption = {
+  id: string;
+  text: string;
+  start: number;
+  end: number;
+  speaker: string;
+};
 type SceneMeta = {
   id: string;
   title: string;
   description: string;
   duration: number;
+  characters?: Character[];
+  keyframes?: Keyframe[];
+  captions?: Caption[];
 };
 type Project = {
   revision: number;
@@ -67,13 +77,7 @@ type Project = {
   selectedId: string;
   characters: Character[];
   keyframes: Keyframe[];
-  captions: {
-    id: string;
-    text: string;
-    start: number;
-    end: number;
-    speaker: string;
-  }[];
+  captions: Caption[];
   scenes: SceneMeta[];
   activeSceneId: string;
   dirty: boolean;
@@ -221,19 +225,6 @@ const starterProject: Project = {
   scenes: starterScenes,
   activeSceneId: 'scene-01',
 };
-const hydrateProject = (value: Partial<Project>): Project => ({
-  ...copy(starterProject),
-  ...value,
-  scenes:
-    Array.isArray(value.scenes) && value.scenes.length > 0
-      ? value.scenes
-      : copy(starterScenes),
-  keyframes:
-    Array.isArray(value.keyframes) && value.keyframes.length > 0
-      ? value.keyframes
-      : copy(starterProject.keyframes),
-  activeSceneId: value.activeSceneId ?? 'scene-01',
-});
 const copy = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const timecode = (ms: number) => `${(ms / 1000).toFixed(2).padStart(4, '0')}s`;
 const clamp = (value: number, min: number, max: number) =>
@@ -243,6 +234,61 @@ const isPose = (value: unknown): value is Pose =>
   value === 'nervous' ||
   value === 'wave' ||
   value === 'lean-in';
+
+function syncActiveScene(project: Project) {
+  const activeScene = project.scenes.find(
+    (scene) => scene.id === project.activeSceneId,
+  );
+  if (!activeScene) return;
+  activeScene.duration = project.duration;
+  activeScene.characters = copy(project.characters);
+  activeScene.keyframes = copy(project.keyframes);
+  activeScene.captions = copy(project.captions);
+}
+
+const hydrateProject = (value: Partial<Project>): Project => {
+  const base = copy(starterProject);
+  const fallbackCharacters =
+    Array.isArray(value.characters) && value.characters.length > 0
+      ? value.characters
+      : base.characters;
+  const fallbackKeyframes =
+    Array.isArray(value.keyframes) && value.keyframes.length > 0
+      ? value.keyframes
+      : base.keyframes;
+  const fallbackCaptions = Array.isArray(value.captions)
+    ? value.captions
+    : base.captions;
+  const rawScenes =
+    Array.isArray(value.scenes) && value.scenes.length > 0
+      ? value.scenes
+      : base.scenes;
+  const requestedActiveId = value.activeSceneId ?? rawScenes[0].id;
+  const scenes = rawScenes.map((scene) => ({
+    ...scene,
+    characters:
+      Array.isArray(scene.characters) && scene.characters.length > 0
+        ? scene.characters
+        : fallbackCharacters,
+    keyframes:
+      Array.isArray(scene.keyframes) && scene.keyframes.length > 0
+        ? scene.keyframes
+        : fallbackKeyframes,
+    captions: Array.isArray(scene.captions) ? scene.captions : fallbackCaptions,
+  }));
+  const activeScene =
+    scenes.find((scene) => scene.id === requestedActiveId) ?? scenes[0];
+  return {
+    ...base,
+    ...value,
+    scenes: copy(scenes),
+    activeSceneId: activeScene.id,
+    duration: activeScene.duration,
+    characters: copy(activeScene.characters ?? fallbackCharacters),
+    keyframes: copy(activeScene.keyframes ?? fallbackKeyframes),
+    captions: copy(activeScene.captions ?? fallbackCaptions),
+  };
+};
 
 function evaluateCharacters(project: Project, time: number) {
   return project.characters.map((character) => {
@@ -617,6 +663,7 @@ export default function Home() {
       setProject((current) => {
         const next = copy(current);
         mutate(next);
+        syncActiveScene(next);
         next.revision += 1;
         next.dirty = true;
         setHistory((items) => [...items.slice(-29), copy(current)]);
@@ -746,6 +793,9 @@ export default function Home() {
           sceneCount: current.scenes.length,
           activeSceneId: current.activeSceneId,
           selectedId: current.selectedId,
+          characterCount: current.characters.length,
+          keyframeCount: current.keyframes.length,
+          captionCount: current.captions.length,
         };
       },
       true,
@@ -763,6 +813,9 @@ export default function Home() {
           scene: current.scenes.find(
             (scene) => scene.id === current.activeSceneId,
           ),
+          characterCount: current.characters.length,
+          keyframeCount: current.keyframes.length,
+          captionCount: current.captions.length,
         };
       },
       true,
@@ -803,6 +856,7 @@ export default function Home() {
           durationMs: current.duration,
           tracks: ['camera', 'alice', 'bob', 'captions', 'music'],
           captions: current.captions,
+          keyframes: current.keyframes,
         };
       },
       true,
@@ -1021,6 +1075,9 @@ export default function Home() {
               ? input.description.trim()
               : 'New scene ready for blocking.',
           duration: current.duration,
+          characters: copy(current.characters),
+          keyframes: copy(current.keyframes),
+          captions: copy(current.captions),
         } satisfies SceneMeta;
         commitRef.current(
           (next) => {
@@ -1351,6 +1408,9 @@ export default function Home() {
       title: `Scene ${String(sceneNumber).padStart(2, '0')}`,
       description: 'New scene ready for blocking.',
       duration: project.duration,
+      characters: copy(project.characters),
+      keyframes: copy(project.keyframes),
+      captions: copy(project.captions),
     } satisfies SceneMeta;
     commit((next) => {
       next.scenes.push(scene);
@@ -1593,8 +1653,17 @@ export default function Home() {
                   type="button"
                   onClick={() =>
                     commit((next) => {
+                      const target = next.scenes.find(
+                        (candidate) => candidate.id === scene.id,
+                      );
+                      if (!target) return;
                       next.activeSceneId = scene.id;
                       next.duration = scene.duration;
+                      next.characters = copy(
+                        target.characters ?? next.characters,
+                      );
+                      next.keyframes = copy(target.keyframes ?? next.keyframes);
+                      next.captions = copy(target.captions ?? next.captions);
                       next.currentTime = 0;
                     }, `Open ${scene.title}`)
                   }
@@ -2089,11 +2158,14 @@ export default function Home() {
               type="button"
               className="save-button"
               onClick={() => {
+                const savedProject = copy(project);
+                savedProject.dirty = false;
+                syncActiveScene(savedProject);
                 window.localStorage.setItem(
                   STORAGE_KEY,
-                  JSON.stringify({ ...project, dirty: false }),
+                  JSON.stringify(savedProject),
                 );
-                setProject((current) => ({ ...current, dirty: false }));
+                setProject(savedProject);
                 setSaved(true);
                 setNotice('Project saved locally');
               }}
