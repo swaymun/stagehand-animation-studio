@@ -4,7 +4,7 @@ Keep current screenshots only in `docs/evidence/`.
 
 ## Identity
 
-- Commit:
+- Commit: `782f898` (`Ship frame-by-frame Stagehand release`)
 - Deployed URL: https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site
 - Date/time (America/New_York): 2026-09-04 03:17 EDT
 - Reviewer: Codex release verification
