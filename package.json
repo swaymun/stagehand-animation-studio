@@ -14,6 +14,8 @@
     "smoke:native": "node scripts/native-webmcp-smoke.mjs",
     "smoke:skill": "node scripts/skill-forward-test.mjs",
     "test:mesh": "node --experimental-strip-types scripts/mesh-regression.mts",
+    "test:rig": "node --experimental-strip-types scripts/rig-v3-regression.mts",
+    "test:tool-ui": "node scripts/tool-ui-contract-test.mjs",
     "lint": "oxlint",
     "format": "oxfmt"
   },

@@ -33,6 +33,7 @@ const PUBLIC_TOOL_NAMES = [
   'inspect_audio_clip',
   'propose_skeleton',
   'get_skeleton',
+  'edit_skeleton',
   'approve_skeleton',
   'validate_skeleton',
   'bind_skeleton_asset',
@@ -91,7 +92,7 @@ await page.goto(`${baseUrl}?qa=native-webmcp`, {
 });
 await page.waitForTimeout(900);
 await page.waitForFunction(
-  () => window.__nativeWebMcpTools?.length === 39,
+  () => window.__nativeWebMcpTools?.length === 40,
   null,
   { timeout: 10000 },
 );
@@ -163,8 +164,8 @@ await browser.close();
 
 if (
   result.status !== 'available' ||
-  result.toolCount !== 39 ||
-  result.uniqueToolCount !== 39 ||
+  result.toolCount !== 40 ||
+  result.uniqueToolCount !== 40 ||
   !result.exactOrder ||
   !result.uniqueSchemaIds ||
   result.unguardedMutations.length > 0 ||

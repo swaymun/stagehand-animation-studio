@@ -4,9 +4,9 @@
       "name": "stagehand-asset-rigging",
       "version": "1.0.0",
       "archive": "/downloads/stagehand-asset-rigging-v1.0.0.zip",
-      "sha256": "6d995812387d842901edc9123591a997cd2bc588b1bf50d1504f785e5d0f74bf",
+      "sha256": "d9758cada450f23ee217e79dde67db2eb200ecdfc5185ab35078223c57cab19d",
       "format": "codex-skill",
-      "publicToolCount": 39
+      "publicToolCount": 40
     }
   ]
 }

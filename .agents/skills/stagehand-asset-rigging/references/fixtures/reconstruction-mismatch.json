@@ -1,0 +1,11 @@
+{
+  "case": "reconstruction-mismatch",
+  "reconstruction": {
+    "minimumOverlapDepth": 0.25,
+    "silhouetteIou": 0.84,
+    "anchorResidual": 0.01,
+    "restJointCoverage": 0.94,
+    "stressJointCoverage": 0.86
+  },
+  "expected": ["RECONSTRUCTION_MISMATCH"]
+}

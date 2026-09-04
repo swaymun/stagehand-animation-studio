@@ -4,10 +4,12 @@ Request a clean, orthographic 2D character on a fully transparent sRGBA canvas. 
 
 Choose the rig class from `motion-profile.md` before writing the prompt.
 
-For production-ready segmented art:
+For production-ready jointed cutout art, request two related deliverables: an assembled neutral reference and an exploded atlas derived from that exact design.
 
-- Separate head, torso, upper and lower arms, hands, upper and lower legs, and feet into non-touching cells or clearly separable alpha regions.
-- Include hidden attachment margins under shoulders, elbows, hips, knees, neck, wrists, and ankles so rotation does not expose holes.
+- Conceptually assemble the character first, then separate the parts without changing their geometry, scale, or orientation.
+- Use the 15-part humanoid topology: pelvis, torso, head, and mirrored upper arm, forearm, hand, thigh, shin, and foot.
+- Extend each child part 20–30% underneath its neighbor with rounded hidden geometry at shoulders, elbows, hips, knees, neck, wrists, and ankles.
+- Do not draw clean cut endpoints, sockets, detached stumps, clipped pixels, or transparent corridors through a joint.
 - Keep neutral front and side views when turns matter. Name requested expressions and action poses explicitly.
 - Avoid baked shadows, opaque backgrounds, anti-aliased matte halos, cropped extremities, or accessories fused across articulation boundaries.
 - Keep the same canvas anchor and scale across related variants.

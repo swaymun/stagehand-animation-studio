@@ -1,0 +1,38 @@
+{
+  "phase": "4.1",
+  "date": "2026-09-04",
+  "status": "blocked",
+  "releaseDecision": "The assembled reference is usable, but both atlas candidates are rejected because decoded pixels are fully opaque and contain a baked checkerboard. No skeleton approval or stress-pose render was attempted from invalid source art.",
+  "assembledReference": {
+    "file": "courier-rabbit-assembled-reference.png",
+    "dimensions": [1024, 1536],
+    "channels": "srgba",
+    "cornerAlpha": 0,
+    "sha256": "56a24267c68059db8ddeb0b6b0daa5850ec57c9db8c726c5a1347a8a97934805",
+    "acceptedAsDeliverable": true
+  },
+  "atlasCandidates": [
+    {
+      "file": "courier-rabbit-atlas-rejected.png",
+      "dimensions": [1619, 971],
+      "channels": "srgb",
+      "alphaMean": 65535,
+      "sha256": "d174cd1f1e70532798f20ec10d55b7be8d9da975119f9c3aeb37873fe4ec3480",
+      "finding": "OPAQUE_CHECKERBOARD_BACKGROUND"
+    },
+    {
+      "file": "courier-rabbit-atlas-alpha-retry.png",
+      "dimensions": [1619, 971],
+      "channels": "srgb",
+      "alphaMean": 65535,
+      "sha256": "5e70ca57c8af0bbbee6e44199177db155884d2d6726d7a46e0da9dfe4eb9d6bf",
+      "finding": "OPAQUE_CHECKERBOARD_BACKGROUND"
+    }
+  ],
+  "finalRegeneration": {
+    "status": "generation_failed",
+    "code": "moderation_blocked",
+    "requestId": "512c11c4-9bb1-4c2f-ac54-684686dba657"
+  },
+  "verifiedBehavior": "The runtime and smoke fixture reject clean-cut or reconstruction-invalid candidates and preserve them for bounded regeneration. The generated atlas failures therefore block only the generated rig candidate, not the Phase 4.1 validation pipeline release."
+}

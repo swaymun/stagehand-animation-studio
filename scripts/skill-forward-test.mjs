@@ -10,7 +10,7 @@ const fixtureDir = new URL('references/fixtures/', root);
 function findings(fixture) {
   const result = [];
   if (fixture.case === 'malformed-package') {
-    if (fixture.package?.version !== 2) result.push('PACKAGE_VERSION');
+    if (fixture.package?.version !== 3) result.push('PACKAGE_VERSION');
     if (!fixture.package?.sourceAsset?.provenance)
       result.push('SOURCE_PROVENANCE');
     if (
@@ -75,14 +75,26 @@ function findings(fixture) {
     }
   }
   if (fixture.preview?.flippedCount > 0) result.push('MESH_EVALUATED_FLIPPED');
+  if (fixture.reconstruction?.minimumOverlapDepth < 0.2)
+    result.push('CLEAN_CUT_JOINT');
+  if (fixture.reconstruction?.silhouetteIou < 0.9)
+    result.push('RECONSTRUCTION_MISMATCH');
+  if (fixture.reconstruction?.anchorResidual > 0.02)
+    result.push('ANCHOR_RESIDUAL');
+  if (fixture.reconstruction?.restJointCoverage < 0.9)
+    result.push('REST_JOINT_GAP');
+  if (fixture.reconstruction?.stressJointCoverage < 0.82)
+    result.push('STRESS_JOINT_GAP');
   return result;
 }
 
 const files = (await readdir(fixtureDir)).filter((file) =>
   file.endsWith('.json'),
 );
-if (files.length !== 10)
-  throw new Error(`expected 10 golden fixtures, found ${files.length}`);
+if (files.length < 15)
+  throw new Error(
+    `expected at least 15 golden fixtures, found ${files.length}`,
+  );
 
 const results = [];
 for (const file of files) {
@@ -108,6 +120,9 @@ for (const required of [
   'MeshBindingV1',
   'canvas-lbs-mesh-v1',
   'motion-profile.md',
+  'StagehandAssetPackageV3',
+  'edit_skeleton',
+  '20%',
   'Preserve',
 ]) {
   if (!skill.includes(required))

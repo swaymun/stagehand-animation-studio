@@ -14,6 +14,8 @@ Render the isolated character against transparency in at least these poses:
 
 Block approval when rendered pixels show new significant gaps, excessive overlaps, clipping, disconnected alpha islands beyond the validated rest baseline, inverted limbs, invalid draw order, or coordinate-space mismatches. Review the rendered output, not only metadata.
 
+For jointed cutouts also require decoded overlap depth of 20–35%, reassembled silhouette IoU at least 0.90, anchor residual at most 2% of character height, rest joint coverage at least 0.90, and approved stress-pose joint coverage at least 0.82. Exercise real shoulder, elbow, wrist, hip, knee, and ankle chains. A clean-cut atlas is a failed candidate, not a repair request.
+
 After corrections, run `validate_skeleton`, approve separately from the asset, read back bone keyframes, inspect a representative frame, and run `validate_project` before export.
 
 ## Mesh proof QA

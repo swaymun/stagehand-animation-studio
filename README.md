@@ -48,17 +48,16 @@ The app is intentionally local-first and currently implemented as one client-sid
 
 TTS, voice cloning, dialogue recording, phoneme extraction, and lip-sync are explicitly out of scope for this MVP.
 
-## Demo path
+## Blank-project path
 
-1. Start with **Paper Cutout Comedy**, a 15-second six-beat arc, and scrub the shared playhead.
-2. Choose Alice, change a transform, and add a keyframe; try **Nervous** or **Walk in**.
-3. Open **Assets**, import a prop, use **Pop in** or **Nudge**, then edit X/Y/Scale/Rot at the playhead.
-4. Open **Assets**, expand **Style**, and change treatment or palette to see the asset direction reflected in the stage and render path.
-5. Open **Storyboard** to inspect the six beat thumbnails, then return to **Animate**.
-6. Open **Preview** for the clean review player and let the sequence loop.
-7. Lower the music cue, click **Render**, and inspect the downloaded result.
+1. Create a configurable blank project with two unbound actor slots and the bundled CC0 audio library.
+2. Create a rig-ready asset request with a motion profile and `humanoid-jointed-v1` topology.
+3. Attach the assembled neutral reference and matching 15-part exploded rig atlas.
+4. Inspect decoded overlap, reconstruction, anchor, and stress-pose diagnostics before asset approval.
+5. Use Setup, Binding, Animate, and QA to edit the live rig, add bone keyframes, and validate it.
+6. Inspect the frame diagnostics, then export PNG and WebM from the same evaluated state.
 
-When the studio is used beside a ChatGPT or Codex conversation, the split-pane layout keeps the project rail and artwork visible while the Inspector stays available from More actions. The public demo has also been exercised by a Sol-powered Codex task through the page's WebMCP tools: it generated and applied an Alice/Bob coupon gag, then validated and inspected the punchline frame.
+When the studio is used beside a ChatGPT or Codex conversation, Agent Live records each WebMCP command, revision, outcome, affected entities, and the matching editor surface. The public surface contains 40 tools, including `edit_skeleton`, and every tool has a typed visible UI contract. V2 asset packages are rejected; jointed characters require strict `StagehandAssetPackageV3`.
 
 See [`AGENTS.md`](AGENTS.md) for the repo-local asset/rigging contract, [`SPEC.md`](SPEC.md) for the phase gates, and [`docs/PHASE-EVIDENCE.md`](docs/PHASE-EVIDENCE.md) for the current verification record.
 

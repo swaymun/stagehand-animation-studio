@@ -1,0 +1,11 @@
+{
+  "case": "joint-coverage",
+  "reconstruction": {
+    "minimumOverlapDepth": 0.25,
+    "silhouetteIou": 0.94,
+    "anchorResidual": 0.01,
+    "restJointCoverage": 0.86,
+    "stressJointCoverage": 0.78
+  },
+  "expected": ["REST_JOINT_GAP", "STRESS_JOINT_GAP"]
+}

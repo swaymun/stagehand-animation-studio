@@ -1,6 +1,6 @@
 # Agent guide
 
-Run the Stagehand asset-to-rig loop as a sequence of inspectable state changes: inspect the project, obtain the media checklist, create a durable request, attach and inspect the candidate, approve the asset, propose and correct the skeleton, run rendered stress-pose QA, approve the skeleton, animate approved bones, then validate and export from one evaluated revision.
+Run the Stagehand asset-to-rig loop as visible editor state: inspect the blank project, obtain the checklist, create a durable motion/topology request, attach the assembled reference and matching atlas, inspect decoded reconstruction metrics, approve the asset, propose and live-edit the skeleton, apply binding, run rendered stress-pose QA, approve, animate approved bones, then validate and export from one evaluated revision. Use Agent Live receipts to verify route, revision, affected entities, and failures.
 
 Every prior-read mutation carries `expectedRevision` and a unique `idempotencyKey`. Keep generated or uploaded source media, failed candidates, prompts, provenance, checksums, and review findings. Never return media bytes in a tool response.
 

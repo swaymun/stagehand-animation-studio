@@ -58,6 +58,17 @@ import {
   type MeshMetrics,
   type Point2,
 } from './mesh';
+import {
+  createDefaultPackageV3,
+  createHumanoidJointedTopology,
+  defaultMotionProfile,
+  packageHasBlockingIssues,
+  validatePackageV3,
+  type DeliverableRole,
+  type MotionProfileV1,
+  type StagehandAssetPackageV3,
+  type TopologyProfileV1,
+} from './rig-v3';
 
 type Pose = 'idle' | 'nervous' | 'wave' | 'lean-in' | 'point' | 'shrug';
 type AssetKind = 'rigged-character' | 'background' | 'prop' | 'audio';
@@ -95,11 +106,7 @@ type AssetStyle = {
   palette: string[];
   notes: string;
 };
-type TemplateId =
-  | 'first-meeting'
-  | 'coffee-spill'
-  | 'wrong-booth'
-  | 'the-apology';
+type TemplateId = 'blank';
 type Asset = {
   id: string;
   kind: AssetKind;
@@ -116,9 +123,14 @@ type Asset = {
   poseVariant?: Pose;
   expression?: 'neutral' | 'surprised' | 'embarrassed' | 'pleased';
   rigManifest?: RigManifest;
-  assetPackage?: StagehandAssetPackageV2;
+  assetPackage?: StagehandAssetPackageV3;
   packageIssues?: string[];
   dimensions?: { width: number; height: number };
+  pixelDiagnostics?: {
+    alphaPixels: number;
+    significantComponents: number;
+    clippedPixels: number;
+  };
   transparencyStatus?: 'yes' | 'no' | 'unknown';
   detectedLayout?: AssetFrameLayout;
   style?: AssetStyle;
@@ -196,6 +208,10 @@ type AssetGenerationRequest = {
   expression?: string;
   prompt: string;
   checklist: string[];
+  motionProfile: MotionProfileV1;
+  topologyProfile: TopologyProfileV1;
+  requiredDeliverables: DeliverableRole[];
+  deliverables: Partial<Record<DeliverableRole, string>>;
   status: 'pending' | 'attached' | 'approved' | 'rejected';
   createdAt: string;
 };
@@ -246,88 +262,7 @@ type SkeletonBinding = {
   weights?: Array<{ vertexId: string; boneId: string; weight: number }>;
   mesh?: MeshBindingV1;
 };
-type StagehandAssetPackageV2 = {
-  version: 2;
-  atlasWidth: number;
-  atlasHeight: number;
-  source: 'manifest' | 'alpha-inference' | 'hybrid';
-  sourceAsset: {
-    assetId: string;
-    immutable: true;
-    provenance: {
-      prompt?: string;
-      sourceUrl?: string;
-      author?: string;
-      license?: string;
-      licenseUrl?: string;
-      checksum?: string;
-    };
-  };
-  image: {
-    width: number;
-    height: number;
-    colorspace: 'sRGB';
-    alpha: 'straight';
-  };
-  canvasAnchor: { x: number; y: number };
-  parts: Array<{
-    id: string;
-    label: string;
-    boneId: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    pivotX: number;
-    pivotY: number;
-    attachX: number;
-    attachY: number;
-    confidence: number;
-    zIndex: number;
-    overlapPx: number;
-    mask: { kind: 'alpha'; threshold: number };
-    bounds: { x: number; y: number; width: number; height: number };
-    pivot: { x: number; y: number };
-    parentAnchor: { x: number; y: number };
-    attachmentMargins: {
-      top: number;
-      right: number;
-      bottom: number;
-      left: number;
-    };
-  }>;
-  views?: Partial<Record<ViewDirection, string>>;
-  expressions?: Partial<
-    Record<'neutral' | 'surprised' | 'embarrassed' | 'pleased', string>
-  >;
-  variants?: Array<{
-    id: string;
-    kind: AssetVariantKind;
-    label: string;
-    assetId?: string;
-    viewDirection?: ViewDirection;
-    pose?: Pose;
-    expression?: string;
-  }>;
-  alignment?: {
-    connected: boolean;
-    seamCount: number;
-    minConfidence: number;
-    warnings: string[];
-  };
-  skeleton: {
-    confidence: number;
-    minCriticalConfidence: number;
-    criticalJointIds: string[];
-  };
-  experimentalMesh?: {
-    status: 'experimental';
-    triangles: Array<[number, number, number]>;
-    uvs: Array<{ vertexId: string; u: number; v: number }>;
-    weights: Array<{ vertexId: string; boneId: string; weight: number }>;
-  };
-};
-type RigManifest = StagehandAssetPackageV2;
+type RigManifest = StagehandAssetPackageV3;
 type RigPreviewPoseReport = {
   id: string;
   label: string;
@@ -363,6 +298,8 @@ type Skeleton = {
   binding: SkeletonBinding;
   reviewStatus: ReviewStatus;
   version: number;
+  meshStale?: boolean;
+  qaInvalidatedAt?: string;
 };
 type BoneTransform = {
   boneId: string;
@@ -511,6 +448,7 @@ const PUBLIC_WEBMCP_TOOL_NAMES = [
   'inspect_audio_clip',
   'propose_skeleton',
   'get_skeleton',
+  'edit_skeleton',
   'approve_skeleton',
   'validate_skeleton',
   'bind_skeleton_asset',
@@ -519,6 +457,145 @@ const PUBLIC_WEBMCP_TOOL_NAMES = [
   'export_frame',
   'render_webm',
 ] as const;
+type PublicWebMcpToolName = (typeof PUBLIC_WEBMCP_TOOL_NAMES)[number];
+type ToolUiContract = {
+  route: 'project' | 'timeline' | 'assets' | 'audio' | 'rig' | 'output';
+  focus: string;
+  mode: 'action' | 'display';
+  marker: `tool-ui-${PublicWebMcpToolName}`;
+};
+type AgentActivity = {
+  id: string;
+  tool: PublicWebMcpToolName;
+  status: 'running' | 'succeeded' | 'failed' | 'conflicted' | 'replayed';
+  revision: number;
+  affected: string[];
+  startedAt: string;
+  message?: string;
+};
+const toolUi = <T extends PublicWebMcpToolName>(
+  name: T,
+  route: ToolUiContract['route'],
+  focus: string,
+  mode: ToolUiContract['mode'],
+): ToolUiContract => ({ route, focus, mode, marker: `tool-ui-${name}` });
+const TOOL_UI_CONTRACTS = {
+  inspect_project: toolUi(
+    'inspect_project',
+    'project',
+    'Project Health',
+    'display',
+  ),
+  create_project: toolUi('create_project', 'project', 'New project', 'action'),
+  edit_project: toolUi('edit_project', 'project', 'Project settings', 'action'),
+  get_timeline: toolUi('get_timeline', 'timeline', 'Timeline', 'display'),
+  set_playhead: toolUi('set_playhead', 'timeline', 'Playhead', 'action'),
+  edit_scene: toolUi('edit_scene', 'project', 'Scene editor', 'action'),
+  edit_storyboard: toolUi('edit_storyboard', 'project', 'Storyboard', 'action'),
+  set_current_scene: toolUi(
+    'set_current_scene',
+    'project',
+    'Scene list',
+    'action',
+  ),
+  set_pose: toolUi('set_pose', 'timeline', 'Pose controls', 'action'),
+  set_keyframe: toolUi('set_keyframe', 'timeline', 'Keyframes', 'action'),
+  set_bone_keyframe: toolUi('set_bone_keyframe', 'rig', 'Animate', 'action'),
+  delete_keyframe: toolUi(
+    'delete_keyframe',
+    'timeline',
+    'Keyframe inspector',
+    'action',
+  ),
+  get_bone_keyframes: toolUi('get_bone_keyframes', 'rig', 'Animate', 'display'),
+  set_character_variant: toolUi(
+    'set_character_variant',
+    'assets',
+    'Variant picker',
+    'action',
+  ),
+  validate_project: toolUi(
+    'validate_project',
+    'project',
+    'Project Health',
+    'action',
+  ),
+  undo: toolUi('undo', 'project', 'History', 'action'),
+  redo: toolUi('redo', 'project', 'History', 'action'),
+  edit_history: toolUi('edit_history', 'project', 'History', 'display'),
+  list_assets: toolUi('list_assets', 'assets', 'Asset library', 'display'),
+  get_asset_generation_checklist: toolUi(
+    'get_asset_generation_checklist',
+    'assets',
+    'Generation checklist',
+    'display',
+  ),
+  create_asset_request: toolUi(
+    'create_asset_request',
+    'assets',
+    'Asset request',
+    'action',
+  ),
+  attach_generated_asset: toolUi(
+    'attach_generated_asset',
+    'assets',
+    'Deliverables',
+    'action',
+  ),
+  inspect_asset_candidate: toolUi(
+    'inspect_asset_candidate',
+    'assets',
+    'Candidate QA',
+    'display',
+  ),
+  approve_asset: toolUi('approve_asset', 'assets', 'Candidate QA', 'action'),
+  list_asset_audio: toolUi(
+    'list_asset_audio',
+    'audio',
+    'Audio library',
+    'display',
+  ),
+  import_asset_audio: toolUi(
+    'import_asset_audio',
+    'audio',
+    'Audio provenance',
+    'action',
+  ),
+  attach_imported_audio: toolUi(
+    'attach_imported_audio',
+    'audio',
+    'Audio payload',
+    'action',
+  ),
+  add_audio_clip: toolUi('add_audio_clip', 'audio', 'Audio timeline', 'action'),
+  set_audio_clip: toolUi('set_audio_clip', 'audio', 'Clip inspector', 'action'),
+  inspect_audio_clip: toolUi(
+    'inspect_audio_clip',
+    'audio',
+    'Clip inspector',
+    'display',
+  ),
+  propose_skeleton: toolUi('propose_skeleton', 'rig', 'Setup', 'action'),
+  get_skeleton: toolUi('get_skeleton', 'rig', 'Setup', 'display'),
+  edit_skeleton: toolUi('edit_skeleton', 'rig', 'Setup and Binding', 'action'),
+  approve_skeleton: toolUi('approve_skeleton', 'rig', 'QA', 'action'),
+  validate_skeleton: toolUi('validate_skeleton', 'rig', 'QA', 'action'),
+  bind_skeleton_asset: toolUi(
+    'bind_skeleton_asset',
+    'rig',
+    'Binding',
+    'action',
+  ),
+  apply_motion_clip: toolUi('apply_motion_clip', 'rig', 'Animate', 'action'),
+  inspect_frame: toolUi(
+    'inspect_frame',
+    'output',
+    'Frame diagnostics',
+    'display',
+  ),
+  export_frame: toolUi('export_frame', 'output', 'PNG export', 'action'),
+  render_webm: toolUi('render_webm', 'output', 'WebM render', 'action'),
+} satisfies Record<PublicWebMcpToolName, ToolUiContract>;
 const PUBLIC_WEBMCP_TOOL_SET = new Set<string>(PUBLIC_WEBMCP_TOOL_NAMES);
 type TimelineMark = {
   time: number;
@@ -533,16 +610,7 @@ type TimelineEvent = {
   end: number;
   label: string;
 };
-const STORAGE_KEY = 'stagehand-paper-cutout-comedy-v1';
-const starterScenes: SceneMeta[] = [
-  {
-    id: 'scene-01',
-    title: 'Diner · first meeting',
-    description: 'Alice waits. Bob arrives behind her.',
-    duration: 15000,
-    templateId: 'first-meeting',
-  },
-];
+const STORAGE_KEY = 'stagehand-rig-ready-puppet-v3';
 function defaultAssetStyle(kind: AssetKind): AssetStyle {
   return kind === 'rigged-character'
     ? {
@@ -604,170 +672,7 @@ function paletteColor(value: string) {
   return colors[value.trim().toLowerCase()] ?? '#b8ada1';
 }
 
-const starterAssets: Asset[] = [
-  {
-    id: 'alice',
-    kind: 'rigged-character',
-    label: 'Alice · v2 rig pack',
-    brief:
-      'Warm coral paper protagonist; keep her silhouette clear for awkward reactions.',
-    source: 'generated',
-    frameLayout: 'parts-sheet',
-    detectedLayout: 'parts-sheet',
-    dataUrl: '/assets/alice-parts-v2.png',
-    reviewStatus: 'approved',
-    transparencyStatus: 'yes',
-    dimensions: { width: 1536, height: 1024 },
-    provenance: {
-      prompt:
-        'Transparent coral paper-cutout Alice v2 rig-ready parts sheet with shoulder and hip overlap, generated for the Stagehand demo pack.',
-      author: 'OpenAI ImageGen',
-      checksum:
-        '27c235ad1c2377e7af7c7ac5ae478c2605469816c918b8153cc1adb33de8ffa4',
-    },
-    variantKind: 'base',
-    rigManifest: rigManifestForAsset('alice'),
-    style: defaultAssetStyle('rigged-character'),
-  },
-  {
-    id: 'bob',
-    kind: 'rigged-character',
-    label: 'Bob · v2 rig pack',
-    brief:
-      'Diner teal foil character; enters from upstage with a readable lean-in.',
-    source: 'generated',
-    frameLayout: 'parts-sheet',
-    detectedLayout: 'parts-sheet',
-    dataUrl: '/assets/bob-parts-v2.png',
-    reviewStatus: 'approved',
-    transparencyStatus: 'yes',
-    dimensions: { width: 1536, height: 1024 },
-    provenance: {
-      prompt:
-        'Transparent teal paper-cutout Bob v2 rig-ready parts sheet with shoulder and hip overlap, generated for the Stagehand demo pack.',
-      author: 'OpenAI ImageGen',
-      checksum:
-        '33cc8dfe886d1b318b6eb1921bd895ea292f2f2ce35ad9b2b768a2464041b85e',
-    },
-    variantKind: 'base',
-    rigManifest: rigManifestForAsset('bob'),
-    style: {
-      ...defaultAssetStyle('rigged-character'),
-      palette: ['diner teal', 'warm paper'],
-    },
-  },
-  ...(
-    [
-      [
-        'alice',
-        'embarrassed',
-        'Alice · embarrassed expression',
-        '/assets/alice-expression-embarrassed-v2.png',
-        'e2bdfcd69a54341214fad3a7927c65f0198783893fc408ff194ac4d1ea024a31',
-      ],
-      [
-        'alice',
-        'surprised',
-        'Alice · surprised expression',
-        '/assets/alice-expression-surprised-v2.png',
-        'e75cb92d3161fa0da5e0b2a801010ef7c476efa3bd4784ce5dd9d37fe5b50da0',
-      ],
-      [
-        'alice',
-        'pleased',
-        'Alice · pleased expression',
-        '/assets/alice-expression-pleased-v2.png',
-        '0cbf65b02192a178a9397b91fd299c2b10d64e1ddc14c8f6659f7a004daf5a84',
-      ],
-      [
-        'bob',
-        'embarrassed',
-        'Bob · embarrassed expression',
-        '/assets/bob-expression-embarrassed-v2.png',
-        'af0900ce609911b0563d5881dd2714bba4fdbee87e488a425eedbcc1813afd6d',
-      ],
-      [
-        'bob',
-        'surprised',
-        'Bob · surprised expression',
-        '/assets/bob-expression-surprised-v2.png',
-        '946784bc176938ae68a590a5004ce8a3a36b73bba50910fde91d9abd8ff798a6',
-      ],
-      [
-        'bob',
-        'pleased',
-        'Bob · pleased expression',
-        '/assets/bob-expression-pleased-v2.png',
-        '697d743ed4ffca287bebd1cc7d651d09fd3b420345eeba4bddef4c37b0210b24',
-      ],
-    ] as const
-  ).map(([parent, expression, label, dataUrl, checksum]) => ({
-    id: `${parent}-${expression}-v2`,
-    kind: 'rigged-character' as const,
-    label,
-    source: 'generated' as const,
-    frameLayout: 'single' as const,
-    dataUrl,
-    variantOf: parent,
-    variantKind: 'expression' as const,
-    expression: expression as Asset['expression'],
-    reviewStatus: 'approved' as const,
-    transparencyStatus: 'yes' as const,
-    dimensions: { width: 615, height: 639 },
-    provenance: { author: 'OpenAI ImageGen', checksum },
-    style: defaultAssetStyle('rigged-character'),
-  })),
-  ...(
-    [
-      [
-        'alice',
-        'Alice · three-quarter view',
-        '/assets/alice-view-three-quarter-v2.png',
-        '37e1113b7d5161504b7ea23fd1a26ac1d55b90b854d5c812c644bf0867a504b8',
-      ],
-      [
-        'bob',
-        'Bob · three-quarter view',
-        '/assets/bob-view-three-quarter-v2.png',
-        'cb3eaf61cced4fc086e07688c8de776a9f3171ed12a974072cc5a06a95850f71',
-      ],
-    ] as const
-  ).map(([parent, label, dataUrl, checksum]) => ({
-    id: `${parent}-three-quarter-v2`,
-    kind: 'rigged-character' as const,
-    label,
-    source: 'generated' as const,
-    frameLayout: 'single' as const,
-    dataUrl,
-    variantOf: parent,
-    variantKind: 'view' as const,
-    viewDirection: 'three-quarter' as const,
-    reviewStatus: 'approved' as const,
-    transparencyStatus: 'yes' as const,
-    dimensions: { width: 612, height: 642 },
-    provenance: { author: 'OpenAI ImageGen', checksum },
-    style: defaultAssetStyle('rigged-character'),
-  })),
-  {
-    id: 'diner-background',
-    kind: 'background',
-    label: 'Diner background',
-    brief:
-      'Warm late-night diner backdrop; leave the lower third open for captions.',
-    source: 'starter',
-    frameLayout: 'single',
-    style: defaultAssetStyle('background'),
-  },
-  {
-    id: 'coffee-mug',
-    kind: 'prop',
-    label: 'Coffee mug',
-    brief:
-      'Small amber prop for the coffee-spill business and close reaction beats.',
-    source: 'starter',
-    frameLayout: 'single',
-    style: defaultAssetStyle('prop'),
-  },
+const bundledAudioAssets: Asset[] = [
   {
     id: 'audio-simple-loop',
     kind: 'audio',
@@ -846,610 +751,6 @@ const starterAssets: Asset[] = [
     style: defaultAssetStyle('audio'),
   },
 ];
-const starterCameraKeyframes: CameraKeyframe[] = [
-  {
-    id: 'cam-0000',
-    time: 0,
-    zoom: 1,
-    panX: 0,
-    panY: 0,
-    rotation: 0,
-  },
-  {
-    id: 'cam-1550',
-    time: 1550,
-    zoom: 1,
-    panX: 0,
-    panY: 0,
-    rotation: 0,
-  },
-  {
-    id: 'cam-3100',
-    time: 3100,
-    zoom: 1.16,
-    panX: -4,
-    panY: 1,
-    rotation: 0,
-  },
-  {
-    id: 'cam-4000',
-    time: 4000,
-    zoom: 1.16,
-    panX: -4,
-    panY: 1,
-    rotation: 0,
-  },
-  {
-    id: 'cam-5000',
-    time: 5000,
-    zoom: 1,
-    panX: 0,
-    panY: 0,
-    rotation: 0,
-  },
-  {
-    id: 'cam-7000',
-    time: 7000,
-    zoom: 1.16,
-    panX: -4,
-    panY: 1,
-    rotation: 0,
-  },
-  {
-    id: 'cam-9800',
-    time: 9800,
-    zoom: 1.3,
-    panX: 1,
-    panY: 0,
-    rotation: 0,
-  },
-  {
-    id: 'cam-12000',
-    time: 12000,
-    zoom: 1.08,
-    panX: 0,
-    panY: 0,
-    rotation: 0,
-  },
-  {
-    id: 'cam-15000',
-    time: 15000,
-    zoom: 1,
-    panX: 0,
-    panY: 0,
-    rotation: 0,
-  },
-];
-const storyboardBeats: StoryBeat[] = [
-  {
-    id: 'beat-01',
-    index: '01',
-    title: 'The wait',
-    description: 'Alice practices what to say.',
-    startMs: 0,
-    endMs: 1550,
-  },
-  {
-    id: 'beat-02',
-    index: '02',
-    title: 'The entrance',
-    description: 'Bob arrives behind her.',
-    startMs: 1550,
-    endMs: 3100,
-  },
-  {
-    id: 'beat-03',
-    index: '03',
-    title: 'The pause',
-    description: 'Neither knows what to do.',
-    startMs: 3100,
-    endMs: 5000,
-  },
-  {
-    id: 'beat-04',
-    index: '04',
-    title: 'The spill',
-    description: 'A tiny accident makes the silence worse.',
-    startMs: 5000,
-    endMs: 7000,
-  },
-  {
-    id: 'beat-05',
-    index: '05',
-    title: 'The recovery',
-    description: 'They attempt a normal conversation.',
-    startMs: 7000,
-    endMs: 10000,
-  },
-  {
-    id: 'beat-06',
-    index: '06',
-    title: 'A second chance',
-    description: 'One honest sentence finally lands.',
-    startMs: 10000,
-    endMs: 15000,
-  },
-];
-const starterStyleBible: StyleBible = {
-  construction: 'paper-cutout',
-  motion: 'limited · snappy',
-  camera: 'reaction cut',
-  palette: ['coral', 'diner teal', 'mustard', 'warm paper'],
-  notes: 'Keep silhouettes readable and leave room for captions.',
-};
-const starterAudioCues: AudioCue[] = [
-  {
-    id: 'music-low',
-    kind: 'music',
-    label: 'Quiet diner bed',
-    start: 0,
-    end: 15000,
-    volume: 0.08,
-    assetId: 'audio-simple-loop',
-    loop: true,
-  },
-  {
-    id: 'footstep-1',
-    kind: 'footstep',
-    label: 'Bob step 1',
-    start: 1550,
-    end: 1650,
-    volume: 0.28,
-  },
-  {
-    id: 'footstep-2',
-    kind: 'footstep',
-    label: 'Bob step 2',
-    start: 1770,
-    end: 1870,
-    volume: 0.24,
-  },
-  {
-    id: 'reaction-sting',
-    kind: 'stinger',
-    label: 'Reaction sting',
-    start: 3100,
-    end: 3450,
-    volume: 0.18,
-    assetId: 'audio-pop-1',
-  },
-  {
-    id: 'mug-hit',
-    kind: 'stinger',
-    label: 'Mug hit',
-    start: 5000,
-    end: 5350,
-    volume: 0.14,
-    assetId: 'audio-pop-2',
-  },
-  {
-    id: 'second-chance-sting',
-    kind: 'stinger',
-    label: 'Second chance sting',
-    start: 10800,
-    end: 11250,
-    volume: 0.16,
-    assetId: 'audio-pop-2',
-  },
-];
-const starterBoneIds = [
-  'bone-root-hip',
-  'bone-hip-chest',
-  'bone-chest-head',
-  'bone-chest-left-hand',
-  'bone-chest-right-hand',
-  'bone-hip-left-foot',
-  'bone-hip-right-foot',
-];
-function motionTransforms(
-  overrides: Partial<Record<string, Partial<BoneTransform>>> = {},
-): BoneTransform[] {
-  return starterBoneIds.map((boneId) => ({
-    boneId,
-    rotation: 0,
-    x: 0,
-    y: 0,
-    scale: 1,
-    ...overrides[boneId],
-  }));
-}
-const starterMotionClips: MotionClip[] = [
-  {
-    id: 'motion-walk-in',
-    label: 'Walk in',
-    kind: 'walk-in',
-    durationMs: 1550,
-    loop: false,
-    easing: 'ease-in-out',
-    description:
-      'A compact two-step entrance with alternating foot and arm swing.',
-    transforms: [
-      {
-        time: 0,
-        transforms: motionTransforms({
-          'bone-root-hip': { x: 58 },
-          'bone-hip-left-foot': { rotation: 14 },
-          'bone-hip-right-foot': { rotation: -14 },
-          'bone-chest-left-hand': { rotation: -10 },
-          'bone-chest-right-hand': { rotation: 10 },
-        }),
-      },
-      {
-        time: 775,
-        transforms: motionTransforms({
-          'bone-root-hip': { x: 26 },
-          'bone-hip-left-foot': { rotation: -14 },
-          'bone-hip-right-foot': { rotation: 14 },
-          'bone-chest-left-hand': { rotation: 10 },
-          'bone-chest-right-hand': { rotation: -10 },
-        }),
-      },
-      { time: 1550, transforms: motionTransforms() },
-    ],
-  },
-  {
-    id: 'motion-walk-cycle',
-    label: 'Walk cycle',
-    kind: 'walk-cycle',
-    durationMs: 900,
-    loop: true,
-    easing: 'linear',
-    description: 'A looping alternating stride for scene entrances and exits.',
-    transforms: [
-      {
-        time: 0,
-        transforms: motionTransforms({
-          'bone-hip-left-foot': { rotation: 16 },
-          'bone-hip-right-foot': { rotation: -16 },
-          'bone-chest-left-hand': { rotation: -10 },
-          'bone-chest-right-hand': { rotation: 10 },
-        }),
-      },
-      {
-        time: 450,
-        transforms: motionTransforms({
-          'bone-hip-left-foot': { rotation: -16 },
-          'bone-hip-right-foot': { rotation: 16 },
-          'bone-chest-left-hand': { rotation: 10 },
-          'bone-chest-right-hand': { rotation: -10 },
-        }),
-      },
-      {
-        time: 900,
-        transforms: motionTransforms({
-          'bone-hip-left-foot': { rotation: 16 },
-          'bone-hip-right-foot': { rotation: -16 },
-          'bone-chest-left-hand': { rotation: -10 },
-          'bone-chest-right-hand': { rotation: 10 },
-        }),
-      },
-    ],
-  },
-  {
-    id: 'motion-turn-three-quarter',
-    label: 'Turn to three-quarter',
-    kind: 'turn',
-    durationMs: 500,
-    loop: false,
-    easing: 'ease-in-out',
-    description:
-      'A small body and head turn that can switch to a three-quarter asset view.',
-    transforms: [
-      { time: 0, transforms: motionTransforms() },
-      {
-        time: 250,
-        transforms: motionTransforms({
-          'bone-hip-chest': { rotation: -8 },
-          'bone-chest-head': { rotation: 10 },
-        }),
-      },
-      {
-        time: 500,
-        transforms: motionTransforms({
-          'bone-hip-chest': { rotation: -14 },
-          'bone-chest-head': { rotation: 16 },
-        }),
-      },
-    ],
-  },
-  {
-    id: 'motion-embarrassed-reaction',
-    label: 'Embarrassed reaction',
-    kind: 'embarrassed',
-    durationMs: 700,
-    loop: false,
-    easing: 'ease-in-out',
-    description: 'A quick shoulder tuck and head dip for the coupon reveal.',
-    transforms: [
-      { time: 0, transforms: motionTransforms() },
-      {
-        time: 350,
-        transforms: motionTransforms({
-          'bone-hip-chest': { rotation: 5, y: 4 },
-          'bone-chest-head': { rotation: -9, y: 5 },
-          'bone-chest-left-hand': { rotation: 18 },
-          'bone-chest-right-hand': { rotation: -18 },
-        }),
-      },
-      { time: 700, transforms: motionTransforms() },
-    ],
-  },
-];
-function starterBoneKeyframes(): BoneKeyframe[] {
-  const clips = [
-    { skeletonId: 'skeleton-bob', clip: starterMotionClips[0], start: 0 },
-    {
-      skeletonId: 'skeleton-bob',
-      clip: starterMotionClips[2],
-      start: 3100,
-    },
-    {
-      skeletonId: 'skeleton-alice',
-      clip: starterMotionClips[3],
-      start: 10800,
-    },
-  ];
-  return clips.flatMap(({ skeletonId, clip, start }) =>
-    clip.transforms.map((frame) => ({
-      id: `bkf-${skeletonId}-${start + frame.time}`,
-      sceneId: 'scene-01',
-      skeletonId,
-      time: start + frame.time,
-      transforms: frame.transforms,
-    })),
-  );
-}
-const starterProject: Project = {
-  name: 'Paper Cutout Comedy',
-  revision: 7,
-  duration: 15000,
-  currentTime: 1800,
-  fps: 24,
-  renderWidth: 1920,
-  renderHeight: 1080,
-  selectedId: 'alice',
-  lockedTrackIds: [],
-  dirty: false,
-  characters: [
-    {
-      id: 'alice',
-      name: 'Alice',
-      color: '#e56b52',
-      x: 37,
-      y: 62,
-      rotation: -2,
-      pose: 'nervous',
-      assetId: 'alice',
-    },
-    {
-      id: 'bob',
-      name: 'Bob',
-      color: '#32748f',
-      x: 68,
-      y: 57,
-      rotation: 3,
-      pose: 'idle',
-      assetId: 'bob',
-    },
-  ],
-  keyframes: [
-    {
-      id: 'kf-alice-0000',
-      characterId: 'alice',
-      time: 0,
-      x: 37,
-      y: 62,
-      rotation: -2,
-      pose: 'nervous',
-    },
-    {
-      id: 'kf-alice-1550',
-      characterId: 'alice',
-      time: 1550,
-      x: 40,
-      y: 62,
-      rotation: -2,
-      pose: 'nervous',
-    },
-    {
-      id: 'kf-alice-2450',
-      characterId: 'alice',
-      time: 2450,
-      x: 43,
-      y: 62,
-      rotation: -2,
-      pose: 'wave',
-      variantId: 'alice-embarrassed-v2',
-    },
-    {
-      id: 'kf-alice-5000',
-      characterId: 'alice',
-      time: 5000,
-      x: 43,
-      y: 62,
-      rotation: -2,
-      pose: 'wave',
-    },
-    {
-      id: 'kf-alice-7000',
-      characterId: 'alice',
-      time: 7000,
-      x: 43,
-      y: 62,
-      rotation: -2,
-      pose: 'point',
-      variantId: 'alice-surprised-v2',
-    },
-    {
-      id: 'kf-alice-9800',
-      characterId: 'alice',
-      time: 9800,
-      x: 45,
-      y: 62,
-      rotation: -1,
-      pose: 'point',
-    },
-    {
-      id: 'kf-alice-12000',
-      characterId: 'alice',
-      time: 12000,
-      x: 43,
-      y: 62,
-      rotation: -2,
-      pose: 'shrug',
-      variantId: 'alice-pleased-v2',
-    },
-    {
-      id: 'kf-alice-15000',
-      characterId: 'alice',
-      time: 15000,
-      x: 43,
-      y: 62,
-      rotation: -2,
-      pose: 'shrug',
-    },
-    {
-      id: 'kf-bob-0000',
-      characterId: 'bob',
-      time: 0,
-      x: 75,
-      y: 57,
-      rotation: 3,
-      pose: 'idle',
-    },
-    {
-      id: 'kf-bob-1550',
-      characterId: 'bob',
-      time: 1550,
-      x: 68,
-      y: 57,
-      rotation: 3,
-      pose: 'idle',
-    },
-    {
-      id: 'kf-bob-3100',
-      characterId: 'bob',
-      time: 3100,
-      x: 66,
-      y: 57,
-      rotation: 3,
-      pose: 'lean-in',
-      variantId: 'bob-embarrassed-v2',
-    },
-    {
-      id: 'kf-bob-5000',
-      characterId: 'bob',
-      time: 5000,
-      x: 66,
-      y: 57,
-      rotation: 3,
-      pose: 'lean-in',
-    },
-    {
-      id: 'kf-bob-7000',
-      characterId: 'bob',
-      time: 7000,
-      x: 64,
-      y: 57,
-      rotation: 3,
-      pose: 'lean-in',
-    },
-    {
-      id: 'kf-bob-9800',
-      characterId: 'bob',
-      time: 9800,
-      x: 66,
-      y: 57,
-      rotation: 3,
-      pose: 'point',
-      variantId: 'bob-surprised-v2',
-    },
-    {
-      id: 'kf-bob-12000',
-      characterId: 'bob',
-      time: 12000,
-      x: 66,
-      y: 57,
-      rotation: 3,
-      pose: 'shrug',
-      variantId: 'bob-pleased-v2',
-    },
-    {
-      id: 'kf-bob-15000',
-      characterId: 'bob',
-      time: 15000,
-      x: 66,
-      y: 57,
-      rotation: 3,
-      pose: 'shrug',
-    },
-  ],
-  propKeyframes: [],
-  cameraKeyframes: starterCameraKeyframes,
-  captions: [
-    {
-      id: 'caption-1',
-      text: 'You actually came',
-      start: 1550,
-      end: 2450,
-      speaker: 'Alice',
-    },
-    {
-      id: 'caption-2',
-      text: 'I almost didn’t',
-      start: 3100,
-      end: 4000,
-      speaker: 'Bob',
-    },
-    {
-      id: 'caption-3',
-      text: 'The mug is okay',
-      start: 5000,
-      end: 6500,
-      speaker: 'Alice',
-    },
-    {
-      id: 'caption-4',
-      text: 'That makes one of us',
-      start: 7600,
-      end: 9200,
-      speaker: 'Bob',
-    },
-    {
-      id: 'caption-5',
-      text: 'Can we start over?',
-      start: 10800,
-      end: 13000,
-      speaker: 'Alice',
-    },
-  ],
-  audioCues: starterAudioCues,
-  assets: starterAssets,
-  assetRequests: [],
-  skeletons: [
-    {
-      ...defaultSkeletonForAsset(
-        'alice',
-        'Alice',
-        'segmented',
-        starterAssets[0],
-      ),
-      reviewStatus: 'approved',
-    },
-    {
-      ...defaultSkeletonForAsset('bob', 'Bob', 'segmented', starterAssets[1]),
-      reviewStatus: 'approved',
-    },
-  ],
-  boneKeyframes: starterBoneKeyframes(),
-  motionClips: starterMotionClips,
-  storyboardBeats,
-  styleBible: starterStyleBible,
-  scenes: starterScenes,
-  activeSceneId: 'scene-01',
-  templateId: 'first-meeting',
-};
-
 const blankCharacters: Character[] = [
   {
     id: 'actor-a',
@@ -1476,10 +777,13 @@ const blankScenes: SceneMeta[] = [
     title: 'Blank scene',
     description: 'An empty stage ready for blocking.',
     duration: 10000,
+    templateId: 'blank',
     characters: blankCharacters.map((character) => ({ ...character })),
     keyframes: [],
     propKeyframes: [],
-    cameraKeyframes: [],
+    cameraKeyframes: [
+      { id: 'cam-0000', time: 0, zoom: 1, panX: 0, panY: 0, rotation: 0 },
+    ],
     captions: [],
     audioCues: [],
     boneKeyframes: [],
@@ -1500,14 +804,22 @@ const blankProject: Project = {
   characters: blankCharacters.map((character) => ({ ...character })),
   keyframes: [],
   propKeyframes: [],
-  cameraKeyframes: [],
+  cameraKeyframes: [
+    { id: 'cam-0000', time: 0, zoom: 1, panX: 0, panY: 0, rotation: 0 },
+  ],
   captions: [],
   audioCues: [],
-  assets: starterAssets.filter((asset) => asset.kind === 'audio'),
+  assets: bundledAudioAssets.map((asset) => ({
+    ...asset,
+    provenance: asset.provenance ? { ...asset.provenance } : undefined,
+    style: asset.style
+      ? { ...asset.style, palette: [...asset.style.palette] }
+      : undefined,
+  })),
   assetRequests: [],
   skeletons: [],
   boneKeyframes: [],
-  motionClips: starterMotionClips,
+  motionClips: [],
   storyboardBeats: [],
   styleBible: {
     construction: 'not set',
@@ -1518,6 +830,7 @@ const blankProject: Project = {
   },
   scenes: blankScenes,
   activeSceneId: 'scene-01',
+  templateId: 'blank',
 };
 
 function isBlankProject(project: Project) {
@@ -1528,7 +841,7 @@ function isBlankProject(project: Project) {
     project.skeletons.length === 0 &&
     project.keyframes.length === 0 &&
     project.propKeyframes.length === 0 &&
-    project.cameraKeyframes.length === 0 &&
+    project.cameraKeyframes.length <= 1 &&
     project.captions.length === 0 &&
     project.audioCues.length === 0 &&
     project.boneKeyframes.length === 0 &&
@@ -1861,11 +1174,12 @@ function assetChecklist(
   if (kind === 'rigged-character' && method === 'segmented') {
     return [
       ...common,
-      'Transparent parts sheet with separate head, torso, arms, and legs.',
-      'Include a v2 rig manifest with named parts, pivots, parent and child seam anchors, draw order, and overlap margins.',
-      'Design the shoulder, hip, wrist, and ankle ends with hidden overlap so articulated pieces never expose a gap.',
-      'Provide front, three-quarter, profile, and back view coverage plus idle, walk, reaction, and expression variants.',
-      'Use consistent scale and facing direction across every part.',
+      'Deliver one assembled neutral reference and one transparent 15-part humanoid-jointed-v1 atlas derived from that exact design.',
+      'Include a strict StagehandAssetPackageV3 with motion profile, topology, per-part deformation modes, anchors, pivots, draw order, and attachment contracts.',
+      'Conceptually assemble the character first, then separate it without changing geometry or scale.',
+      'Extend rounded hidden geometry 20–30% under neighboring parts at neck, shoulders, elbows, wrists, hips, knees, and ankles.',
+      'Do not draw clean cut endpoints, holes, sockets, detached stumps, clipped pixels, or transparent corridors through joints.',
+      'Use consistent scale and facing direction across both deliverables.',
     ];
   }
   if (kind === 'rigged-character' && method === 'mesh') {
@@ -1908,286 +1222,14 @@ function rigManifestForAsset(
   },
   provenance: Asset['provenance'] = {},
 ): RigManifest {
-  const bob = assetId.toLowerCase().includes('bob');
-  const common = bob
-    ? [
-        {
-          id: 'head',
-          label: 'head',
-          boneId: 'bone-chest-head',
-          x: 0.02,
-          y: 0.02,
-          width: 0.27,
-          height: 0.4,
-          pivotX: 0.5,
-          pivotY: 0.92,
-          attachX: 0.5,
-          attachY: 0.94,
-          zIndex: 5,
-        },
-        {
-          id: 'torso',
-          label: 'torso',
-          boneId: 'bone-hip-chest',
-          x: 0.3,
-          y: 0.02,
-          width: 0.36,
-          height: 0.52,
-          pivotX: 0.5,
-          pivotY: 0.92,
-          attachX: 0.5,
-          attachY: 0.9,
-          zIndex: 3,
-        },
-        {
-          id: 'left-arm',
-          label: 'left arm',
-          boneId: 'bone-chest-left-hand',
-          x: 0.63,
-          y: 0.02,
-          width: 0.17,
-          height: 0.48,
-          pivotX: 0.5,
-          pivotY: 0.08,
-          attachX: 0.5,
-          attachY: 0.08,
-          zIndex: 2,
-        },
-        {
-          id: 'right-arm',
-          label: 'right arm',
-          boneId: 'bone-chest-right-hand',
-          x: 0.8,
-          y: 0.02,
-          width: 0.18,
-          height: 0.48,
-          pivotX: 0.5,
-          pivotY: 0.08,
-          attachX: 0.5,
-          attachY: 0.08,
-          zIndex: 4,
-        },
-        {
-          id: 'left-leg',
-          label: 'left leg',
-          boneId: 'bone-hip-left-foot',
-          x: 0.28,
-          y: 0.54,
-          width: 0.2,
-          height: 0.45,
-          pivotX: 0.5,
-          pivotY: 0.08,
-          attachX: 0.5,
-          attachY: 0.08,
-          zIndex: 1,
-        },
-        {
-          id: 'right-leg',
-          label: 'right leg',
-          boneId: 'bone-hip-right-foot',
-          x: 0.52,
-          y: 0.54,
-          width: 0.2,
-          height: 0.45,
-          pivotX: 0.5,
-          pivotY: 0.08,
-          attachX: 0.5,
-          attachY: 0.08,
-          zIndex: 1,
-        },
-      ]
-    : [
-        {
-          id: 'head',
-          label: 'head',
-          boneId: 'bone-chest-head',
-          x: 0.0,
-          y: 0.02,
-          width: 0.34,
-          height: 0.42,
-          pivotX: 0.5,
-          pivotY: 0.92,
-          attachX: 0.5,
-          attachY: 0.94,
-          zIndex: 5,
-        },
-        {
-          id: 'torso',
-          label: 'torso',
-          boneId: 'bone-hip-chest',
-          x: 0.35,
-          y: 0.02,
-          width: 0.34,
-          height: 0.52,
-          pivotX: 0.5,
-          pivotY: 0.92,
-          attachX: 0.5,
-          attachY: 0.9,
-          zIndex: 3,
-        },
-        {
-          id: 'left-arm',
-          label: 'left arm',
-          boneId: 'bone-chest-left-hand',
-          x: 0.64,
-          y: 0.02,
-          width: 0.17,
-          height: 0.48,
-          pivotX: 0.5,
-          pivotY: 0.08,
-          attachX: 0.5,
-          attachY: 0.08,
-          zIndex: 2,
-        },
-        {
-          id: 'right-arm',
-          label: 'right arm',
-          boneId: 'bone-chest-right-hand',
-          x: 0.81,
-          y: 0.02,
-          width: 0.17,
-          height: 0.48,
-          pivotX: 0.5,
-          pivotY: 0.08,
-          attachX: 0.5,
-          attachY: 0.08,
-          zIndex: 4,
-        },
-        {
-          id: 'left-leg',
-          label: 'left leg',
-          boneId: 'bone-hip-left-foot',
-          x: 0.35,
-          y: 0.56,
-          width: 0.17,
-          height: 0.42,
-          pivotX: 0.5,
-          pivotY: 0.08,
-          attachX: 0.5,
-          attachY: 0.08,
-          zIndex: 1,
-        },
-        {
-          id: 'right-leg',
-          label: 'right leg',
-          boneId: 'bone-hip-right-foot',
-          x: 0.53,
-          y: 0.56,
-          width: 0.17,
-          height: 0.42,
-          pivotX: 0.5,
-          pivotY: 0.08,
-          attachX: 0.5,
-          attachY: 0.08,
-          zIndex: 1,
-        },
-      ];
-  return {
-    version: 2,
-    atlasWidth: dimensions.width,
-    atlasHeight: dimensions.height,
-    source: 'manifest',
-    sourceAsset: {
-      assetId,
-      immutable: true,
-      provenance: { ...provenance },
-    },
-    image: {
-      width: dimensions.width,
-      height: dimensions.height,
-      colorspace: 'sRGB',
-      alpha: 'straight',
-    },
-    canvasAnchor: { x: 0.5, y: 0.82 },
-    parts: common.map((part) => ({
-      ...part,
-      confidence: 0.96,
-      overlapPx: part.id === 'head' || part.id === 'torso' ? 10 : 14,
-      mask: { kind: 'alpha' as const, threshold: 48 },
-      bounds: {
-        x: part.x,
-        y: part.y,
-        width: part.width,
-        height: part.height,
-      },
-      pivot: { x: part.pivotX, y: part.pivotY },
-      parentAnchor: { x: part.attachX, y: part.attachY },
-      attachmentMargins: {
-        top: part.id.includes('arm') || part.id.includes('leg') ? 14 : 10,
-        right: 8,
-        bottom: part.id === 'head' || part.id === 'torso' ? 10 : 8,
-        left: 8,
-      },
-    })),
-    views: {
-      front: assetId,
-      'three-quarter': assetId,
-      profile: assetId,
-      back: assetId,
-    },
-    expressions: {
-      neutral: `${assetId}-neutral`,
-      surprised: `${assetId}-surprised`,
-      embarrassed: `${assetId}-embarrassed`,
-      pleased: `${assetId}-pleased`,
-    },
-    variants: [
-      { id: `${assetId}-base`, kind: 'base', label: 'Front base', assetId },
-      {
-        id: `${assetId}-idle`,
-        kind: 'pose',
-        label: 'Idle',
-        assetId,
-        pose: 'idle',
-      },
-      {
-        id: `${assetId}-walk`,
-        kind: 'motion',
-        label: 'Walk cycle',
-        assetId,
-        pose: 'idle',
-      },
-      {
-        id: `${assetId}-surprised`,
-        kind: 'expression',
-        label: 'Surprised',
-        assetId,
-        expression: 'surprised',
-      },
-      {
-        id: `${assetId}-embarrassed`,
-        kind: 'expression',
-        label: 'Embarrassed',
-        assetId,
-        expression: 'embarrassed',
-      },
-      {
-        id: `${assetId}-pleased`,
-        kind: 'expression',
-        label: 'Pleased',
-        assetId,
-        expression: 'pleased',
-      },
-    ],
-    alignment: {
-      connected: true,
-      seamCount: 8,
-      minConfidence: 0.96,
-      warnings: [],
-    },
-    skeleton: {
-      confidence: 0.94,
-      minCriticalConfidence: 0.88,
-      criticalJointIds: ['root', 'hip', 'chest', 'head'],
-    },
-  };
+  return createDefaultPackageV3(assetId, dimensions, provenance);
 }
-
 function normalizeAssetPackage(
   asset: Asset,
-): StagehandAssetPackageV2 | undefined {
+): StagehandAssetPackageV3 | undefined {
   const legacy = asset.assetPackage ?? asset.rigManifest;
   if (!legacy) return undefined;
+  if (legacy.version !== 3) return undefined;
   const dimensions = asset.dimensions ?? {
     width: legacy.atlasWidth || 1536,
     height: legacy.atlasHeight || 1024,
@@ -2246,197 +1288,6 @@ function normalizeAssetPackage(
   };
 }
 
-type AlphaComponent = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  area: number;
-};
-
-function readAlphaComponents(dataUrl: string): Promise<AlphaComponent[]> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => {
-      const canvas = document.createElement('canvas');
-      const width = 96;
-      const height = Math.max(
-        48,
-        Math.round((image.naturalHeight / image.naturalWidth) * width),
-      );
-      canvas.width = width;
-      canvas.height = height;
-      const context = canvas.getContext('2d');
-      if (!context) return resolve([]);
-      context.drawImage(image, 0, 0, width, height);
-      const pixels = context.getImageData(0, 0, width, height).data;
-      const visited = new Uint8Array(width * height);
-      const components: AlphaComponent[] = [];
-      for (let y = 0; y < height; y += 1) {
-        for (let x = 0; x < width; x += 1) {
-          const index = y * width + x;
-          if (visited[index] || pixels[index * 4 + 3] < 48) continue;
-          const queue = [[x, y]];
-          visited[index] = 1;
-          let minX = x,
-            maxX = x,
-            minY = y,
-            maxY = y,
-            area = 0;
-          while (queue.length) {
-            const [currentX, currentY] = queue.pop()!;
-            area += 1;
-            minX = Math.min(minX, currentX);
-            maxX = Math.max(maxX, currentX);
-            minY = Math.min(minY, currentY);
-            maxY = Math.max(maxY, currentY);
-            for (const [nextX, nextY] of [
-              [currentX - 1, currentY],
-              [currentX + 1, currentY],
-              [currentX, currentY - 1],
-              [currentX, currentY + 1],
-            ]) {
-              if (nextX < 0 || nextX >= width || nextY < 0 || nextY >= height)
-                continue;
-              const nextIndex = nextY * width + nextX;
-              if (visited[nextIndex] || pixels[nextIndex * 4 + 3] < 48)
-                continue;
-              visited[nextIndex] = 1;
-              queue.push([nextX, nextY]);
-            }
-          }
-          if (area > 18)
-            components.push({
-              x: minX / width,
-              y: minY / height,
-              width: (maxX - minX + 1) / width,
-              height: (maxY - minY + 1) / height,
-              area,
-            });
-        }
-      }
-      resolve(components.sort((a, b) => b.area - a.area));
-    };
-    image.onerror = () => reject(new Error('Unable to decode asset alpha'));
-    image.src = dataUrl;
-  });
-}
-
-async function inferRigManifest(asset: Asset): Promise<RigManifest> {
-  const manifest = rigManifestForAsset(
-    '__inferred__',
-    asset.dimensions ?? { width: 1536, height: 1024 },
-    asset.provenance,
-  );
-  manifest.sourceAsset.assetId = asset.id;
-  manifest.views = {};
-  manifest.expressions = {};
-  if (!asset.dataUrl) {
-    return {
-      ...manifest,
-      source: 'alpha-inference',
-      alignment: {
-        connected: false,
-        seamCount: 0,
-        minConfidence: 0.35,
-        warnings: ['Asset payload is unavailable for alpha analysis.'],
-      },
-    };
-  }
-  try {
-    const components = await readAlphaComponents(asset.dataUrl);
-    const structuralComponents = components.filter(
-      (component) => component.area >= (components[0]?.area ?? 1) * 0.08,
-    );
-    if (structuralComponents.length < manifest.parts.length) {
-      return {
-        ...manifest,
-        source: 'hybrid',
-        alignment: {
-          connected: false,
-          seamCount: Math.max(0, structuralComponents.length - 1),
-          minConfidence: 0.42,
-          warnings: [
-            `Expected ${manifest.parts.length} structural components but found ${structuralComponents.length}.`,
-          ],
-        },
-      };
-    }
-    const remaining = [...structuralComponents];
-    const parts = manifest.parts.map((part) => {
-      const expectedX = part.x + part.width / 2;
-      const expectedY = part.y + part.height / 2;
-      let bestIndex = 0;
-      let bestDistance = Number.POSITIVE_INFINITY;
-      remaining.forEach((component, index) => {
-        const distance = Math.hypot(
-          component.x + component.width / 2 - expectedX,
-          component.y + component.height / 2 - expectedY,
-        );
-        if (distance < bestDistance) {
-          bestIndex = index;
-          bestDistance = distance;
-        }
-      });
-      const component = remaining.splice(bestIndex, 1)[0];
-      const confidence = clamp(0.98 - bestDistance * 1.8, 0.5, 0.98);
-      const x = clamp(component.x - 0.008, 0, 1);
-      const y = clamp(component.y - 0.008, 0, 1);
-      const width = clamp(component.width + 0.016, 0.02, 1 - x);
-      const height = clamp(component.height + 0.016, 0.02, 1 - y);
-      return {
-        ...part,
-        x,
-        y,
-        width,
-        height,
-        bounds: { x, y, width, height },
-        confidence,
-      };
-    });
-    const minConfidence = Math.min(...parts.map((part) => part.confidence));
-    const unmatchedSignificant = remaining.filter(
-      (component) => component.area >= (components[0]?.area ?? 1) * 0.08,
-    );
-    return {
-      ...manifest,
-      source: 'hybrid',
-      parts,
-      alignment: {
-        connected: minConfidence >= 0.72 && unmatchedSignificant.length === 0,
-        seamCount: 5,
-        minConfidence,
-        warnings:
-          minConfidence < 0.72 || unmatchedSignificant.length > 0
-            ? [
-                ...(minConfidence < 0.72
-                  ? ['One or more inferred part bounds need joint review.']
-                  : []),
-                ...(unmatchedSignificant.length > 0
-                  ? [
-                      `Found ${unmatchedSignificant.length} unmatched significant alpha islands.`,
-                    ]
-                  : []),
-              ]
-            : [],
-      },
-    };
-  } catch {
-    return {
-      ...manifest,
-      source: 'alpha-inference',
-      alignment: {
-        connected: false,
-        seamCount: 0,
-        minConfidence: 0.35,
-        warnings: [
-          'Alpha analysis failed; provide a rig manifest or review the inferred parts.',
-        ],
-      },
-    };
-  }
-}
-
 function decodeImage(dataUrl: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image();
@@ -2472,6 +1323,16 @@ async function inspectImagePayload(dataUrl: string) {
   return {
     width: image.naturalWidth,
     height: image.naturalHeight,
+    pixelDiagnostics: context
+      ? (() => {
+          const alpha = inspectAlphaPixels(canvas);
+          return {
+            alphaPixels: alpha.alphaPixels,
+            significantComponents: alpha.significantComponents,
+            clippedPixels: alpha.clippedEdges,
+          };
+        })()
+      : { alphaPixels: 0, significantComponents: 0, clippedPixels: 0 },
     transparencyStatus: hasTransparentPixels
       ? ('yes' as const)
       : ('no' as const),
@@ -2495,11 +1356,12 @@ function assetPackageIssues(
   value: unknown,
   dimensions?: { width: number; height: number },
 ) {
-  const issues: string[] = [];
+  const issues = validatePackageV3(value)
+    .filter((issue) => issue.severity === 'error')
+    .map((issue) => `${issue.code}: ${issue.message}`);
   if (!value || typeof value !== 'object' || Array.isArray(value))
-    return ['StagehandAssetPackageV2 is missing.'];
-  const packageData = value as Partial<StagehandAssetPackageV2>;
-  if (packageData.version !== 2) issues.push('Package version must be 2.');
+    return issues;
+  const packageData = value as Partial<StagehandAssetPackageV3>;
   if (
     !packageData.sourceAsset ||
     packageData.sourceAsset.immutable !== true ||
@@ -2531,8 +1393,8 @@ function assetPackageIssues(
     packageData.canvasAnchor.y > 1
   )
     issues.push('Canvas anchor must be normalized.');
-  if (!Array.isArray(packageData.parts) || packageData.parts.length < 6) {
-    issues.push('Package needs at least six named segmented parts.');
+  if (!Array.isArray(packageData.parts) || packageData.parts.length < 15) {
+    issues.push('Package needs the 15 canonical humanoid-jointed-v1 parts.');
   } else {
     const ids = new Set<string>();
     packageData.parts.forEach((part) => {
@@ -2586,16 +1448,29 @@ function candidateApprovalChecks(
   request?: AssetGenerationRequest,
 ) {
   const packageIssues = asset.packageIssues ?? [];
+  const deliverableRole = request
+    ? (Object.entries(request.deliverables).find(
+        ([, assetId]) => assetId === asset.id,
+      )?.[0] as DeliverableRole | undefined)
+    : undefined;
   const needsTransparentPackage =
     asset.kind === 'rigged-character' &&
-    (request?.bindingMethod === 'segmented' ||
+    (deliverableRole === 'rig-atlas' ||
+      (!request && asset.frameLayout === 'parts-sheet') ||
       asset.frameLayout === 'parts-sheet');
+  const deliverablesComplete =
+    !request ||
+    request.requiredDeliverables.every((role) =>
+      Boolean(request.deliverables[role]),
+    );
   const checks = {
     hasPayload: Boolean(asset.dataUrl),
     hasBrief: Boolean(asset.brief?.trim()),
     hasStyle: Boolean(asset.style),
     hasDimensions: Boolean(asset.dimensions?.width && asset.dimensions?.height),
     hasPackage: !needsTransparentPackage || Boolean(asset.assetPackage),
+    deliverablesComplete,
+    deliverableRole: deliverableRole ?? 'unassigned',
     packageValid: packageIssues.length === 0,
     transparencyStatus: asset.transparencyStatus ?? 'unknown',
     layout: asset.frameLayout ?? 'single',
@@ -2607,10 +1482,23 @@ function candidateApprovalChecks(
     checks.hasBrief &&
     checks.hasStyle &&
     checks.hasDimensions &&
+    checks.deliverablesComplete &&
     checks.hasPackage &&
     checks.packageValid &&
     (!needsTransparentPackage || checks.transparencyStatus === 'yes');
   return { checks, readyForApproval };
+}
+
+function attachmentDiagnostics(project: Project) {
+  return project.assets
+    .filter((asset) => asset.kind === 'rigged-character')
+    .map((asset) => ({
+      assetId: asset.id,
+      packageVersion: asset.assetPackage?.version ?? null,
+      decodedAlpha: asset.pixelDiagnostics ?? null,
+      reconstruction: asset.assetPackage?.diagnostics ?? null,
+      packageIssues: asset.packageIssues ?? [],
+    }));
 }
 
 function inspectAlphaPixels(canvas: HTMLCanvasElement) {
@@ -2936,6 +1824,8 @@ function skeletonModelIssues(skeleton: Skeleton, asset?: Asset) {
   if (skeleton.binding.method === 'segmented') {
     const manifest = asset?.assetPackage ?? asset?.rigManifest;
     if (!manifest) issues.push('Segmented binding needs a rig manifest.');
+    if (manifest && packageHasBlockingIssues(manifest))
+      issues.push(...assetPackageIssues(manifest, asset?.dimensions));
     if (manifest?.alignment && !manifest.alignment.connected)
       issues.push(...manifest.alignment.warnings);
     if (manifest) {
@@ -2954,10 +1844,8 @@ function skeletonModelIssues(skeleton: Skeleton, asset?: Asset) {
     }
     const boneIds = new Set(skeleton.bones.map((bone) => bone.id));
     const regions = skeleton.binding.regions ?? [];
-    if (regions.length < 6)
-      issues.push(
-        'Segmented binding needs head, torso, two arms, and two legs.',
-      );
+    if (regions.length < 15)
+      issues.push('Segmented binding needs the 15 humanoid-jointed-v1 parts.');
     regions.forEach((region) => {
       if (region.boneId && !boneIds.has(region.boneId))
         issues.push(`${region.label} references a missing bone.`);
@@ -2980,6 +1868,10 @@ function skeletonModelIssues(skeleton: Skeleton, asset?: Asset) {
     });
   }
   if (skeleton.binding.method === 'mesh') {
+    if (skeleton.meshStale)
+      issues.push(
+        'Mesh binding is stale after a rest-pose or topology edit; rebind before rendering.',
+      );
     if (asset?.frameCount && asset.frameCount !== 1)
       issues.push('Mesh binding requires a single-frame texture asset.');
     const meshIssues = validateMeshBinding(skeleton.binding.mesh, {
@@ -3039,8 +1931,28 @@ function defaultSkeletonForAsset(
       locked: false,
     },
     {
-      id: 'left-hand',
+      id: 'left-shoulder',
       parentId: 'chest',
+      label: 'left shoulder',
+      x: 39,
+      y: 40,
+      radius: 3,
+      confidence: 0.9,
+      locked: false,
+    },
+    {
+      id: 'left-elbow',
+      parentId: 'left-shoulder',
+      label: 'left elbow',
+      x: 31,
+      y: 53,
+      radius: 3,
+      confidence: 0.9,
+      locked: false,
+    },
+    {
+      id: 'left-hand',
+      parentId: 'left-elbow',
       label: 'left hand',
       x: 33,
       y: 53,
@@ -3049,8 +1961,28 @@ function defaultSkeletonForAsset(
       locked: false,
     },
     {
-      id: 'right-hand',
+      id: 'right-shoulder',
       parentId: 'chest',
+      label: 'right shoulder',
+      x: 61,
+      y: 40,
+      radius: 3,
+      confidence: 0.9,
+      locked: false,
+    },
+    {
+      id: 'right-elbow',
+      parentId: 'right-shoulder',
+      label: 'right elbow',
+      x: 69,
+      y: 53,
+      radius: 3,
+      confidence: 0.9,
+      locked: false,
+    },
+    {
+      id: 'right-hand',
+      parentId: 'right-elbow',
       label: 'right hand',
       x: 67,
       y: 53,
@@ -3059,8 +1991,28 @@ function defaultSkeletonForAsset(
       locked: false,
     },
     {
-      id: 'left-foot',
+      id: 'left-hip',
       parentId: 'hip',
+      label: 'left hip',
+      x: 44,
+      y: 65,
+      radius: 3,
+      confidence: 0.9,
+      locked: false,
+    },
+    {
+      id: 'left-knee',
+      parentId: 'left-hip',
+      label: 'left knee',
+      x: 42,
+      y: 77,
+      radius: 3,
+      confidence: 0.9,
+      locked: false,
+    },
+    {
+      id: 'left-foot',
+      parentId: 'left-knee',
       label: 'left foot',
       x: 42,
       y: 88,
@@ -3069,8 +2021,28 @@ function defaultSkeletonForAsset(
       locked: false,
     },
     {
-      id: 'right-foot',
+      id: 'right-hip',
       parentId: 'hip',
+      label: 'right hip',
+      x: 56,
+      y: 65,
+      radius: 3,
+      confidence: 0.9,
+      locked: false,
+    },
+    {
+      id: 'right-knee',
+      parentId: 'right-hip',
+      label: 'right knee',
+      x: 58,
+      y: 77,
+      radius: 3,
+      confidence: 0.9,
+      locked: false,
+    },
+    {
+      id: 'right-foot',
+      parentId: 'right-knee',
       label: 'right foot',
       x: 58,
       y: 88,
@@ -3193,10 +2165,18 @@ function defaultSkeletonForAsset(
       bone('bone-root-hip', 'root', 'hip'),
       bone('bone-hip-chest', 'hip', 'chest'),
       bone('bone-chest-head', 'chest', 'head'),
-      bone('bone-chest-left-hand', 'chest', 'left-hand'),
-      bone('bone-chest-right-hand', 'chest', 'right-hand'),
-      bone('bone-hip-left-foot', 'hip', 'left-foot'),
-      bone('bone-hip-right-foot', 'hip', 'right-foot'),
+      bone('bone-chest-left-shoulder', 'chest', 'left-shoulder'),
+      bone('bone-left-shoulder-elbow', 'left-shoulder', 'left-elbow'),
+      bone('bone-left-elbow-hand', 'left-elbow', 'left-hand'),
+      bone('bone-chest-right-shoulder', 'chest', 'right-shoulder'),
+      bone('bone-right-shoulder-elbow', 'right-shoulder', 'right-elbow'),
+      bone('bone-right-elbow-hand', 'right-elbow', 'right-hand'),
+      bone('bone-hip-left-hip', 'hip', 'left-hip'),
+      bone('bone-left-hip-knee', 'left-hip', 'left-knee'),
+      bone('bone-left-knee-foot', 'left-knee', 'left-foot'),
+      bone('bone-hip-right-hip', 'hip', 'right-hip'),
+      bone('bone-right-hip-knee', 'right-hip', 'right-knee'),
+      bone('bone-right-knee-foot', 'right-knee', 'right-foot'),
     ],
     binding: {
       assetId,
@@ -4333,62 +3313,19 @@ function upsertCameraKeyframe(
   return frame;
 }
 
-function drawDinerBackground(
+function drawSceneBackground(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
   backgroundImage?: CanvasImageSource,
   backgroundAsset?: Asset,
 ) {
-  if (backgroundImage) {
-    ctx.save();
-    ctx.filter = assetTreatmentFilter(backgroundAsset);
-    ctx.drawImage(backgroundImage, 0, 0, width, height);
-    ctx.restore();
-    return;
-  }
-  ctx.fillStyle = '#e9d6b8';
-  ctx.fillRect(0, 0, width, height);
-  ctx.fillStyle = '#c38b62';
-  ctx.fillRect(0, height * 0.69, width, height * 0.31);
-  ctx.fillStyle = '#f4ead9';
-  ctx.fillRect(width * 0.05, height * 0.08, width * 0.9, height * 0.52);
-  ctx.strokeStyle = '#d8c4a5';
-  ctx.lineWidth = 3;
-  for (let i = 0; i < 5; i++) {
-    ctx.beginPath();
-    ctx.moveTo(width * (0.11 + i * 0.19), height * 0.08);
-    ctx.lineTo(width * (0.11 + i * 0.19), height * 0.6);
-    ctx.stroke();
-  }
-  ctx.fillStyle = '#506d72';
-  ctx.fillRect(width * 0.1, height * 0.2, width * 0.8, 7);
-  ctx.fillStyle = '#2d4448';
-  ctx.font = '700 13px ui-monospace, monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText(
-    'THE LATE PLATE  ·  OPEN UNTIL AWKWARD',
-    width / 2,
-    height * 0.17,
-  );
-  ctx.fillStyle = '#714b3c';
-  ctx.fillRect(width * 0.17, height * 0.55, width * 0.66, 20);
-  ctx.fillStyle = '#d6a26d';
-  ctx.fillRect(width * 0.2, height * 0.59, width * 0.6, 11);
-  ctx.fillStyle = '#b86e4e';
-  ctx.beginPath();
-  ctx.arc(width * 0.3, height * 0.52, 25, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#f5d69b';
-  ctx.beginPath();
-  ctx.arc(width * 0.3, height * 0.52, 16, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#597579';
-  ctx.fillRect(width * 0.71, height * 0.27, 32, 72);
-  ctx.fillStyle = '#f0c27f';
-  ctx.fillRect(width * 0.73, height * 0.3, 28, 40);
+  if (!backgroundImage) return;
+  ctx.save();
+  ctx.filter = assetTreatmentFilter(backgroundAsset);
+  ctx.drawImage(backgroundImage, 0, 0, width, height);
+  ctx.restore();
 }
-
 function drawImportedProps(
   ctx: CanvasRenderingContext2D,
   project: Project,
@@ -4724,6 +3661,20 @@ function drawCharacter(
     const imageWidth = frameWidth * imageScale;
     const imageHeight = sourceHeight * imageScale;
     if (skeleton?.binding.method === 'mesh') {
+      if (skeleton.meshStale) {
+        ctx.restore();
+        return {
+          renderer: 'canvas-lbs-mesh-v1',
+          fallbackUsed: false,
+          issues: [
+            {
+              code: 'STALE_MESH_BINDING',
+              message:
+                'Mesh binding is stale after a rest-pose or topology edit; rebind before rendering.',
+            },
+          ],
+        };
+      }
       const mesh = skeleton.binding.mesh;
       const issues = validateMeshBinding(mesh, {
         assetId: skeleton.assetId,
@@ -5056,7 +4007,7 @@ function drawRenderFrame(
     (asset) => asset.kind === 'background',
   );
   if (backgroundAsset) {
-    drawDinerBackground(
+    drawSceneBackground(
       ctx,
       width,
       height,
@@ -5275,6 +4226,7 @@ function StageCanvas({
   showAlphaMask,
   showMeshWireframe,
   interactionMode,
+  onJointMove,
 }: {
   project: Project;
   onSelect: (id: string) => void;
@@ -5283,11 +4235,13 @@ function StageCanvas({
   showAlphaMask?: boolean;
   showMeshWireframe?: boolean;
   interactionMode: 'select' | 'pan' | 'preview';
+  onJointMove?: (jointId: string, x: number, y: number) => void;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const imageCacheRef = useRef(new Map<string, HTMLImageElement>());
   const imagePendingRef = useRef(new Set<string>());
   const redrawRef = useRef<() => void>(() => {});
+  const jointDragRef = useRef<string | null>(null);
   const draw = useCallback(() => {
     const canvas = ref.current;
     if (!canvas) return;
@@ -5378,6 +4332,76 @@ function StageCanvas({
         );
         onSelect(nearest.id);
       }}
+      onPointerDown={(event) => {
+        if (!showSkeleton || interactionMode !== 'select') return;
+        const character = evaluateCharacters(project, project.currentTime).find(
+          (item) => item.id === project.selectedId,
+        );
+        const skeleton = character
+          ? characterSkeletonFor(project, character)
+          : undefined;
+        if (!character || !skeleton) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        const scale = Math.min(rect.width / 900, rect.height / 520);
+        const localX =
+          (((event.clientX - rect.left - (character.x / 100) * rect.width) /
+            scale +
+            66) /
+            132) *
+          100;
+        const localY =
+          (((event.clientY - rect.top - (character.y / 100) * rect.height) /
+            scale +
+            270) /
+            280) *
+          100;
+        const nearest = skeleton.joints.reduce((best, joint) =>
+          Math.hypot(joint.x - localX, joint.y - localY) <
+          Math.hypot(best.x - localX, best.y - localY)
+            ? joint
+            : best,
+        );
+        if (Math.hypot(nearest.x - localX, nearest.y - localY) > 12) return;
+        jointDragRef.current = nearest.id;
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerMove={(event) => {
+        const jointId = jointDragRef.current;
+        if (!jointId || !onJointMove) return;
+        const character = evaluateCharacters(project, project.currentTime).find(
+          (item) => item.id === project.selectedId,
+        );
+        if (!character) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        const scale = Math.min(rect.width / 900, rect.height / 520);
+        const x = clamp(
+          (((event.clientX - rect.left - (character.x / 100) * rect.width) /
+            scale +
+            66) /
+            132) *
+            100,
+          0,
+          100,
+        );
+        const y = clamp(
+          (((event.clientY - rect.top - (character.y / 100) * rect.height) /
+            scale +
+            270) /
+            280) *
+            100,
+          0,
+          100,
+        );
+        onJointMove(jointId, x, y);
+      }}
+      onPointerUp={(event) => {
+        jointDragRef.current = null;
+        if (event.currentTarget.hasPointerCapture(event.pointerId))
+          event.currentTarget.releasePointerCapture(event.pointerId);
+      }}
+      onPointerCancel={() => {
+        jointDragRef.current = null;
+      }}
     />
   );
 }
@@ -5440,7 +4464,9 @@ export default function Home() {
     [stageTool, setStageTool] = useState<'select' | 'pan'>('select'),
     [viewportZoom, setViewportZoom] = useState(100),
     [viewportPan, setViewportPan] = useState({ x: 0, y: 0 }),
-    [dialog, setDialog] = useState<'help' | 'settings' | null>(null),
+    [dialog, setDialog] = useState<'help' | 'settings' | 'new-project' | null>(
+      null,
+    ),
     [rendering, setRendering] = useState(false),
     [notice, setNotice] = useState(''),
     [saved, setSaved] = useState(true),
@@ -5451,6 +4477,20 @@ export default function Home() {
     [beatDescriptionDraft, setBeatDescriptionDraft] = useState(''),
     [beatStartDraft, setBeatStartDraft] = useState(''),
     [beatEndDraft, setBeatEndDraft] = useState('');
+  const [agentActivity, setAgentActivity] = useState<AgentActivity[]>([]);
+  const [agentDrawerOpen, setAgentDrawerOpen] = useState(false);
+  const [agentFocusMarker, setAgentFocusMarker] = useState<string | null>(null);
+  const [rigWorkspaceTab, setRigWorkspaceTab] = useState<
+    'setup' | 'binding' | 'animate' | 'qa'
+  >('setup');
+  const [selectedBoneId, setSelectedBoneId] = useState('');
+  const [assetRequestLabel, setAssetRequestLabel] = useState('');
+  const [newProjectName, setNewProjectName] = useState('Untitled animation');
+  const [newProjectDuration, setNewProjectDuration] = useState(10000);
+  const [newProjectFps, setNewProjectFps] = useState(24);
+  const [newProjectPreset, setNewProjectPreset] = useState<'720p' | '1080p'>(
+    '1080p',
+  );
   const importInputRef = useRef<HTMLInputElement>(null);
   const assetImportInputRef = useRef<HTMLInputElement>(null);
   const audioImportInputRef = useRef<HTMLInputElement>(null);
@@ -5662,6 +4702,7 @@ export default function Home() {
       height: output.height,
       pixelHash: snapshot.pixelHash,
       renderDiagnostics: snapshot.diagnostics,
+      attachmentDiagnostics: attachmentDiagnostics(project),
     };
   }, [project]);
   const commitRef = useRef(commit),
@@ -5888,6 +4929,102 @@ export default function Home() {
               ? output.then(cacheSuccessful)
               : cacheSuccessful(output);
           };
+      const trackedExecute: ModelTool['execute'] = PUBLIC_WEBMCP_TOOL_SET.has(
+        name,
+      )
+        ? async (input) => {
+            const toolName = name as PublicWebMcpToolName;
+            const activityId = `${name}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+            const contract = TOOL_UI_CONTRACTS[toolName];
+            setAgentActivity((items) =>
+              [
+                {
+                  id: activityId,
+                  tool: toolName,
+                  status: 'running' as const,
+                  revision: projectRef.current.revision,
+                  affected: [],
+                  startedAt: new Date().toISOString(),
+                },
+                ...items,
+              ].slice(0, 60),
+            );
+            setAgentFocusMarker(contract.marker);
+            if (contract.route === 'assets' || contract.route === 'audio')
+              setPanel('assets');
+            else if (contract.route === 'project') setPanel('scenes');
+            if (contract.route === 'timeline' || contract.route === 'rig')
+              setViewMode('animate');
+            if (contract.route === 'output') setViewMode('preview');
+            const finish = (result: unknown) => {
+              const record =
+                result && typeof result === 'object' && !Array.isArray(result)
+                  ? (result as Record<string, unknown>)
+                  : {};
+              const affected = [
+                'sceneId',
+                'assetId',
+                'characterId',
+                'skeletonId',
+                'jointId',
+                'boneId',
+                'clipId',
+                'fileName',
+              ]
+                .map((key) => record[key])
+                .filter((value): value is string => typeof value === 'string');
+              const code = typeof record.code === 'string' ? record.code : '';
+              const status: AgentActivity['status'] =
+                record.idempotentReplay === true
+                  ? 'replayed'
+                  : code === 'REVISION_CONFLICT'
+                    ? 'conflicted'
+                    : record.ok === false
+                      ? 'failed'
+                      : 'succeeded';
+              setAgentActivity((items) =>
+                items.map((item) =>
+                  item.id === activityId
+                    ? {
+                        ...item,
+                        status,
+                        revision: projectRef.current.revision,
+                        affected,
+                        message: code || contract.focus,
+                      }
+                    : item,
+                ),
+              );
+              window.setTimeout(
+                () =>
+                  setAgentFocusMarker((marker) =>
+                    marker === contract.marker ? null : marker,
+                  ),
+                1400,
+              );
+              return result;
+            };
+            try {
+              return finish(await replayableExecute(input));
+            } catch (error) {
+              setAgentActivity((items) =>
+                items.map((item) =>
+                  item.id === activityId
+                    ? {
+                        ...item,
+                        status: 'failed',
+                        message:
+                          error instanceof Error
+                            ? error.message
+                            : 'Command failed',
+                      }
+                    : item,
+                ),
+              );
+              throw error;
+            }
+          }
+        : replayableExecute;
       internalTools.set(name, {
         name,
         title,
@@ -5897,7 +5034,7 @@ export default function Home() {
           $id: `https://stagehand.tools/${name}/input`,
         },
         annotations: { readOnlyHint, untrustedContentHint: false },
-        execute: replayableExecute,
+        execute: trackedExecute,
       });
     };
     register(
@@ -6317,6 +5454,7 @@ export default function Home() {
           },
           pixelHash: snapshot.pixelHash,
           renderDiagnostics: snapshot.diagnostics,
+          attachmentDiagnostics: attachmentDiagnostics(current),
         };
       },
       true,
@@ -6907,6 +6045,15 @@ export default function Home() {
           pose: { type: 'string' },
           expression: { type: 'string' },
           prompt: { type: 'string', maxLength: 2400 },
+          motionProfile: { type: 'object' },
+          topologyProfile: { type: 'object' },
+          requiredDeliverables: {
+            type: 'array',
+            items: {
+              type: 'string',
+              enum: ['assembled-reference', 'rig-atlas'],
+            },
+          },
         },
       },
       (input) => {
@@ -6924,6 +6071,18 @@ export default function Home() {
             ? 'segmented'
             : 'rigid';
         const checklist = assetChecklist(kind, bindingMethod);
+        const motionProfile =
+          input.motionProfile && typeof input.motionProfile === 'object'
+            ? (copy(input.motionProfile) as MotionProfileV1)
+            : defaultMotionProfile();
+        const topologyProfile =
+          input.topologyProfile && typeof input.topologyProfile === 'object'
+            ? (copy(input.topologyProfile) as TopologyProfileV1)
+            : createHumanoidJointedTopology();
+        const requiredDeliverables: DeliverableRole[] =
+          kind === 'rigged-character'
+            ? ['assembled-reference', 'rig-atlas']
+            : ['assembled-reference'];
         const variantBrief = [
           isAssetVariantKind(input.variantKind)
             ? `${input.variantKind} variant`
@@ -6942,10 +6101,11 @@ export default function Home() {
           typeof input.prompt === 'string' && input.prompt.trim()
             ? input.prompt.trim()
             : [
-                `Create ${label} for Stagehand.`,
+                `Create ${label} for Stagehand. Conceptually assemble the neutral character first, then derive the rig atlas without changing its geometry.`,
                 current.styleBible.construction,
                 current.styleBible.palette.join(', '),
                 variantBrief,
+                'Use rounded hidden geometry and extend each child part 20–30% under its neighbor at shoulders, elbows, wrists, hips, knees, ankles, and neck. Do not use clean cut endpoints.',
                 checklist.join(' '),
               ].join(' · ');
         const request: AssetGenerationRequest = {
@@ -6970,6 +6130,10 @@ export default function Home() {
               : undefined,
           prompt,
           checklist,
+          motionProfile,
+          topologyProfile,
+          requiredDeliverables,
+          deliverables: {},
           status: 'pending',
           createdAt: new Date().toISOString(),
         };
@@ -6991,10 +6155,14 @@ export default function Home() {
       'Attach a generated image candidate to a pending request without binding or approving it.',
       {
         type: 'object',
-        required: ['requestId', 'dataUrl'],
+        required: ['requestId', 'deliverableRole', 'dataUrl'],
         additionalProperties: false,
         properties: {
           requestId: { type: 'string' },
+          deliverableRole: {
+            type: 'string',
+            enum: ['assembled-reference', 'rig-atlas'],
+          },
           dataUrl: {
             type: 'string',
             minLength: 24,
@@ -7039,6 +6207,12 @@ export default function Home() {
         );
         if (!request) return { ok: false, code: 'NOT_FOUND' };
         if (
+          input.deliverableRole !== 'rig-atlas' &&
+          input.deliverableRole !== 'assembled-reference'
+        )
+          return { ok: false, code: 'INVALID_DELIVERABLE_ROLE' };
+        const deliverableRole: DeliverableRole = input.deliverableRole;
+        if (
           !/^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(dataUrl) ||
           dataUrl.length > 5600000
         )
@@ -7081,6 +6255,7 @@ export default function Home() {
           reviewStatus: 'pending-review',
           transparencyStatus: payload.transparencyStatus,
           dimensions: { width: payload.width, height: payload.height },
+          pixelDiagnostics: payload.pixelDiagnostics,
           generationRequestId: request.id,
           variantOf:
             request.targetCharacterId && request.variantKind !== 'base'
@@ -7117,41 +6292,43 @@ export default function Home() {
               ? input.rigManifest
               : undefined;
         if (
+          providedPackage &&
+          (providedPackage as { version?: unknown }).version !== 3
+        )
+          return {
+            ok: false,
+            code: 'UNSUPPORTED_PACKAGE_VERSION',
+            supportedVersion: 3,
+          };
+        if (
           request.kind === 'rigged-character' &&
           frameLayout === 'parts-sheet'
         ) {
-          if (providedPackage) {
+          if (providedPackage && deliverableRole === 'rig-atlas') {
             const issues = assetPackageIssues(providedPackage, payload);
             asset.packageIssues = [
               ...(declaredDimensionsMismatch
                 ? ['Declared dimensions do not match decoded pixels.']
                 : []),
+              ...(payload.pixelDiagnostics.significantComponents !== 15
+                ? [
+                    `ALPHA_TOPOLOGY_MISMATCH: Decoded atlas has ${payload.pixelDiagnostics.significantComponents} significant alpha components; expected 15.`,
+                  ]
+                : []),
+              ...(payload.pixelDiagnostics.clippedPixels > 0
+                ? [
+                    `CLIPPED_PIXELS: Decoded atlas touches ${payload.pixelDiagnostics.clippedPixels} sampled edge pixels.`,
+                  ]
+                : []),
               ...issues,
             ];
             if (issues.length === 0) {
-              asset.assetPackage = providedPackage as StagehandAssetPackageV2;
+              asset.assetPackage = providedPackage as StagehandAssetPackageV3;
               asset.rigManifest = asset.assetPackage;
             }
-          } else {
-            const inferred = await inferRigManifest(asset);
-            inferred.sourceAsset = {
-              assetId: asset.id,
-              immutable: true,
-              provenance,
-            };
-            inferred.image = {
-              width: payload.width,
-              height: payload.height,
-              colorspace: 'sRGB',
-              alpha: 'straight',
-            };
-            asset.assetPackage = inferred;
-            asset.rigManifest = inferred;
+          } else if (deliverableRole === 'rig-atlas') {
             asset.packageIssues = [
-              ...(declaredDimensionsMismatch
-                ? ['Declared dimensions do not match decoded pixels.']
-                : []),
-              ...assetPackageIssues(inferred, payload),
+              'PACKAGE_REQUIRED: The rig atlas needs a verified StagehandAssetPackageV3; Stagehand does not invent segmentation or hidden pixels.',
             ];
           }
         } else if (declaredDimensionsMismatch) {
@@ -7165,7 +6342,14 @@ export default function Home() {
             const nextRequest = next.assetRequests.find(
               (item) => item.id === request.id,
             );
-            if (nextRequest) nextRequest.status = 'attached';
+            if (nextRequest) {
+              nextRequest.deliverables[deliverableRole] = asset.id;
+              nextRequest.status = nextRequest.requiredDeliverables.every(
+                (role) => Boolean(nextRequest.deliverables[role]),
+              )
+                ? 'attached'
+                : 'pending';
+            }
           },
           `Attach generated ${asset.label}`,
           true,
@@ -7175,6 +6359,10 @@ export default function Home() {
           revision: current.revision + 1,
           asset: { ...asset, dataUrl: undefined, hasPayload: true },
           reviewStatus: asset.reviewStatus,
+          deliverableRole,
+          remainingDeliverables: request.requiredDeliverables.filter(
+            (role) => role !== deliverableRole && !request.deliverables[role],
+          ),
           nextStep:
             'inspect_asset_candidate, then approve_asset and bind_character_asset',
         };
@@ -7643,10 +6831,22 @@ export default function Home() {
           : asset.frameLayout === 'parts-sheet'
             ? 'segmented'
             : 'rigid';
+        if (
+          method === 'segmented' &&
+          (!asset.assetPackage ||
+            assetPackageIssues(asset.assetPackage, asset.dimensions).length > 0)
+        )
+          return {
+            ok: false,
+            code:
+              asset.assetPackage?.version === 3
+                ? 'INVALID_ASSET_PACKAGE'
+                : 'UNSUPPORTED_PACKAGE_VERSION',
+            issues: assetPackageIssues(asset.assetPackage, asset.dimensions),
+          };
         const rigManifest =
           asset.assetPackage ??
-          asset.rigManifest ??
-          (await inferRigManifest(asset));
+          rigManifestForAsset(asset.id, asset.dimensions, asset.provenance);
         const analyzedAsset = {
           ...asset,
           rigManifest,
@@ -7769,6 +6969,260 @@ export default function Home() {
         };
       },
       true,
+    );
+    register(
+      'edit_skeleton',
+      'Edit skeleton',
+      'Edit joints, bones, binding mode, segmented regions, or replace a complete canonical mesh. Every edit returns the skeleton to review and invalidates prior QA.',
+      {
+        type: 'object',
+        required: ['skeletonId', 'operation'],
+        additionalProperties: false,
+        properties: {
+          skeletonId: { type: 'string' },
+          operation: {
+            type: 'string',
+            enum: [
+              'set_joint',
+              'add_joint',
+              'remove_joint',
+              'upsert_bone',
+              'remove_bone',
+              'set_binding_method',
+              'upsert_region',
+              'remove_region',
+              'replace_mesh',
+            ],
+          },
+          joint: { type: 'object' },
+          jointId: { type: 'string' },
+          bone: { type: 'object' },
+          boneId: { type: 'string' },
+          method: { type: 'string', enum: ['rigid', 'segmented', 'mesh'] },
+          region: { type: 'object' },
+          regionId: { type: 'string' },
+          mesh: meshBindingInputSchema,
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const skeletonId =
+          typeof input.skeletonId === 'string' ? input.skeletonId : '';
+        const source = current.skeletons.find((item) => item.id === skeletonId);
+        if (!source) return { ok: false, code: 'NOT_FOUND' };
+        const operation =
+          typeof input.operation === 'string' ? input.operation : '';
+        const candidate = copy(source);
+        const changedEntityIds: string[] = [];
+        let topologyChanged = false;
+        const invalid = (message: string) => ({
+          ok: false,
+          code: 'INVALID_SKELETON_EDIT',
+          message,
+        });
+        if (operation === 'set_joint' || operation === 'add_joint') {
+          const value = input.joint as Partial<SkeletonJoint> | undefined;
+          if (
+            !value ||
+            typeof value.id !== 'string' ||
+            !value.id ||
+            !Number.isFinite(value.x) ||
+            !Number.isFinite(value.y) ||
+            Number(value.x) < 0 ||
+            Number(value.x) > 100 ||
+            Number(value.y) < 0 ||
+            Number(value.y) > 100
+          )
+            return invalid(
+              'Joint needs a stable id and finite x/y in 0..100 local coordinates.',
+            );
+          const index = candidate.joints.findIndex(
+            (item) => item.id === value.id,
+          );
+          if (operation === 'add_joint' && index >= 0)
+            return invalid('Joint id already exists.');
+          if (operation === 'set_joint' && index < 0)
+            return invalid('Joint was not found.');
+          const nextJoint: SkeletonJoint = {
+            id: value.id,
+            parentId: value.parentId,
+            label:
+              typeof value.label === 'string' && value.label.trim()
+                ? value.label.trim()
+                : value.id,
+            x: Number(value.x),
+            y: Number(value.y),
+            radius: Number.isFinite(value.radius)
+              ? clamp(Number(value.radius), 1, 20)
+              : 4,
+            confidence: Number.isFinite(value.confidence)
+              ? clamp(Number(value.confidence), 0, 1)
+              : 1,
+            locked: value.locked === true,
+          };
+          if (index >= 0) candidate.joints[index] = nextJoint;
+          else candidate.joints.push(nextJoint);
+          changedEntityIds.push(value.id);
+          topologyChanged = true;
+        } else if (operation === 'remove_joint') {
+          const id = typeof input.jointId === 'string' ? input.jointId : '';
+          if (
+            !id ||
+            id === candidate.rootJointId ||
+            !candidate.joints.some((item) => item.id === id)
+          )
+            return invalid('A non-root joint id is required.');
+          if (
+            candidate.bones.some(
+              (bone) => bone.parentJointId === id || bone.childJointId === id,
+            )
+          )
+            return invalid(
+              'Remove connected bones before removing this joint.',
+            );
+          candidate.joints = candidate.joints.filter((item) => item.id !== id);
+          changedEntityIds.push(id);
+          topologyChanged = true;
+        } else if (operation === 'upsert_bone') {
+          const value = input.bone as Partial<SkeletonBone> | undefined;
+          if (
+            !value ||
+            typeof value.id !== 'string' ||
+            typeof value.parentJointId !== 'string' ||
+            typeof value.childJointId !== 'string' ||
+            value.parentJointId === value.childJointId
+          )
+            return invalid('Bone needs an id and two different joint ids.');
+          const jointIds = new Set(candidate.joints.map((joint) => joint.id));
+          if (
+            !jointIds.has(value.parentJointId) ||
+            !jointIds.has(value.childJointId)
+          )
+            return invalid('Bone references a missing joint.');
+          const parent = candidate.joints.find(
+            (joint) => joint.id === value.parentJointId,
+          )!;
+          const child = candidate.joints.find(
+            (joint) => joint.id === value.childJointId,
+          )!;
+          const nextBone: SkeletonBone = {
+            id: value.id,
+            parentJointId: value.parentJointId,
+            childJointId: value.childJointId,
+            length: Math.hypot(child.x - parent.x, child.y - parent.y),
+            angleMin: Number.isFinite(value.angleMin)
+              ? Number(value.angleMin)
+              : -180,
+            angleMax: Number.isFinite(value.angleMax)
+              ? Number(value.angleMax)
+              : 180,
+          };
+          if (nextBone.angleMin > nextBone.angleMax)
+            return invalid('Bone angleMin cannot exceed angleMax.');
+          const index = candidate.bones.findIndex(
+            (item) => item.id === nextBone.id,
+          );
+          if (index >= 0) candidate.bones[index] = nextBone;
+          else candidate.bones.push(nextBone);
+          changedEntityIds.push(nextBone.id);
+          topologyChanged = true;
+        } else if (operation === 'remove_bone') {
+          const id = typeof input.boneId === 'string' ? input.boneId : '';
+          if (!id || !candidate.bones.some((item) => item.id === id))
+            return invalid('Bone was not found.');
+          candidate.bones = candidate.bones.filter((item) => item.id !== id);
+          changedEntityIds.push(id);
+          topologyChanged = true;
+        } else if (operation === 'set_binding_method') {
+          if (!isBindingMethod(input.method))
+            return invalid('Binding method is invalid.');
+          candidate.binding.method = input.method;
+          changedEntityIds.push(`binding:${input.method}`);
+        } else if (operation === 'upsert_region') {
+          const region = input.region as
+            | NonNullable<SkeletonBinding['regions']>[number]
+            | undefined;
+          if (
+            !region ||
+            typeof region.id !== 'string' ||
+            !region.id ||
+            !Number.isFinite(region.x) ||
+            !Number.isFinite(region.y) ||
+            !Number.isFinite(region.width) ||
+            !Number.isFinite(region.height) ||
+            region.width <= 0 ||
+            region.height <= 0
+          )
+            return invalid('Region needs an id and finite positive bounds.');
+          candidate.binding.regions ??= [];
+          const index = candidate.binding.regions.findIndex(
+            (item) => item.id === region.id,
+          );
+          if (index >= 0) candidate.binding.regions[index] = copy(region);
+          else candidate.binding.regions.push(copy(region));
+          changedEntityIds.push(region.id);
+        } else if (operation === 'remove_region') {
+          const id = typeof input.regionId === 'string' ? input.regionId : '';
+          if (!id || !candidate.binding.regions?.some((item) => item.id === id))
+            return invalid('Region was not found.');
+          candidate.binding.regions = candidate.binding.regions.filter(
+            (item) => item.id !== id,
+          );
+          changedEntityIds.push(id);
+        } else if (operation === 'replace_mesh') {
+          const requested =
+            input.mesh && typeof input.mesh === 'object'
+              ? copy(input.mesh as MeshBindingV1)
+              : undefined;
+          const nextVersion = source.version + 1;
+          const meshIssues = validateMeshBinding(requested, {
+            assetId: source.assetId,
+            skeletonVersion: source.version,
+            boneIds: source.bones.map((bone) => bone.id),
+          });
+          if (meshIssues.length)
+            return {
+              ok: false,
+              code: 'INVALID_MESH_BINDING',
+              issues: meshIssues,
+            };
+          candidate.binding.mesh = {
+            ...requested!,
+            skeletonVersion: nextVersion,
+          };
+          candidate.binding.method = 'mesh';
+          candidate.meshStale = false;
+          changedEntityIds.push(requested!.id);
+        } else {
+          return invalid('Unknown skeleton edit operation.');
+        }
+        candidate.version = source.version + 1;
+        candidate.reviewStatus = 'pending-review';
+        candidate.qaInvalidatedAt = new Date().toISOString();
+        if (topologyChanged && candidate.binding.mesh)
+          candidate.meshStale = true;
+        commitRef.current(
+          (next) => {
+            const index = next.skeletons.findIndex(
+              (item) => item.id === skeletonId,
+            );
+            if (index >= 0) next.skeletons[index] = candidate;
+          },
+          `Edit ${source.label} · ${operation}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          skeletonRevision: candidate.version,
+          skeletonId,
+          operation,
+          changedEntityIds,
+          reviewStatus: candidate.reviewStatus,
+          qaInvalidated: true,
+          meshStale: candidate.meshStale === true,
+        };
+      },
     );
     register(
       'update_skeleton_joint',
@@ -7949,6 +7403,8 @@ export default function Home() {
             } as SkeletonBinding;
             target.reviewStatus = 'pending-review';
             target.version = nextSkeletonVersion;
+            target.meshStale = false;
+            target.qaInvalidatedAt = new Date().toISOString();
           },
           `Bind skeleton to ${asset.label}`,
           true,
@@ -10556,6 +10012,20 @@ export default function Home() {
       });
     }, `Apply ${pose} pose`);
   };
+  const setSelectedVariantHuman = (variantId: string) => {
+    const variant = project.assets.find((asset) => asset.id === variantId);
+    if (variantId && (!variant || variant.variantOf !== selected.assetId)) {
+      setNotice('Variant does not match the selected character topology');
+      return;
+    }
+    commit((next) => {
+      const character = next.characters.find((item) => item.id === selected.id);
+      if (character) character.variantId = variantId || undefined;
+      upsertCharacterKeyframe(next, selected.id, next.currentTime, {
+        variantId: variantId || undefined,
+      });
+    }, `Set ${selected.name} variant`);
+  };
   const createSkeletonForSelected = () => {
     if (!selected.assetId) {
       setNotice('Bind character art before proposing a skeleton');
@@ -10597,8 +10067,26 @@ export default function Home() {
       if (skeleton) {
         skeleton.version += 1;
         skeleton.reviewStatus = 'pending-review';
+        skeleton.qaInvalidatedAt = new Date().toISOString();
+        if (skeleton.binding.mesh) skeleton.meshStale = true;
       }
     }, `Move ${joint.label}`);
+  };
+  const moveSelectedSkeletonJoint = (jointId: string, x: number, y: number) => {
+    if (!selectedSkeleton || !Number.isFinite(x) || !Number.isFinite(y)) return;
+    commit((next) => {
+      const skeleton = next.skeletons.find(
+        (item) => item.id === selectedSkeleton.id,
+      );
+      const joint = skeleton?.joints.find((item) => item.id === jointId);
+      if (!skeleton || !joint) return;
+      joint.x = clamp(x, 0, 100);
+      joint.y = clamp(y, 0, 100);
+      skeleton.version += 1;
+      skeleton.reviewStatus = 'pending-review';
+      skeleton.qaInvalidatedAt = new Date().toISOString();
+      if (skeleton.binding.mesh) skeleton.meshStale = true;
+    }, `Move ${jointId}`);
   };
   const updateSelectedBindingRegion = (
     regionId: string,
@@ -10618,6 +10106,7 @@ export default function Home() {
       else if (Number.isFinite(Number(value))) region[key] = Number(value);
       skeleton.version += 1;
       skeleton.reviewStatus = 'pending-review';
+      skeleton.qaInvalidatedAt = new Date().toISOString();
     }, `Correct ${regionId} ${key}`);
   };
   const setSelectedBindingMethod = (method: BindingMethod) => {
@@ -10630,7 +10119,37 @@ export default function Home() {
       skeleton.binding.method = method;
       skeleton.version += 1;
       skeleton.reviewStatus = 'pending-review';
+      skeleton.qaInvalidatedAt = new Date().toISOString();
     }, `Set ${method} binding`);
+  };
+  const setBoneKeyframeHuman = (boneId: string, rotation: number) => {
+    if (!selectedSkeleton || !Number.isFinite(rotation)) return;
+    if (selectedSkeleton.reviewStatus !== 'approved') {
+      setNotice('Approve the skeleton before adding bone keyframes');
+      return;
+    }
+    commit((next) => {
+      upsertBoneKeyframeInProject(next, selectedSkeleton.id, next.currentTime, [
+        { boneId, rotation: clamp(rotation, -180, 180), x: 0, y: 0, scale: 1 },
+      ]);
+    }, `Keyframe ${boneId}`);
+  };
+  const deleteBoneKeyframeHuman = () => {
+    if (!selectedSkeleton) return;
+    const frame = project.boneKeyframes.find(
+      (item) =>
+        item.skeletonId === selectedSkeleton.id &&
+        Math.abs(item.time - project.currentTime) < 1,
+    );
+    if (!frame) {
+      setNotice('No bone keyframe at the playhead');
+      return;
+    }
+    commit((next) => {
+      next.boneKeyframes = next.boneKeyframes.filter(
+        (item) => item.id !== frame.id,
+      );
+    }, `Delete ${frame.id}`);
   };
   const runRigPreview = async () => {
     if (!selectedSkeleton) return null;
@@ -10694,6 +10213,37 @@ export default function Home() {
       },
       `${approved ? 'Approve' : 'Reject'} ${asset.label}`,
     );
+  };
+  const createAssetRequestHuman = () => {
+    const label = assetRequestLabel.trim();
+    if (!label) {
+      setNotice('Name the character request first');
+      return;
+    }
+    const motionProfile = defaultMotionProfile();
+    const topologyProfile = createHumanoidJointedTopology();
+    const checklist = assetChecklist('rigged-character', 'segmented');
+    const request: AssetGenerationRequest = {
+      id: nextAssetRequestId(project.assetRequests),
+      kind: 'rigged-character',
+      label,
+      targetCharacterId: selected.id,
+      bindingMethod: 'segmented',
+      variantKind: 'base',
+      prompt: `Create ${label} as a rig-ready overlapping puppet. Conceptually assemble the neutral character first, then derive a matching exploded atlas. Extend rounded hidden joint geometry 20–30% under every neighboring part; no clean cut endpoints.`,
+      checklist,
+      motionProfile,
+      topologyProfile,
+      requiredDeliverables: ['assembled-reference', 'rig-atlas'],
+      deliverables: {},
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    };
+    commit(
+      (next) => next.assetRequests.push(request),
+      `Request asset ${label}`,
+    );
+    setAssetRequestLabel('');
   };
   const updateCamera = (
     key: 'zoom' | 'panX' | 'panY' | 'rotation',
@@ -11286,28 +10836,13 @@ export default function Home() {
     setTopMenuOpen(false);
   };
   const startBlankProject = () => {
-    if (
-      !isBlankProject(project) &&
-      !window.confirm(
-        'Start a new blank project? Export first if you need a recoverable copy. This cannot be undone.',
-      )
-    )
-      return;
-    replaceProject(blankProject, 'new_blank_project()', 'Blank project ready');
-  };
-  const loadDemoProject = () => {
-    if (
-      !isBlankProject(project) &&
-      !window.confirm(
-        'Replace this browser project with the Late Plate demo? Export first if you need a recoverable copy. This cannot be undone.',
-      )
-    )
-      return;
-    replaceProject(
-      starterProject,
-      'load_demo_project()',
-      'Demo project loaded',
-    );
+    const next = copy(blankProject);
+    next.name = newProjectName.trim() || 'Untitled animation';
+    resizeProjectDuration(next, clamp(newProjectDuration, 500, 60000));
+    next.fps = newProjectFps === 12 ? 12 : 24;
+    next.renderWidth = newProjectPreset === '1080p' ? 1920 : 720;
+    next.renderHeight = newProjectPreset === '1080p' ? 1080 : 405;
+    replaceProject(next, 'create_project()', 'Blank project ready');
   };
   const addStoryboardBeat = () => {
     const startMs = Math.min(
@@ -11730,6 +11265,7 @@ export default function Home() {
           fallbackFrameCount: renderStats.fallbackFrameCount,
           renderIssueCount: renderStats.renderIssueCount,
           sampleFrameHashes,
+          attachmentDiagnostics: attachmentDiagnostics(currentProject),
         });
       };
       updateProjectView((current) => ({ ...current, currentTime: 0 }));
@@ -11882,20 +11418,13 @@ export default function Home() {
           label: 'Camera keyframe',
         })),
       },
-      {
-        name: 'Alice',
-        color: 'coral',
-        range: rangeForCharacter('alice'),
-        events: characterEvents('alice'),
-        marks: marksForCharacter('alice'),
-      },
-      {
-        name: 'Bob',
-        color: 'teal',
-        range: rangeForCharacter('bob'),
-        events: characterEvents('bob'),
-        marks: marksForCharacter('bob'),
-      },
+      ...project.characters.map((character, index) => ({
+        name: character.name,
+        color: index % 2 === 0 ? 'coral' : 'teal',
+        range: rangeForCharacter(character.id),
+        events: characterEvents(character.id),
+        marks: marksForCharacter(character.id),
+      })),
       {
         name: 'Props',
         color: 'violet',
@@ -12012,6 +11541,7 @@ export default function Home() {
     (frame) => frame.characterId === selected.id,
   ).length;
   const cameraKeyframeCount = project.cameraKeyframes.length;
+  const projectHealthIssues = validateProjectState(project);
   return (
     <main
       className={`studio-shell ${viewMode === 'preview' ? 'preview-shell' : ''}`}
@@ -12061,6 +11591,17 @@ export default function Home() {
           )}
         </div>
         <div className="top-actions">
+          <button
+            className={`agent-live-button ${agentActivity.some((item) => item.status === 'running') ? 'running' : ''}`}
+            type="button"
+            aria-expanded={agentDrawerOpen}
+            aria-controls="agent-live-drawer"
+            onClick={() => setAgentDrawerOpen((value) => !value)}
+          >
+            <span className="agent-live-pulse" />
+            Agent Live
+            <b>{agentActivity.length}</b>
+          </button>
           <div className={`save-state ${saved ? '' : 'unsaved'}`}>
             <span className="status-dot" />
             {saveError
@@ -12148,16 +11689,12 @@ export default function Home() {
                   <button
                     type="button"
                     role="menuitem"
-                    onClick={startBlankProject}
+                    onClick={() => {
+                      setTopMenuOpen(false);
+                      setDialog('new-project');
+                    }}
                   >
                     <RotateCcw size={14} /> New blank project
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={loadDemoProject}
-                  >
-                    <Clapperboard size={14} /> Load demo project
                   </button>
                 </>
               )}
@@ -12278,6 +11815,57 @@ export default function Home() {
           </div>
           {panel === 'scenes' && (
             <div className="rail-content">
+              <details className="project-health" open>
+                <summary>
+                  Project Health{' '}
+                  <b>
+                    {
+                      projectHealthIssues.filter(
+                        (issue) => issue.severity === 'error',
+                      ).length
+                    }{' '}
+                    errors
+                  </b>
+                </summary>
+                <div
+                  className={
+                    projectHealthIssues.some(
+                      (issue) => issue.severity === 'error',
+                    )
+                      ? 'health-failed'
+                      : 'health-passed'
+                  }
+                >
+                  <strong>
+                    {projectHealthIssues.length
+                      ? 'Validation needs attention'
+                      : 'Project structure is valid'}
+                  </strong>
+                  <small>
+                    rev {project.revision} · {project.scenes.length} scene ·{' '}
+                    {project.assets.length} assets · {project.skeletons.length}{' '}
+                    rigs
+                  </small>
+                </div>
+                {projectHealthIssues.slice(0, 4).map((issue) => (
+                  <p key={`${issue.code}-${issue.path}`}>
+                    <b>{issue.code}</b>
+                    {issue.message}
+                  </p>
+                ))}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setNotice(
+                      projectHealthIssues.length
+                        ? `${projectHealthIssues.length} project issue${projectHealthIssues.length === 1 ? '' : 's'} found`
+                        : 'Project validation passed',
+                    )
+                  }
+                >
+                  Validate project
+                </button>
+              </details>
               <div className="section-label">
                 <span>
                   SCENES <b>{project.scenes.length}</b>
@@ -12574,6 +12162,52 @@ export default function Home() {
               <small className="panel-hint asset-hint">
                 Audio library: bundled CC0 sounds plus your imported files.
               </small>
+              <details className="asset-request-composer" open>
+                <summary>
+                  Rig-ready asset request <b>{project.assetRequests.length}</b>
+                </summary>
+                <label>
+                  Character name
+                  <input
+                    value={assetRequestLabel}
+                    placeholder="e.g. Courier rabbit"
+                    onChange={(event) =>
+                      setAssetRequestLabel(event.target.value)
+                    }
+                  />
+                </label>
+                <div className="request-profile-summary">
+                  <strong>Jointed cutout · 15 parts</strong>
+                  <span>
+                    Assembled neutral reference + matching exploded rig atlas
+                  </span>
+                  <small>
+                    Shoulder, elbow, wrist, hip, knee, ankle · 20–30% hidden
+                    overlap
+                  </small>
+                </div>
+                <button type="button" onClick={createAssetRequestHuman}>
+                  Create request
+                </button>
+                {project.assetRequests.map((request) => (
+                  <div className="asset-request-row" key={request.id}>
+                    <span>
+                      <strong>{request.label}</strong>
+                      <small>
+                        {request.status} ·{' '}
+                        {request.requiredDeliverables
+                          .map((role) =>
+                            request.deliverables[role]
+                              ? `✓ ${role}`
+                              : `○ ${role}`,
+                          )
+                          .join(' · ')}
+                      </small>
+                    </span>
+                    <em>{request.topologyProfile.id}</em>
+                  </div>
+                ))}
+              </details>
               <div className="asset-list">
                 {project.assets.map((asset) => {
                   const assetStyle =
@@ -13188,6 +12822,7 @@ export default function Home() {
                         selectedId: id,
                       }))
                     }
+                    onJointMove={moveSelectedSkeletonJoint}
                   />
                   {blankProjectActive && viewMode !== 'preview' && (
                     <div className="canvas-empty-state">
@@ -13208,9 +12843,6 @@ export default function Home() {
                           }}
                         >
                           Open assets
-                        </button>
-                        <button type="button" onClick={loadDemoProject}>
-                          Load demo
                         </button>
                       </div>
                     </div>
@@ -13992,6 +13624,24 @@ export default function Home() {
                 </button>
               ))}
             </div>
+            <label className="character-variant-picker">
+              <span>CHARACTER VARIANT</span>
+              <select
+                value={selected.variantId ?? ''}
+                onChange={(event) =>
+                  setSelectedVariantHuman(event.target.value)
+                }
+              >
+                <option value="">Base artwork</option>
+                {project.assets
+                  .filter((asset) => asset.variantOf === selected.assetId)
+                  .map((asset) => (
+                    <option key={asset.id} value={asset.id}>
+                      {asset.label}
+                    </option>
+                  ))}
+              </select>
+            </label>
             <div className="pose-label motion-clip-label">MOTION CLIPS</div>
             <div className="motion-clip-grid">
               {project.motionClips
@@ -14026,6 +13676,26 @@ export default function Home() {
             </summary>
             {selectedSkeleton ? (
               <>
+                <div
+                  className="rig-workspace-tabs"
+                  role="tablist"
+                  aria-label="Rig workspace"
+                >
+                  {(['setup', 'binding', 'animate', 'qa'] as const).map(
+                    (tab) => (
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={rigWorkspaceTab === tab}
+                        className={rigWorkspaceTab === tab ? 'active' : ''}
+                        key={tab}
+                        onClick={() => setRigWorkspaceTab(tab)}
+                      >
+                        {tab[0].toUpperCase() + tab.slice(1)}
+                      </button>
+                    ),
+                  )}
+                </div>
                 <div className="skeleton-status-row">
                   <label>
                     Binding
@@ -14046,6 +13716,97 @@ export default function Home() {
                   <span>{selectedSkeleton.joints.length} joints</span>
                   <span>{selectedSkeleton.bones.length} bones</span>
                 </div>
+                {rigWorkspaceTab === 'setup' && (
+                  <div className="rig-workspace-note">
+                    <strong>Setup</strong>
+                    <span>
+                      Drag guides on stage or edit joint coordinates and bone
+                      limits numerically. Every structural edit returns the rig
+                      to review.
+                    </span>
+                  </div>
+                )}
+                {rigWorkspaceTab === 'binding' && (
+                  <div className="rig-workspace-note">
+                    <strong>Binding</strong>
+                    <span>
+                      Assign segmented attachment zones or inspect mesh
+                      vertices, triangles, and influences. Changes are staged
+                      until Apply.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setNotice(
+                          'Binding changes applied; rendered QA is now required',
+                        )
+                      }
+                    >
+                      Apply binding
+                    </button>
+                  </div>
+                )}
+                {rigWorkspaceTab === 'animate' && (
+                  <div className="bone-keyframe-editor">
+                    <label>
+                      Bone
+                      <select
+                        value={
+                          selectedBoneId || selectedSkeleton.bones[0]?.id || ''
+                        }
+                        onChange={(event) =>
+                          setSelectedBoneId(event.target.value)
+                        }
+                      >
+                        {selectedSkeleton.bones.map((bone) => (
+                          <option key={bone.id} value={bone.id}>
+                            {bone.id.replace('bone-', '')}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Rotation
+                      <input
+                        type="number"
+                        min="-180"
+                        max="180"
+                        defaultValue="0"
+                        aria-label="Selected bone rotation"
+                        onBlur={(event) =>
+                          setBoneKeyframeHuman(
+                            selectedBoneId ||
+                              selectedSkeleton.bones[0]?.id ||
+                              '',
+                            Number(event.target.value),
+                          )
+                        }
+                      />
+                      <b>°</b>
+                    </label>
+                    <button type="button" onClick={deleteBoneKeyframeHuman}>
+                      Delete keyframe
+                    </button>
+                    <small>
+                      {
+                        project.boneKeyframes.filter(
+                          (frame) => frame.skeletonId === selectedSkeleton.id,
+                        ).length
+                      }{' '}
+                      bone keyframes · {timecode(project.currentTime)}
+                    </small>
+                  </div>
+                )}
+                {rigWorkspaceTab === 'qa' && (
+                  <div className="rig-workspace-note">
+                    <strong>QA</strong>
+                    <span>
+                      Compare assembled reference, isolated parts, overlap
+                      masks, approved stress angles, and renderer diagnostics
+                      before approval.
+                    </span>
+                  </div>
+                )}
                 {(() => {
                   const manifest = project.assets.find(
                     (asset) => asset.id === selectedSkeleton.assetId,
@@ -14548,7 +14309,11 @@ export default function Home() {
               <div>
                 <span className="eyebrow">STAGEHAND</span>
                 <h2 id="studio-dialog-title">
-                  {dialog === 'help' ? 'Help & shortcuts' : 'Studio settings'}
+                  {dialog === 'help'
+                    ? 'Help & shortcuts'
+                    : dialog === 'new-project'
+                      ? 'New blank project'
+                      : 'Studio settings'}
                 </h2>
               </div>
               <button
@@ -14599,6 +14364,71 @@ export default function Home() {
                   </div>
                 </dl>
               </div>
+            ) : dialog === 'new-project' ? (
+              <div className="dialog-copy">
+                <p>
+                  Start from an empty scene with two unbound actor slots and the
+                  bundled CC0 audio library.
+                </p>
+                <div className="setting-line">
+                  <span>Project name</span>
+                  <input
+                    aria-label="New project name"
+                    value={newProjectName}
+                    maxLength={80}
+                    onChange={(event) => setNewProjectName(event.target.value)}
+                  />
+                </div>
+                <div className="setting-line">
+                  <span>Duration</span>
+                  <input
+                    aria-label="New project duration milliseconds"
+                    type="number"
+                    min="500"
+                    max="60000"
+                    step="500"
+                    value={newProjectDuration}
+                    onChange={(event) =>
+                      setNewProjectDuration(Number(event.target.value))
+                    }
+                  />
+                </div>
+                <div className="setting-line">
+                  <span>Frame rate</span>
+                  <select
+                    aria-label="New project frame rate"
+                    value={newProjectFps}
+                    onChange={(event) =>
+                      setNewProjectFps(Number(event.target.value))
+                    }
+                  >
+                    <option value="12">12 fps</option>
+                    <option value="24">24 fps</option>
+                  </select>
+                </div>
+                <div className="setting-line">
+                  <span>Render size</span>
+                  <select
+                    aria-label="New project render size"
+                    value={newProjectPreset}
+                    onChange={(event) =>
+                      setNewProjectPreset(
+                        event.target.value as '720p' | '1080p',
+                      )
+                    }
+                  >
+                    <option value="720p">720p · 720×405</option>
+                    <option value="1080p">1080p · 1920×1080</option>
+                  </select>
+                </div>
+                <button
+                  className="render-button"
+                  type="button"
+                  onClick={startBlankProject}
+                >
+                  Create blank project
+                </button>
+              </div>
             ) : (
               <div className="dialog-copy">
                 <p>Project data stays in this browser until you export it.</p>
@@ -14638,6 +14468,112 @@ export default function Home() {
             )}
           </dialog>
         </div>
+      )}
+      {agentDrawerOpen && (
+        <aside
+          id="agent-live-drawer"
+          className="agent-live-drawer"
+          aria-label="Agent Live command history"
+        >
+          <header>
+            <span>
+              <strong>Agent Live</strong>
+              <small>40 WebMCP tools · visible editor routes</small>
+            </span>
+            <button
+              type="button"
+              aria-label="Close Agent Live"
+              onClick={() => setAgentDrawerOpen(false)}
+            >
+              ×
+            </button>
+          </header>
+          <section className="agent-activity-list" aria-label="Command history">
+            {agentActivity.length === 0 ? (
+              <p className="agent-empty">
+                WebMCP commands will appear here with revision, status, and
+                affected objects.
+              </p>
+            ) : (
+              agentActivity.map((item) => (
+                <button
+                  type="button"
+                  aria-label={`Open ${item.tool} command details`}
+                  key={item.id}
+                  className={`agent-activity agent-${item.status}`}
+                  onClick={() => {
+                    const contract = TOOL_UI_CONTRACTS[item.tool];
+                    setAgentFocusMarker(contract.marker);
+                    if (
+                      contract.route === 'assets' ||
+                      contract.route === 'audio'
+                    )
+                      setPanel('assets');
+                    if (contract.route === 'project') setPanel('scenes');
+                    if (
+                      contract.route === 'timeline' ||
+                      contract.route === 'rig'
+                    )
+                      setViewMode('animate');
+                  }}
+                >
+                  <span className="agent-status-dot" />
+                  <span>
+                    <strong>{item.tool}</strong>
+                    <small>
+                      {item.status} · rev {item.revision}
+                      {item.affected.length
+                        ? ` · ${item.affected.join(', ')}`
+                        : ''}
+                    </small>
+                  </span>
+                </button>
+              ))
+            )}
+          </section>
+          <details className="tool-parity-map">
+            <summary>
+              Tool → UI map <b>{PUBLIC_WEBMCP_TOOL_NAMES.length}/40</b>
+            </summary>
+            <div>
+              {PUBLIC_WEBMCP_TOOL_NAMES.map((name) => {
+                const contract = TOOL_UI_CONTRACTS[name];
+                return (
+                  <button
+                    id={contract.marker}
+                    data-tool-ui={name}
+                    className={
+                      agentFocusMarker === contract.marker ? 'agent-focus' : ''
+                    }
+                    type="button"
+                    key={name}
+                    onClick={() => {
+                      if (
+                        contract.route === 'assets' ||
+                        contract.route === 'audio'
+                      )
+                        setPanel('assets');
+                      if (contract.route === 'project') setPanel('scenes');
+                      if (
+                        contract.route === 'timeline' ||
+                        contract.route === 'rig'
+                      )
+                        setViewMode('animate');
+                    }}
+                  >
+                    <span>
+                      <strong>{name}</strong>
+                      <small>{contract.focus}</small>
+                    </span>
+                    <em>
+                      {contract.route} · {contract.mode}
+                    </em>
+                  </button>
+                );
+              })}
+            </div>
+          </details>
+        </aside>
       )}
       {notice && (
         <output className="toast" aria-live="polite">
