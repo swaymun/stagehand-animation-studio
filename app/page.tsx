@@ -1480,6 +1480,92 @@ const starterProject: Project = {
   templateId: 'first-meeting',
 };
 
+const blankCharacters: Character[] = [
+  {
+    id: 'actor-a',
+    name: 'Actor A',
+    color: '#e56b52',
+    x: 38,
+    y: 62,
+    rotation: 0,
+    pose: 'idle',
+  },
+  {
+    id: 'actor-b',
+    name: 'Actor B',
+    color: '#32748f',
+    x: 66,
+    y: 62,
+    rotation: 0,
+    pose: 'idle',
+  },
+];
+const blankScenes: SceneMeta[] = [
+  {
+    id: 'scene-01',
+    title: 'Blank scene',
+    description: 'An empty stage ready for blocking.',
+    duration: 10000,
+    characters: blankCharacters.map((character) => ({ ...character })),
+    keyframes: [],
+    propKeyframes: [],
+    cameraKeyframes: [],
+    captions: [],
+    audioCues: [],
+    boneKeyframes: [],
+    lockedTrackIds: [],
+  },
+];
+const blankProject: Project = {
+  name: 'Untitled animation',
+  revision: 1,
+  duration: 10000,
+  currentTime: 0,
+  fps: 24,
+  renderWidth: 1920,
+  renderHeight: 1080,
+  selectedId: 'actor-a',
+  lockedTrackIds: [],
+  dirty: false,
+  characters: blankCharacters.map((character) => ({ ...character })),
+  keyframes: [],
+  propKeyframes: [],
+  cameraKeyframes: [],
+  captions: [],
+  audioCues: [],
+  assets: starterAssets.filter((asset) => asset.kind === 'audio'),
+  assetRequests: [],
+  skeletons: [],
+  boneKeyframes: [],
+  motionClips: starterMotionClips,
+  storyboardBeats: [],
+  styleBible: {
+    construction: 'not set',
+    motion: 'not set',
+    camera: 'not set',
+    palette: [],
+    notes: 'Define the visual direction before generating assets.',
+  },
+  scenes: blankScenes,
+  activeSceneId: 'scene-01',
+};
+
+function isBlankProject(project: Project) {
+  return (
+    project.characters.every((character) => !character.assetId) &&
+    project.assets.every((asset) => asset.kind === 'audio') &&
+    project.assetRequests.length === 0 &&
+    project.skeletons.length === 0 &&
+    project.keyframes.length === 0 &&
+    project.propKeyframes.length === 0 &&
+    project.cameraKeyframes.length === 0 &&
+    project.captions.length === 0 &&
+    project.audioCues.length === 0 &&
+    project.boneKeyframes.length === 0 &&
+    project.storyboardBeats.length === 0
+  );
+}
+
 function makeTemplateScene(templateId: TemplateId, id: string): SceneMeta {
   const base = copy(starterProject);
   const variants: Record<
@@ -3673,7 +3759,7 @@ function syncActiveScene(project: Project) {
 }
 
 const hydrateProject = (value: Partial<Project>): Project => {
-  const base = copy(starterProject);
+  const base = copy(blankProject);
   const fallbackCharacters =
     Array.isArray(value.characters) && value.characters.length > 0
       ? value.characters
@@ -5048,19 +5134,22 @@ function drawRenderFrame(
     width,
     height,
   );
-  const backgroundImage = project.assets.find(
-    (asset) => asset.kind === 'background' && asset.dataUrl,
+  const backgroundAsset = project.assets.find(
+    (asset) => asset.kind === 'background',
   );
-  drawDinerBackground(
-    ctx,
-    width,
-    height,
-    backgroundImage ? imageMap?.get(backgroundImage.id) : undefined,
-    backgroundImage,
-  );
+  if (backgroundAsset) {
+    drawDinerBackground(
+      ctx,
+      width,
+      height,
+      backgroundAsset.dataUrl ? imageMap?.get(backgroundAsset.id) : undefined,
+      backgroundAsset,
+    );
+  }
   evaluateCharacters(project, project.currentTime).forEach((character) => {
-    const skeleton = characterSkeletonFor(project, character);
     const asset = characterAssetFor(project, character);
+    if (!asset) return;
+    const skeleton = characterSkeletonFor(project, character);
     const diagnostics = drawCharacter(
       ctx,
       character,
@@ -5353,7 +5442,9 @@ function StageCanvas({
     <canvas
       ref={ref}
       className="stage-canvas"
-      aria-label="Diner scene canvas"
+      aria-label={
+        isBlankProject(project) ? 'Blank scene canvas' : 'Scene canvas'
+      }
       onClick={(e) => {
         if (interactionMode === 'pan' || interactionMode === 'preview') return;
         const rect = e.currentTarget.getBoundingClientRect();
@@ -5420,7 +5511,7 @@ function handleTabListKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
 }
 
 export default function Home() {
-  const [project, setProject] = useState<Project>(starterProject),
+  const [project, setProject] = useState<Project>(blankProject),
     [, setHistory] = useState<Project[]>([]),
     [, setFuture] = useState<Project[]>([]),
     [playing, setPlaying] = useState(false),
@@ -5438,7 +5529,7 @@ export default function Home() {
     [notice, setNotice] = useState(''),
     [saved, setSaved] = useState(true),
     [editingProjectName, setEditingProjectName] = useState(false),
-    [projectNameDraft, setProjectNameDraft] = useState(starterProject.name),
+    [projectNameDraft, setProjectNameDraft] = useState(blankProject.name),
     [editingBeatId, setEditingBeatId] = useState<string | null>(null),
     [beatTitleDraft, setBeatTitleDraft] = useState(''),
     [beatDescriptionDraft, setBeatDescriptionDraft] = useState(''),
@@ -11223,27 +11314,69 @@ export default function Home() {
       .play()
       .catch(() => setNotice('Audio preview was blocked by the browser'));
   };
-  const resetStarterProject = () => {
-    if (
-      !window.confirm(
-        'Reset this browser project to the starter? Export first if you need a recoverable copy. This cannot be undone.',
-      )
-    )
-      return;
-    const starter = copy(starterProject);
-    projectRef.current = starter;
+  const replaceProject = (
+    template: Project,
+    command: string,
+    message: string,
+  ) => {
+    const nextProject = copy(template);
+    projectRef.current = nextProject;
     commandResultsRef.current.clear();
     historyRef.current = [];
     futureRef.current = [];
     setHistory([]);
     setFuture([]);
-    setProject(starter);
+    setProject(nextProject);
+    setProjectNameDraft(nextProject.name);
+    setPlaying(false);
+    setViewMode('animate');
+    setPanel('scenes');
+    setDialog(null);
     setSaved(true);
-    setLastCommand('reset_to_starter()');
-    setNotice('Starter restored');
+    setLastCommand(command);
+    setNotice(message);
     setTopMenuOpen(false);
   };
+  const startBlankProject = () => {
+    if (
+      !isBlankProject(project) &&
+      !window.confirm(
+        'Start a new blank project? Export first if you need a recoverable copy. This cannot be undone.',
+      )
+    )
+      return;
+    replaceProject(blankProject, 'new_blank_project()', 'Blank project ready');
+  };
+  const loadDemoProject = () => {
+    if (
+      !isBlankProject(project) &&
+      !window.confirm(
+        'Replace this browser project with the Late Plate demo? Export first if you need a recoverable copy. This cannot be undone.',
+      )
+    )
+      return;
+    replaceProject(
+      starterProject,
+      'load_demo_project()',
+      'Demo project loaded',
+    );
+  };
   const applyTemplate = (template: (typeof starterTemplates)[number]) => {
+    if (isBlankProject(project)) {
+      const scene = makeTemplateScene(template.id, 'scene-01');
+      const templatedProject = copy(starterProject);
+      templatedProject.revision = 1;
+      templatedProject.currentTime = 0;
+      templatedProject.scenes = [scene];
+      templatedProject.activeSceneId = scene.id;
+      loadSceneContent(templatedProject, scene.id);
+      replaceProject(
+        templatedProject,
+        `apply_template(${template.id})`,
+        `${scene.title} ready`,
+      );
+      return;
+    }
     const scene = makeTemplateScene(template.id, nextSceneId(project.scenes));
     commit((next) => {
       next.scenes.push(scene);
@@ -11949,7 +12082,8 @@ export default function Home() {
     0,
     project.scenes.findIndex((scene) => scene.id === project.activeSceneId),
   );
-  const activeScene = project.scenes[activeSceneIndex] ?? starterScenes[0];
+  const activeScene = project.scenes[activeSceneIndex] ?? blankScenes[0];
+  const blankProjectActive = isBlankProject(project);
   const selectedKeyframeCount = project.keyframes.filter(
     (frame) => frame.characterId === selected.id,
   ).length;
@@ -12100,9 +12234,16 @@ export default function Home() {
                   <button
                     type="button"
                     role="menuitem"
-                    onClick={resetStarterProject}
+                    onClick={startBlankProject}
                   >
-                    <RotateCcw size={14} /> Reset starter
+                    <RotateCcw size={14} /> New blank project
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={loadDemoProject}
+                  >
+                    <Clapperboard size={14} /> Load demo project
                   </button>
                 </>
               )}
@@ -13134,6 +13275,32 @@ export default function Home() {
                       }))
                     }
                   />
+                  {blankProjectActive && viewMode !== 'preview' && (
+                    <div className="canvas-empty-state">
+                      <span className="canvas-empty-icon" aria-hidden="true">
+                        <SquareDashedMousePointer size={20} />
+                      </span>
+                      <strong>Blank scene</strong>
+                      <p>
+                        Build with WebMCP or add artwork to either open actor
+                        slot.
+                      </p>
+                      <div className="canvas-empty-actions">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPanel('assets');
+                            setMobileDrawer('rail');
+                          }}
+                        >
+                          Open assets
+                        </button>
+                        <button type="button" onClick={loadDemoProject}>
+                          Load demo
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   {activeCaption && (
                     <div className="canvas-caption">
                       <span>{activeCaption.speaker}</span>
@@ -14560,8 +14727,21 @@ export default function Home() {
               </div>
             ) : (
               <div className="dialog-copy">
-                <p>Start a new scene from a focused story beat.</p>
+                <p>Begin empty or add a focused story beat to this project.</p>
                 <div className="template-dialog-grid">
+                  <button
+                    className="blank-template-card"
+                    type="button"
+                    onClick={startBlankProject}
+                  >
+                    <span>
+                      <strong>Blank project</strong>
+                      <small>
+                        One empty scene with two open actor slots and no cues.
+                      </small>
+                    </span>
+                    <em>blank</em>
+                  </button>
                   {starterTemplates.map((template) => (
                     <button
                       type="button"

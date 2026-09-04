@@ -262,6 +262,70 @@ if (
 ) {
   throw new Error(`editor chrome regression: ${JSON.stringify(uiChrome)}`);
 }
+const freshBlank = await page.evaluate(async () => ({
+  project: await window.__stagehandTools.get('inspect_project').execute({}),
+  audio: await window.__stagehandTools.get('list_asset_audio').execute({}),
+}));
+const blankCanvasState = {
+  label: await page.locator('.stage-canvas').getAttribute('aria-label'),
+  emptyState: await page
+    .locator('.canvas-empty-state')
+    .getByText('Blank scene', { exact: true })
+    .count(),
+  loadDemoAction: await page
+    .getByRole('button', { name: 'Load demo', exact: true })
+    .count(),
+};
+if (
+  !freshBlank.project.ok ||
+  freshBlank.project.name !== 'Untitled animation' ||
+  freshBlank.project.sceneCount !== 1 ||
+  freshBlank.project.characterCount !== 2 ||
+  freshBlank.project.keyframeCount !== 0 ||
+  freshBlank.project.cameraKeyframeCount !== 0 ||
+  freshBlank.project.captionCount !== 0 ||
+  freshBlank.project.audioCueCount !== 0 ||
+  freshBlank.project.assetCount !== 4 ||
+  freshBlank.project.skeletonCount !== 0 ||
+  freshBlank.project.storyboardBeatCount !== 0 ||
+  freshBlank.audio.assets?.length !== 4 ||
+  blankCanvasState.label !== 'Blank scene canvas' ||
+  blankCanvasState.emptyState !== 1 ||
+  blankCanvasState.loadDemoAction !== 1
+) {
+  throw new Error(
+    `fresh projects should open on the blank template: ${JSON.stringify({ freshBlank, blankCanvasState })}`,
+  );
+}
+await page.getByRole('button', { name: 'More actions', exact: true }).click();
+await page.getByRole('menuitem', { name: 'Templates', exact: true }).click();
+const templateDialog = page.locator('dialog[aria-modal="true"]');
+await templateDialog.waitFor({ state: 'visible', timeout: 5000 });
+const blankTemplateCount = await templateDialog
+  .getByRole('button', { name: /Blank project/ })
+  .count();
+if (blankTemplateCount !== 1) {
+  throw new Error('templates should expose one explicit blank project choice');
+}
+await templateDialog.getByRole('button', { name: 'Close dialog' }).click();
+await page.getByRole('button', { name: 'More actions', exact: true }).click();
+await page
+  .getByRole('menuitem', { name: 'Load demo project', exact: true })
+  .click();
+await page.waitForTimeout(100);
+const loadedDemo = await page.evaluate(() =>
+  window.__stagehandTools.get('inspect_project').execute({}),
+);
+if (
+  !loadedDemo.ok ||
+  loadedDemo.name !== 'Paper Cutout Comedy' ||
+  loadedDemo.keyframeCount < 1 ||
+  loadedDemo.skeletonCount !== 2
+) {
+  throw new Error(
+    `demo project should remain loadable: ${JSON.stringify(loadedDemo)}`,
+  );
+}
 const sceneTitleLines = await page
   .locator('.scene-meta strong')
   .first()
@@ -1254,8 +1318,11 @@ const preview = {
     .getByRole('tab', { name: 'Assets', exact: true })
     .count(),
   addScene: await page.getByRole('button', { name: /Add scene/ }).count(),
-  resetStarter: await page
-    .getByRole('menuitem', { name: /Reset starter/ })
+  newBlankProject: await page
+    .getByRole('menuitem', { name: /New blank project/ })
+    .count(),
+  loadDemoProject: await page
+    .getByRole('menuitem', { name: /Load demo project/ })
     .count(),
 };
 const summary = await page.evaluate(() =>
@@ -1677,7 +1744,8 @@ if (
   preview.boardTab !== 0 ||
   preview.assetsTab !== 0 ||
   preview.addScene !== 0 ||
-  preview.resetStarter !== 0 ||
+  preview.newBlankProject !== 0 ||
+  preview.loadDemoProject !== 0 ||
   result.emptyStatePersistence.persistedBeats !== 0 ||
   result.emptyStatePersistence.persistedCues !== 0 ||
   result.emptyStatePersistence.persistedAssets !== 0 ||

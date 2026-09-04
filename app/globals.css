@@ -1568,6 +1568,71 @@ button {
   display: block;
   cursor: crosshair;
 }
+.canvas-empty-state {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: min(330px, calc(100% - 40px));
+  justify-items: center;
+  padding: 18px 20px 20px;
+  border: 1px solid #cdbca6;
+  border-radius: 12px;
+  color: var(--ink);
+  background: #fffaf2;
+  text-align: center;
+  transform: translate(-50%, -50%);
+}
+.canvas-empty-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 9px;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--blue);
+  background: #e7f0ee;
+}
+.canvas-empty-state strong {
+  font-size: 17px;
+  letter-spacing: -0.02em;
+}
+.canvas-empty-state p {
+  max-width: 31ch;
+  margin: 6px 0 14px;
+  color: #685f57;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.canvas-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 7px;
+}
+.canvas-empty-actions button {
+  min-height: 30px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 800;
+}
+.canvas-empty-actions button:first-child {
+  border-color: var(--ink);
+  color: #fffaf2;
+  background: var(--ink);
+}
+.canvas-empty-actions button:hover,
+.canvas-empty-actions button:focus-visible {
+  border-color: var(--blue);
+  color: var(--blue);
+  background: #e7f0ee;
+  outline: none;
+}
 .canvas-caption {
   position: absolute;
   left: 50%;
@@ -3028,6 +3093,53 @@ button {
 }
 .dialog-copy p {
   margin: 0 0 14px;
+}
+.template-dialog-grid {
+  display: grid;
+  gap: 7px;
+}
+.template-dialog-grid button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink);
+  background: #fffaf2;
+  text-align: left;
+}
+.template-dialog-grid button:hover,
+.template-dialog-grid button:focus-visible {
+  border-color: var(--coral);
+  background: #fff6eb;
+  outline: none;
+}
+.template-dialog-grid button > span {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+}
+.template-dialog-grid strong {
+  font-size: 12px;
+}
+.template-dialog-grid small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+.template-dialog-grid em {
+  flex: 0 0 auto;
+  color: var(--violet);
+  font:
+    8px ui-monospace,
+    monospace;
+  text-transform: uppercase;
+}
+.template-dialog-grid .blank-template-card {
+  border-color: var(--blue);
+  background: #e7f0ee;
 }
 .dialog-copy dl,
 .setting-line {
