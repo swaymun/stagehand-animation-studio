@@ -1,0 +1,27 @@
+{
+  "case": "bad-mesh-index",
+  "mesh": {
+    "vertices": [
+      {
+        "id": "a",
+        "x": 0.1,
+        "y": 0.4,
+        "influences": [{ "boneId": "upper", "weight": 1 }]
+      },
+      {
+        "id": "b",
+        "x": 0.5,
+        "y": 0.4,
+        "influences": [{ "boneId": "upper", "weight": 1 }]
+      },
+      {
+        "id": "c",
+        "x": 0.5,
+        "y": 0.6,
+        "influences": [{ "boneId": "lower", "weight": 1 }]
+      }
+    ],
+    "triangles": [[0, 1, 9]]
+  },
+  "expected": ["MESH_TRIANGLE_INDEX"]
+}

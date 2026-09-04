@@ -45,6 +45,19 @@ import {
   X,
   ZoomIn,
 } from 'lucide-react';
+import {
+  adaptLegacyMesh,
+  affineFromTriangles,
+  buildBoneMatrices,
+  evaluateMeshVertices,
+  expandTriangle,
+  measureMesh,
+  validateMeshBinding,
+  type MeshBindingV1,
+  type MeshIssue,
+  type MeshMetrics,
+  type Point2,
+} from './mesh';
 
 type Pose = 'idle' | 'nervous' | 'wave' | 'lean-in' | 'point' | 'shrug';
 type AssetKind = 'rigged-character' | 'background' | 'prop' | 'audio';
@@ -231,6 +244,7 @@ type SkeletonBinding = {
   }>;
   vertices?: Array<{ id: string; x: number; y: number }>;
   weights?: Array<{ vertexId: string; boneId: string; weight: number }>;
+  mesh?: MeshBindingV1;
 };
 type StagehandAssetPackageV2 = {
   version: 2;
@@ -326,13 +340,18 @@ type RigPreviewPoseReport = {
   invertedLimbs: string[];
   invalidDrawOrder: string[];
   coordinateMismatches: string[];
+  meshMetrics?: MeshMetrics;
+  renderer: 'canvas-alpha-v1' | 'canvas-lbs-mesh-v1';
+  fallbackUsed: boolean;
   passed: boolean;
 };
 type RigPreviewReport = {
   passed: boolean;
-  renderer: 'canvas-alpha-v1';
+  renderer: 'canvas-alpha-v1' | 'canvas-lbs-mesh-v1';
   poses: RigPreviewPoseReport[];
   blockedReasons: string[];
+  meshMetrics?: MeshMetrics;
+  fallbackUsed: boolean;
 };
 type Skeleton = {
   id: string;
@@ -1761,6 +1780,71 @@ const isReviewStatus = (value: unknown): value is ReviewStatus =>
   value === 'approved' ||
   value === 'rejected';
 
+const meshBindingInputSchema = {
+  type: 'object',
+  required: [
+    'version',
+    'id',
+    'textureAssetId',
+    'coordinateSpace',
+    'vertices',
+    'triangles',
+    'zIndex',
+    'skeletonVersion',
+  ],
+  additionalProperties: false,
+  properties: {
+    version: { type: 'integer', const: 1 },
+    id: { type: 'string', minLength: 1, maxLength: 120 },
+    textureAssetId: { type: 'string', minLength: 1, maxLength: 160 },
+    coordinateSpace: { type: 'string', const: 'normalized-image' },
+    vertices: {
+      type: 'array',
+      minItems: 3,
+      maxItems: 512,
+      items: {
+        type: 'object',
+        required: ['id', 'x', 'y', 'u', 'v', 'influences'],
+        additionalProperties: false,
+        properties: {
+          id: { type: 'string', minLength: 1, maxLength: 120 },
+          x: { type: 'number', minimum: 0, maximum: 1 },
+          y: { type: 'number', minimum: 0, maximum: 1 },
+          u: { type: 'number', minimum: 0, maximum: 1 },
+          v: { type: 'number', minimum: 0, maximum: 1 },
+          influences: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 4,
+            items: {
+              type: 'object',
+              required: ['boneId', 'weight'],
+              additionalProperties: false,
+              properties: {
+                boneId: { type: 'string', minLength: 1, maxLength: 120 },
+                weight: { type: 'number', exclusiveMinimum: 0, maximum: 1 },
+              },
+            },
+          },
+        },
+      },
+    },
+    triangles: {
+      type: 'array',
+      minItems: 1,
+      maxItems: 1024,
+      items: {
+        type: 'array',
+        minItems: 3,
+        maxItems: 3,
+        items: { type: 'integer', minimum: 0 },
+      },
+    },
+    zIndex: { type: 'number' },
+    skeletonVersion: { type: 'integer', minimum: 1 },
+  },
+} as const;
+
 function assetChecklist(
   kind: Exclude<AssetKind, 'audio'>,
   method?: BindingMethod,
@@ -1778,6 +1862,16 @@ function assetChecklist(
       'Design the shoulder, hip, wrist, and ankle ends with hidden overlap so articulated pieces never expose a gap.',
       'Provide front, three-quarter, profile, and back view coverage plus idle, walk, reaction, and expression variants.',
       'Use consistent scale and facing direction across every part.',
+    ];
+  }
+  if (kind === 'rigged-character' && method === 'mesh') {
+    return [
+      ...common,
+      'Use one single-frame texture with a declared normalized-image triangle mesh and UV map.',
+      'Declare a rest skeleton and normalized per-vertex bone weights; do not imply automatic triangulation or weighting.',
+      'Keep topology coarse, add density only around intended bends, and cap the proof fixture at two influences per vertex.',
+      'Provide rest, 60-degree bend, and allowed-extreme poses for rendered flip, collapse, seam, and silhouette review.',
+      'Keep a separately approved segmented package as the explicit production fallback.',
     ];
   }
   if (kind === 'rigged-character') {
@@ -2584,6 +2678,7 @@ async function inspectRenderedRigPreview(
       renderer: 'canvas-alpha-v1',
       poses: [],
       blockedReasons: ['Asset payload is unavailable.'],
+      fallbackUsed: false,
     };
   const image = await decodeImage(asset.dataUrl);
   const packageData = asset.assetPackage ?? asset.rigManifest;
@@ -2622,7 +2717,7 @@ async function inspectRenderedRigPreview(
     leftArm && rightArm && (leftArm.targetX ?? 0) >= (rightArm.targetX ?? 1)
       ? ['left-arm/right-arm']
       : [];
-  const poseInputs: Array<{
+  const segmentedPoseInputs: Array<{
     id: string;
     label: string;
     transforms: BoneTransform[];
@@ -2680,6 +2775,27 @@ async function inspectRenderedRigPreview(
       ],
     },
   ];
+  const bendBoneId = skeleton.bones[1]?.id ?? skeleton.bones[0]?.id ?? '';
+  const poseInputs =
+    skeleton.binding.method === 'mesh'
+      ? [
+          { id: 'rest', label: 'Rest pose', transforms: [] },
+          {
+            id: 'bend-60',
+            label: '60 degree weighted bend',
+            transforms: [
+              { boneId: bendBoneId, rotation: 60, x: 0, y: 0, scale: 1 },
+            ],
+          },
+          {
+            id: 'bend-extreme',
+            label: '95 degree extreme bend',
+            transforms: [
+              { boneId: bendBoneId, rotation: 95, x: 0, y: 0, scale: 1 },
+            ],
+          },
+        ]
+      : segmentedPoseInputs;
   let restAlpha = 0;
   let restComponents = 0;
   const poses: RigPreviewPoseReport[] = [];
@@ -2690,7 +2806,7 @@ async function inspectRenderedRigPreview(
     const context = canvas.getContext('2d');
     if (!context) continue;
     context.clearRect(0, 0, canvas.width, canvas.height);
-    drawCharacter(
+    const drawDiagnostics = drawCharacter(
       context,
       {
         id: 'rig-preview',
@@ -2721,7 +2837,8 @@ async function inspectRenderedRigPreview(
     );
     const visibleGaps =
       pose.id === 'rest'
-        ? packageData?.alignment?.connected === false
+        ? skeleton.binding.method === 'segmented' &&
+          packageData?.alignment?.connected === false
           ? 1
           : 0
         : Math.max(0, pixels.significantComponents - restComponents - 1);
@@ -2738,7 +2855,9 @@ async function inspectRenderedRigPreview(
       pixels.clippedEdges === 0 &&
       invalidDrawOrder.length === 0 &&
       invertedLimbs.length === 0 &&
-      coordinateMismatches.length === 0;
+      coordinateMismatches.length === 0 &&
+      drawDiagnostics.issues.length === 0 &&
+      drawDiagnostics.fallbackUsed === false;
     poses.push({
       id: pose.id,
       label: pose.label,
@@ -2751,17 +2870,35 @@ async function inspectRenderedRigPreview(
       invertedLimbs,
       invalidDrawOrder,
       coordinateMismatches,
+      meshMetrics: drawDiagnostics.meshMetrics,
+      renderer:
+        drawDiagnostics.renderer === 'canvas-lbs-mesh-v1'
+          ? 'canvas-lbs-mesh-v1'
+          : 'canvas-alpha-v1',
+      fallbackUsed: drawDiagnostics.fallbackUsed,
       passed,
     });
   }
-  const blockedReasons = poses
-    .filter((pose) => !pose.passed)
-    .map((pose) => `${pose.label} failed rendered seam QA.`);
+  const blockedReasons = [
+    ...poses
+      .filter((pose) => !pose.passed)
+      .map((pose) => `${pose.label} failed rendered seam QA.`),
+    ...poses.flatMap((pose) =>
+      pose.renderer === 'canvas-lbs-mesh-v1' && !pose.passed
+        ? [`${pose.label} has invalid mesh geometry or renderer state.`]
+        : [],
+    ),
+  ];
   return {
     passed: poses.length === poseInputs.length && blockedReasons.length === 0,
-    renderer: 'canvas-alpha-v1',
+    renderer:
+      skeleton.binding.method === 'mesh'
+        ? 'canvas-lbs-mesh-v1'
+        : 'canvas-alpha-v1',
     poses,
     blockedReasons,
+    meshMetrics: poses.find((pose) => pose.id === 'rest')?.meshMetrics,
+    fallbackUsed: poses.some((pose) => pose.fallbackUsed),
   };
 }
 
@@ -2837,6 +2974,16 @@ function skeletonModelIssues(skeleton: Skeleton, asset?: Asset) {
       if ((region.confidence ?? 1) < 0.72)
         issues.push(`${region.label} has low alignment confidence.`);
     });
+  }
+  if (skeleton.binding.method === 'mesh') {
+    if (asset?.frameCount && asset.frameCount !== 1)
+      issues.push('Mesh binding requires a single-frame texture asset.');
+    const meshIssues = validateMeshBinding(skeleton.binding.mesh, {
+      assetId: skeleton.assetId,
+      skeletonVersion: skeleton.version,
+      boneIds: skeleton.bones.map((bone) => bone.id),
+    });
+    issues.push(...meshIssues.map((issue) => issue.message));
   }
   return [...new Set(issues)];
 }
@@ -3648,9 +3795,23 @@ const hydrateProject = (value: Partial<Project>): Project => {
         : 'segmented',
       asset,
     );
+    const skeletonVersion =
+      Number.isInteger(skeleton.version) && skeleton.version > 0
+        ? skeleton.version
+        : fallback.version;
+    const legacyMesh = adaptLegacyMesh({
+      assetId: skeleton.assetId,
+      skeletonVersion,
+      vertices: skeleton.binding?.vertices,
+      weights: skeleton.binding?.weights,
+      experimentalMesh:
+        asset?.assetPackage?.experimentalMesh ??
+        asset?.rigManifest?.experimentalMesh,
+    });
     return {
       ...fallback,
       ...skeleton,
+      version: skeletonVersion,
       rootJointId:
         typeof skeleton.rootJointId === 'string'
           ? skeleton.rootJointId
@@ -3671,6 +3832,7 @@ const hydrateProject = (value: Partial<Project>): Project => {
           skeleton.binding.regions.length
             ? skeleton.binding.regions
             : fallback.binding.regions,
+        mesh: skeleton.binding?.mesh ?? legacyMesh,
       },
     } satisfies Skeleton;
   });
@@ -4422,63 +4584,81 @@ function buildBoneWorldPoses(
   imageWidth: number,
   imageHeight: number,
 ) {
-  const joints = new Map(skeleton.joints.map((joint) => [joint.id, joint]));
-  const transformById = new Map(
-    transforms.map((transform) => [transform.boneId, transform]),
-  );
   const world = new Map<string, BoneWorldPose>();
-  const baseAngles = new Map<string, number>();
-  const baseLengths = new Map<string, number>();
-  const basePoint = (jointId: string) => {
-    const joint = joints.get(jointId);
-    return {
-      x: ((joint?.x ?? 50) / 100 - 0.5) * imageWidth,
-      y: ((joint?.y ?? 82) / 100 - 1) * imageHeight,
-    };
-  };
-  skeleton.bones.forEach((bone) => {
-    const parent = basePoint(bone.parentJointId);
-    const child = basePoint(bone.childJointId);
-    baseAngles.set(bone.id, Math.atan2(child.y - parent.y, child.x - parent.x));
-    baseLengths.set(
-      bone.id,
-      Math.hypot(child.x - parent.x, child.y - parent.y),
-    );
-  });
-  const visit = (bone: SkeletonBone): BoneWorldPose => {
-    const cached = world.get(bone.id);
-    if (cached) return cached;
-    const parent = basePoint(bone.parentJointId);
-    const baseAngle = baseAngles.get(bone.id) ?? 0;
-    const isRootBone = bone.parentJointId === skeleton.rootJointId;
-    const transform = isRootBone ? undefined : transformById.get(bone.id);
-    const parentBone = skeleton.bones.find(
-      (candidate) => candidate.childJointId === bone.parentJointId,
-    );
-    const parentPose = parentBone ? visit(parentBone) : undefined;
-    const parentBaseAngle = parentBone
-      ? (baseAngles.get(parentBone.id) ?? 0)
-      : 0;
-    const angle =
-      baseAngle +
-      (parentPose ? parentPose.angle - parentBaseAngle : 0) +
-      ((transform?.rotation ?? 0) * Math.PI) / 180;
-    const startX = (parentPose?.endX ?? parent.x) + (transform?.x ?? 0) * 0.8;
-    const startY = (parentPose?.endY ?? parent.y) + (transform?.y ?? 0) * 0.8;
-    const length = (baseLengths.get(bone.id) ?? 0) * (transform?.scale ?? 1);
-    const pose = {
-      startX,
-      startY,
-      endX: startX + Math.cos(angle) * length,
-      endY: startY + Math.sin(angle) * length,
-      angle,
-      scale: (parentPose?.scale ?? 1) * (transform?.scale ?? 1),
-    };
-    world.set(bone.id, pose);
-    return pose;
-  };
-  skeleton.bones.forEach(visit);
+  const evaluated = buildBoneMatrices(
+    skeleton.joints,
+    skeleton.bones,
+    transforms,
+    imageWidth,
+    imageHeight,
+  );
+  evaluated.matrices.forEach((pose, boneId) =>
+    world.set(boneId, {
+      startX: pose.start.x,
+      startY: pose.start.y,
+      endX: pose.end.x,
+      endY: pose.end.y,
+      angle: pose.angle,
+      scale: pose.scale,
+    }),
+  );
   return world;
+}
+
+type CharacterRenderDiagnostics = {
+  renderer: 'canvas-rigid-v1' | 'canvas-segmented-v1' | 'canvas-lbs-mesh-v1';
+  fallbackUsed: boolean;
+  issues: MeshIssue[];
+  meshMetrics?: MeshMetrics;
+};
+
+function drawTexturedMesh(
+  ctx: CanvasRenderingContext2D,
+  image: CanvasImageSource,
+  mesh: MeshBindingV1,
+  points: Point2[],
+  sourceWidth: number,
+  sourceHeight: number,
+  showWireframe: boolean,
+) {
+  mesh.triangles.forEach((indices) => {
+    const source = indices.map((index) => ({
+      x: mesh.vertices[index].u * sourceWidth,
+      y: mesh.vertices[index].v * sourceHeight,
+    })) as [Point2, Point2, Point2];
+    const destination = indices.map((index) => points[index]) as [
+      Point2,
+      Point2,
+      Point2,
+    ];
+    const affine = affineFromTriangles(source, destination);
+    if (!affine) return;
+    const clip = expandTriangle(destination);
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(clip[0].x, clip[0].y);
+    ctx.lineTo(clip[1].x, clip[1].y);
+    ctx.lineTo(clip[2].x, clip[2].y);
+    ctx.closePath();
+    ctx.clip();
+    ctx.transform(affine.a, affine.b, affine.c, affine.d, affine.e, affine.f);
+    ctx.drawImage(image, 0, 0, sourceWidth, sourceHeight);
+    ctx.restore();
+  });
+  if (!showWireframe) return;
+  ctx.save();
+  ctx.strokeStyle = '#8a52ff';
+  ctx.lineWidth = 0.8;
+  mesh.triangles.forEach((indices) => {
+    const triangle = indices.map((index) => points[index]);
+    ctx.beginPath();
+    ctx.moveTo(triangle[0].x, triangle[0].y);
+    ctx.lineTo(triangle[1].x, triangle[1].y);
+    ctx.lineTo(triangle[2].x, triangle[2].y);
+    ctx.closePath();
+    ctx.stroke();
+  });
+  ctx.restore();
 }
 
 function drawCharacter(
@@ -4493,7 +4673,8 @@ function drawCharacter(
   boneTransforms: BoneTransform[] = [],
   isolatedPartId?: string | null,
   showAlphaMask = false,
-) {
+  showMeshWireframe = false,
+): CharacterRenderDiagnostics {
   const x = (c.x / 100) * width,
     ground = (c.y / 100) * height,
     scale = Math.min(width / 900, height / 520);
@@ -4512,6 +4693,19 @@ function drawCharacter(
     ctx.arc(0, -282, 5, 0, Math.PI * 2);
     ctx.fill();
   }
+  if (skeleton?.binding.method === 'mesh' && !characterImage) {
+    ctx.restore();
+    return {
+      renderer: 'canvas-lbs-mesh-v1',
+      fallbackUsed: false,
+      issues: [
+        {
+          code: 'MESH_TEXTURE_UNAVAILABLE',
+          message: 'Mesh texture could not be decoded for rendering.',
+        },
+      ],
+    };
+  }
   if (characterImage) {
     const image = characterImage as HTMLImageElement;
     ctx.filter = assetTreatmentFilter(characterAsset);
@@ -4525,6 +4719,58 @@ function drawCharacter(
         : Math.min(112 / frameWidth, 242 / sourceHeight);
     const imageWidth = frameWidth * imageScale;
     const imageHeight = sourceHeight * imageScale;
+    if (skeleton?.binding.method === 'mesh') {
+      const mesh = skeleton.binding.mesh;
+      const issues = validateMeshBinding(mesh, {
+        assetId: skeleton.assetId,
+        skeletonVersion: skeleton.version,
+        boneIds: skeleton.bones.map((bone) => bone.id),
+      });
+      const matrices = buildBoneMatrices(
+        skeleton.joints,
+        skeleton.bones,
+        boneTransforms,
+        imageWidth,
+        imageHeight,
+      );
+      issues.push(...matrices.issues);
+      const evaluated = mesh
+        ? evaluateMeshVertices(mesh, matrices.matrices, imageWidth, imageHeight)
+        : undefined;
+      if (evaluated) issues.push(...evaluated.issues);
+      const meshMetrics =
+        mesh && evaluated
+          ? measureMesh(mesh, evaluated.points, imageWidth, imageHeight)
+          : undefined;
+      if (meshMetrics?.degenerateCount)
+        issues.push({
+          code: 'MESH_EVALUATED_DEGENERATE',
+          message: `${meshMetrics.degenerateCount} evaluated triangle(s) are degenerate.`,
+        });
+      if (meshMetrics?.flippedCount)
+        issues.push({
+          code: 'MESH_EVALUATED_FLIPPED',
+          message: `${meshMetrics.flippedCount} evaluated triangle(s) changed winding.`,
+        });
+      if (mesh && evaluated && issues.length === 0)
+        drawTexturedMesh(
+          ctx,
+          characterImage,
+          mesh,
+          evaluated.points,
+          sourceWidth,
+          sourceHeight,
+          showMeshWireframe,
+        );
+      ctx.filter = 'none';
+      ctx.restore();
+      return {
+        renderer: 'canvas-lbs-mesh-v1',
+        fallbackUsed: false,
+        issues,
+        meshMetrics,
+      };
+    }
     if (
       characterAsset?.frameLayout === 'parts-sheet' &&
       skeleton?.binding.method === 'segmented' &&
@@ -4603,7 +4849,11 @@ function drawCharacter(
         });
       ctx.filter = 'none';
       ctx.restore();
-      return;
+      return {
+        renderer: 'canvas-segmented-v1',
+        fallbackUsed: false,
+        issues: [],
+      };
     }
     if (frameCount > 1) {
       ctx.drawImage(
@@ -4627,7 +4877,11 @@ function drawCharacter(
       );
     }
     ctx.restore();
-    return;
+    return {
+      renderer: 'canvas-rigid-v1',
+      fallbackUsed: false,
+      issues: [],
+    };
   }
   ctx.fillStyle = 'rgba(31,32,35,.16)';
   ctx.beginPath();
@@ -4696,28 +4950,10 @@ function drawCharacter(
     ctx.stroke();
   }
   ctx.restore();
-}
-
-function applyBoneRootTransform(
-  character: Character,
-  project: Project,
-  time: number,
-): Character {
-  const skeleton = characterSkeletonFor(project, character);
-  if (!skeleton) return character;
-  const rootBone = skeleton.bones.find(
-    (bone) => bone.parentJointId === skeleton.rootJointId,
-  );
-  if (!rootBone) return character;
-  const rootTransform = evaluateBoneKeyframes(project, skeleton, time).find(
-    (transform) => transform.boneId === rootBone.id,
-  );
-  if (!rootTransform) return character;
   return {
-    ...character,
-    x: clamp(character.x + rootTransform.x * 0.15, 0, 100),
-    y: clamp(character.y + rootTransform.y * 0.15, 0, 100),
-    rotation: clamp(character.rotation + rootTransform.rotation, -180, 180),
+    renderer: 'canvas-rigid-v1',
+    fallbackUsed: false,
+    issues: [],
   };
 }
 
@@ -4778,13 +5014,31 @@ function drawSkeletonOverlay(
   ctx.restore();
 }
 
+type FrameRenderDiagnostics = {
+  renderer: CharacterRenderDiagnostics['renderer'];
+  rendererIds: CharacterRenderDiagnostics['renderer'][];
+  fallbackUsed: boolean;
+  issues: MeshIssue[];
+  meshMetrics: MeshMetrics[];
+};
+
+type FrameRenderOptions = {
+  selectedId?: string;
+  showSkeleton?: boolean;
+  isolatedPartId?: string | null;
+  showAlphaMask?: boolean;
+  showMeshWireframe?: boolean;
+};
+
 function drawRenderFrame(
   ctx: CanvasRenderingContext2D,
   project: Project,
   width: number,
   height: number,
   imageMap?: Map<string, CanvasImageSource>,
-) {
+  options: FrameRenderOptions = {},
+): FrameRenderDiagnostics {
+  const characterDiagnostics: CharacterRenderDiagnostics[] = [];
   ctx.fillStyle = '#e9d6b8';
   ctx.fillRect(0, 0, width, height);
   ctx.save();
@@ -4807,19 +5061,32 @@ function drawRenderFrame(
   evaluateCharacters(project, project.currentTime).forEach((character) => {
     const skeleton = characterSkeletonFor(project, character);
     const asset = characterAssetFor(project, character);
-    drawCharacter(
+    const diagnostics = drawCharacter(
       ctx,
-      applyBoneRootTransform(character, project, project.currentTime),
+      character,
       width,
       height,
-      false,
+      character.id === options.selectedId,
       asset ? imageMap?.get(asset.id) : undefined,
       asset,
       skeleton,
       skeleton
         ? evaluateBoneKeyframes(project, skeleton, project.currentTime)
         : [],
+      character.id === options.selectedId ? options.isolatedPartId : null,
+      options.showAlphaMask,
+      options.showMeshWireframe,
     );
+    characterDiagnostics.push(diagnostics);
+    if (options.showSkeleton && skeleton && character.id === options.selectedId)
+      drawSkeletonOverlay(
+        ctx,
+        character,
+        skeleton,
+        evaluateBoneKeyframes(project, skeleton, project.currentTime),
+        width,
+        height,
+      );
   });
   drawImportedProps(ctx, project, project.currentTime, width, height, imageMap);
   ctx.restore();
@@ -4848,6 +5115,82 @@ function drawRenderFrame(
       height * 0.78 + 20,
     );
   }
+  const rendererIds = [
+    ...new Set(characterDiagnostics.map((item) => item.renderer)),
+  ];
+  return {
+    renderer: rendererIds.includes('canvas-lbs-mesh-v1')
+      ? 'canvas-lbs-mesh-v1'
+      : rendererIds.includes('canvas-segmented-v1')
+        ? 'canvas-segmented-v1'
+        : 'canvas-rigid-v1',
+    rendererIds,
+    fallbackUsed: characterDiagnostics.some((item) => item.fallbackUsed),
+    issues: characterDiagnostics.flatMap((item) => item.issues),
+    meshMetrics: characterDiagnostics.flatMap((item) =>
+      item.meshMetrics ? [item.meshMetrics] : [],
+    ),
+  };
+}
+
+async function loadRenderableImageMap(project: Project) {
+  const imageMap = new Map<string, HTMLImageElement>();
+  await Promise.all(
+    project.assets
+      .filter(
+        (asset) =>
+          (asset.kind === 'rigged-character' ||
+            asset.kind === 'background' ||
+            asset.kind === 'prop') &&
+          asset.dataUrl,
+      )
+      .map(
+        (asset) =>
+          new Promise<void>((resolve) => {
+            const image = new Image();
+            image.onload = () => {
+              imageMap.set(asset.id, image);
+              resolve();
+            };
+            image.onerror = () => resolve();
+            image.src = asset.dataUrl as string;
+          }),
+      ),
+  );
+  return imageMap;
+}
+
+async function hashRgbaPixels(pixels: Uint8Array | Uint8ClampedArray) {
+  const bytes = Uint8Array.from(pixels);
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    bytes.buffer as ArrayBuffer,
+  );
+  return Array.from(new Uint8Array(digest), (value) =>
+    value.toString(16).padStart(2, '0'),
+  ).join('');
+}
+
+async function renderFrameSnapshot(project: Project, timeMs: number) {
+  const canvas = document.createElement('canvas');
+  canvas.width = project.renderWidth;
+  canvas.height = project.renderHeight;
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (!context) return null;
+  const imageMap = await loadRenderableImageMap(project);
+  const diagnostics = drawRenderFrame(
+    context,
+    { ...project, currentTime: timeMs },
+    canvas.width,
+    canvas.height,
+    imageMap,
+  );
+  const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+  return {
+    canvas,
+    diagnostics,
+    pixelHash: await hashRgbaPixels(pixels),
+  };
 }
 
 function RenderThumbnail({
@@ -4923,6 +5266,7 @@ function StageCanvas({
   showSkeleton,
   isolatedPartId,
   showAlphaMask,
+  showMeshWireframe,
   interactionMode,
 }: {
   project: Project;
@@ -4930,6 +5274,7 @@ function StageCanvas({
   showSkeleton: boolean;
   isolatedPartId?: string | null;
   showAlphaMask?: boolean;
+  showMeshWireframe?: boolean;
   interactionMode: 'select' | 'pan' | 'preview';
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -4972,59 +5317,32 @@ function StageCanvas({
         image.onerror = () => imagePendingRef.current.delete(asset.id);
         image.src = asset.dataUrl;
       });
-    ctx.fillStyle = '#e9d6b8';
-    ctx.fillRect(0, 0, width, height);
-    ctx.save();
-    applyCameraTransform(
-      ctx,
-      evaluateCamera(project, project.currentTime),
-      width,
-      height,
-    );
-    const backgroundAsset = project.assets.find(
-      (asset) => asset.kind === 'background' && asset.dataUrl,
-    );
-    drawDinerBackground(
-      ctx,
-      width,
-      height,
-      backgroundAsset
-        ? imageCacheRef.current.get(backgroundAsset.id)
-        : undefined,
-      backgroundAsset,
-    );
-    evaluateCharacters(project, project.currentTime).forEach((c) => {
-      const skeleton = characterSkeletonFor(project, c);
-      const asset = characterAssetFor(project, c);
-      const boneTransforms = skeleton
-        ? evaluateBoneKeyframes(project, skeleton, project.currentTime)
-        : [];
-      drawCharacter(
-        ctx,
-        applyBoneRootTransform(c, project, project.currentTime),
-        width,
-        height,
-        interactionMode !== 'preview' && c.id === project.selectedId,
-        asset ? imageCacheRef.current.get(asset.id) : undefined,
-        asset,
-        skeleton,
-        boneTransforms,
-        isolatedPartId,
-        showAlphaMask,
-      );
-      if (showSkeleton && skeleton && c.id === project.selectedId)
-        drawSkeletonOverlay(ctx, c, skeleton, boneTransforms, width, height);
-    });
-    drawImportedProps(
+    const diagnostics = drawRenderFrame(
       ctx,
       project,
-      project.currentTime,
       width,
       height,
       imageCacheRef.current,
+      {
+        selectedId:
+          interactionMode === 'preview' ? undefined : project.selectedId,
+        showSkeleton,
+        isolatedPartId,
+        showAlphaMask,
+        showMeshWireframe,
+      },
     );
-    ctx.restore();
-  }, [interactionMode, isolatedPartId, project, showAlphaMask, showSkeleton]);
+    canvas.dataset.renderer = diagnostics.renderer;
+    canvas.dataset.fallbackUsed = String(diagnostics.fallbackUsed);
+    canvas.dataset.renderIssues = String(diagnostics.issues.length);
+  }, [
+    interactionMode,
+    isolatedPartId,
+    project,
+    showAlphaMask,
+    showMeshWireframe,
+    showSkeleton,
+  ]);
   useEffect(() => {
     redrawRef.current = draw;
     draw();
@@ -5151,6 +5469,7 @@ export default function Home() {
   const [showTimelineDetails, setShowTimelineDetails] = useState(false);
   const [showSkeleton, setShowSkeleton] = useState(true);
   const [showAlphaMask, setShowAlphaMask] = useState(false);
+  const [showMeshWireframe, setShowMeshWireframe] = useState(false);
   const [isolatedPartId, setIsolatedPartId] = useState<string | null>(null);
   const [rigPreviewReport, setRigPreviewReport] =
     useState<RigPreviewReport | null>(null);
@@ -5311,35 +5630,16 @@ export default function Home() {
     setNotice('Redo · reapplied command');
   }, []);
   const exportStill = useCallback(async () => {
-    const output = document.createElement('canvas');
-    output.width = project.renderWidth;
-    output.height = project.renderHeight;
-    const context = output.getContext('2d');
-    if (!context) return { ok: false, code: 'CANVAS_UNAVAILABLE' };
-    const imageMap = new Map<string, HTMLImageElement>();
-    await Promise.all(
-      project.assets
-        .filter(
-          (asset) =>
-            (asset.kind === 'rigged-character' ||
-              asset.kind === 'background' ||
-              asset.kind === 'prop') &&
-            asset.dataUrl,
-        )
-        .map(
-          (asset) =>
-            new Promise<void>((resolve) => {
-              const image = new Image();
-              image.onload = () => {
-                imageMap.set(asset.id, image);
-                resolve();
-              };
-              image.onerror = () => resolve();
-              image.src = asset.dataUrl as string;
-            }),
-        ),
-    );
-    drawRenderFrame(context, project, output.width, output.height, imageMap);
+    const snapshot = await renderFrameSnapshot(project, project.currentTime);
+    if (!snapshot) return { ok: false, code: 'CANVAS_UNAVAILABLE' };
+    if (snapshot.diagnostics.issues.length > 0)
+      return {
+        ok: false,
+        code: 'RIG_RENDER_INVALID',
+        issues: snapshot.diagnostics.issues,
+        renderDiagnostics: snapshot.diagnostics,
+      };
+    const output = snapshot.canvas;
     const fileName = `${projectFileStem(project.name)}-frame-${String(Math.round(project.currentTime)).padStart(5, '0')}ms.png`;
     const link = document.createElement('a');
     link.href = output.toDataURL('image/png');
@@ -5353,6 +5653,8 @@ export default function Home() {
       timeMs: project.currentTime,
       width: output.width,
       height: output.height,
+      pixelHash: snapshot.pixelHash,
+      renderDiagnostics: snapshot.diagnostics,
     };
   }, [project]);
   const commitRef = useRef(commit),
@@ -5644,7 +5946,7 @@ export default function Home() {
         additionalProperties: false,
         properties: { name: { type: 'string', minLength: 1, maxLength: 80 } },
       },
-      async (input) => {
+      (input) => {
         const current = projectRef.current;
         const name = typeof input.name === 'string' ? input.name.trim() : '';
         if (!name || name.length > 80)
@@ -5676,7 +5978,7 @@ export default function Home() {
           preset: { type: 'string', enum: ['720p', '1080p'] },
         },
       },
-      (input) => {
+      async (input) => {
         const current = projectRef.current;
         const fps = input.fps === undefined ? current.fps : input.fps;
         const preset =
@@ -5955,7 +6257,7 @@ export default function Home() {
         additionalProperties: false,
         properties: { timeMs: { type: 'number', minimum: 0 } },
       },
-      (input) => {
+      async (input) => {
         const current = projectRef.current;
         const timeMs =
           input.timeMs === undefined ? current.currentTime : input.timeMs;
@@ -5966,6 +6268,16 @@ export default function Home() {
           timeMs > current.duration
         )
           return { ok: false, code: 'INVALID_TIMING' };
+        const snapshot = await renderFrameSnapshot(current, timeMs);
+        if (!snapshot) return { ok: false, code: 'CANVAS_UNAVAILABLE' };
+        if (snapshot.diagnostics.issues.length > 0)
+          return {
+            ok: false,
+            code: 'RIG_RENDER_INVALID',
+            timeMs,
+            issues: snapshot.diagnostics.issues,
+            renderDiagnostics: snapshot.diagnostics,
+          };
         return {
           ok: true,
           revision: current.revision,
@@ -5996,6 +6308,8 @@ export default function Home() {
             height: current.renderHeight,
             fps: current.fps,
           },
+          pixelHash: snapshot.pixelHash,
+          renderDiagnostics: snapshot.diagnostics,
         };
       },
       true,
@@ -6761,11 +7075,12 @@ export default function Home() {
           transparencyStatus: payload.transparencyStatus,
           dimensions: { width: payload.width, height: payload.height },
           generationRequestId: request.id,
-          variantOf: request.targetCharacterId
-            ? current.characters.find(
-                (character) => character.id === request.targetCharacterId,
-              )?.assetId
-            : undefined,
+          variantOf:
+            request.targetCharacterId && request.variantKind !== 'base'
+              ? current.characters.find(
+                  (character) => character.id === request.targetCharacterId,
+                )?.assetId
+              : undefined,
           variantKind: isAssetVariantKind(input.variantKind)
             ? input.variantKind
             : 'base',
@@ -7253,7 +7568,27 @@ export default function Home() {
             const item = next.characters.find(
               (candidate) => candidate.id === characterId,
             );
-            if (item) item.assetId = assetId;
+            if (item) {
+              item.assetId = assetId;
+              const selectedVariant = item.variantId
+                ? next.assets.find(
+                    (candidate) => candidate.id === item.variantId,
+                  )
+                : undefined;
+              if (selectedVariant?.variantOf !== assetId)
+                item.variantId = undefined;
+            }
+            next.keyframes
+              .filter((frame) => frame.characterId === characterId)
+              .forEach((frame) => {
+                const variant = frame.variantId
+                  ? next.assets.find(
+                      (candidate) => candidate.id === frame.variantId,
+                    )
+                  : undefined;
+                if (variant && variant.variantOf !== assetId)
+                  frame.variantId = undefined;
+              });
           },
           `Bind ${asset.label} to ${character.name}`,
           true,
@@ -7287,6 +7622,7 @@ export default function Home() {
           regions: { type: 'array', maxItems: 32 },
           vertices: { type: 'array', maxItems: 512 },
           weights: { type: 'array', maxItems: 2048 },
+          mesh: meshBindingInputSchema,
         },
       },
       async (input) => {
@@ -7346,6 +7682,32 @@ export default function Home() {
             : {}),
           ...(Array.isArray(input.weights) ? { weights: input.weights } : {}),
         } as SkeletonBinding;
+        const requestedMesh =
+          input.mesh &&
+          typeof input.mesh === 'object' &&
+          !Array.isArray(input.mesh)
+            ? copy(input.mesh as MeshBindingV1)
+            : adaptLegacyMesh({
+                assetId,
+                skeletonVersion: base.version,
+                vertices: base.binding.vertices,
+                weights: base.binding.weights,
+                experimentalMesh: rigManifest.experimentalMesh,
+              });
+        if (method === 'mesh') {
+          const meshIssues = validateMeshBinding(requestedMesh, {
+            assetId,
+            skeletonVersion: base.version,
+            boneIds: base.bones.map((bone) => bone.id),
+          });
+          if (meshIssues.length > 0)
+            return {
+              ok: false,
+              code: 'INVALID_MESH_BINDING',
+              issues: meshIssues,
+            };
+          base.binding.mesh = requestedMesh;
+        }
         commitRef.current(
           (next) => {
             const targetAsset = next.assets.find((item) => item.id === assetId);
@@ -7459,8 +7821,11 @@ export default function Home() {
             const edited = next.skeletons.find(
               (item) => item.id === skeletonId,
             );
-            if (edited && edited.reviewStatus === 'approved')
-              edited.reviewStatus = 'pending-review';
+            if (edited) {
+              edited.version += 1;
+              if (edited.reviewStatus === 'approved')
+                edited.reviewStatus = 'pending-review';
+            }
           },
           `Update ${joint.label}`,
           true,
@@ -7488,6 +7853,7 @@ export default function Home() {
           regions: { type: 'array' },
           vertices: { type: 'array' },
           weights: { type: 'array' },
+          mesh: meshBindingInputSchema,
         },
       },
       (input) => {
@@ -7511,6 +7877,39 @@ export default function Home() {
           (!asset.assetPackage || assetPackageIssues(asset.assetPackage).length)
         )
           return { ok: false, code: 'INVALID_ASSET_PACKAGE' };
+        const requestedMesh =
+          input.mesh &&
+          typeof input.mesh === 'object' &&
+          !Array.isArray(input.mesh)
+            ? copy(input.mesh as MeshBindingV1)
+            : (skeleton.binding.mesh ??
+              adaptLegacyMesh({
+                assetId,
+                skeletonVersion: skeleton.version,
+                vertices: Array.isArray(input.vertices)
+                  ? (input.vertices as SkeletonBinding['vertices'])
+                  : skeleton.binding.vertices,
+                weights: Array.isArray(input.weights)
+                  ? (input.weights as SkeletonBinding['weights'])
+                  : skeleton.binding.weights,
+                experimentalMesh:
+                  asset.assetPackage?.experimentalMesh ??
+                  asset.rigManifest?.experimentalMesh,
+              }));
+        if (method === 'mesh') {
+          const meshIssues = validateMeshBinding(requestedMesh, {
+            assetId,
+            skeletonVersion: skeleton.version,
+            boneIds: skeleton.bones.map((bone) => bone.id),
+          });
+          if (meshIssues.length > 0)
+            return {
+              ok: false,
+              code: 'INVALID_MESH_BINDING',
+              issues: meshIssues,
+            };
+        }
+        const nextSkeletonVersion = skeleton.version + 1;
         commitRef.current(
           (next) => {
             const target = next.skeletons.find(
@@ -7531,9 +7930,18 @@ export default function Home() {
               ...(Array.isArray(input.weights)
                 ? { weights: input.weights }
                 : {}),
+              ...(method === 'mesh' && requestedMesh
+                ? {
+                    mesh: {
+                      ...requestedMesh,
+                      textureAssetId: assetId,
+                      skeletonVersion: nextSkeletonVersion,
+                    },
+                  }
+                : {}),
             } as SkeletonBinding;
             target.reviewStatus = 'pending-review';
-            target.version += 1;
+            target.version = nextSkeletonVersion;
           },
           `Bind skeleton to ${asset.label}`,
           true,
@@ -10147,7 +10555,10 @@ export default function Home() {
       const skeleton = next.skeletons.find(
         (item) => item.id === selectedSkeleton.id,
       );
-      if (skeleton) skeleton.reviewStatus = 'pending-review';
+      if (skeleton) {
+        skeleton.version += 1;
+        skeleton.reviewStatus = 'pending-review';
+      }
     }, `Move ${joint.label}`);
   };
   const updateSelectedBindingRegion = (
@@ -10166,6 +10577,7 @@ export default function Home() {
       if (!skeleton || !region) return;
       if (key === 'boneId') region.boneId = String(value);
       else if (Number.isFinite(Number(value))) region[key] = Number(value);
+      skeleton.version += 1;
       skeleton.reviewStatus = 'pending-review';
     }, `Correct ${regionId} ${key}`);
   };
@@ -10177,6 +10589,7 @@ export default function Home() {
       );
       if (!skeleton) return;
       skeleton.binding.method = method;
+      skeleton.version += 1;
       skeleton.reviewStatus = 'pending-review';
     }, `Set ${method} binding`);
   };
@@ -11112,29 +11525,7 @@ export default function Home() {
         end: cue.end + offset,
       }));
     });
-    const imageMap = new Map<string, HTMLImageElement>();
-    await Promise.all(
-      currentProject.assets
-        .filter(
-          (asset) =>
-            (asset.kind === 'rigged-character' ||
-              asset.kind === 'background' ||
-              asset.kind === 'prop') &&
-            asset.dataUrl,
-        )
-        .map(
-          (asset) =>
-            new Promise<void>((resolve) => {
-              const image = new Image();
-              image.onload = () => {
-                imageMap.set(asset.id, image);
-                resolve();
-              };
-              image.onerror = () => resolve();
-              image.src = asset.dataUrl as string;
-            }),
-        ),
-    );
+    const imageMap = await loadRenderableImageMap(currentProject);
     const output = document.createElement('canvas');
     output.width = renderBase.renderWidth;
     output.height = renderBase.renderHeight;
@@ -11144,6 +11535,33 @@ export default function Home() {
       setRendering(false);
       setNotice('Render surface could not be created');
       return { ok: false, code: 'CANVAS_UNAVAILABLE' };
+    }
+    const preflightIssues: MeshIssue[] = [];
+    for (const scene of sceneProjects) {
+      for (
+        let timeMs = 0;
+        timeMs <= scene.duration;
+        timeMs += 1000 / currentProject.fps
+      ) {
+        const diagnostics = drawRenderFrame(
+          outputContext,
+          { ...scene, currentTime: Math.min(timeMs, scene.duration) },
+          output.width,
+          output.height,
+          imageMap,
+        );
+        preflightIssues.push(...diagnostics.issues);
+      }
+    }
+    if (preflightIssues.length > 0) {
+      renderingRef.current = false;
+      setRendering(false);
+      setNotice('Mesh render preflight failed');
+      return {
+        ok: false,
+        code: 'RIG_RENDER_INVALID',
+        issues: preflightIssues,
+      };
     }
     const canvasStream = output.captureStream(0);
     const track =
@@ -11184,8 +11602,21 @@ export default function Home() {
     };
     let frame = 0;
     let timer = 0;
+    const renderStats: {
+      meshFrameCount: number;
+      fallbackFrameCount: number;
+      renderIssueCount: number;
+      rendererIds: Set<CharacterRenderDiagnostics['renderer']>;
+      firstSample?: { timeMs: number; pixels: Uint8ClampedArray };
+      lastSample?: { timeMs: number; pixels: Uint8ClampedArray };
+    } = {
+      meshFrameCount: 0,
+      fallbackFrameCount: 0,
+      renderIssueCount: 0,
+      rendererIds: new Set(),
+    };
     return await new Promise<Record<string, unknown>>((resolve) => {
-      recorder.onstop = () => {
+      recorder.onstop = async () => {
         window.clearInterval(timer);
         const blob = new Blob(chunks, { type: 'video/webm' });
         const url = URL.createObjectURL(blob);
@@ -11204,6 +11635,25 @@ export default function Home() {
         setNotice(
           `WebM downloaded · ${sceneProjects.length} scene${sceneProjects.length === 1 ? '' : 's'} rendered`,
         );
+        const sampleFrameHashes = await Promise.all(
+          [renderStats.firstSample, renderStats.lastSample]
+            .filter(
+              (
+                sample,
+              ): sample is {
+                timeMs: number;
+                pixels: Uint8ClampedArray;
+              } => Boolean(sample),
+            )
+            .filter(
+              (sample, index, samples) =>
+                index === 0 || sample.timeMs !== samples[index - 1].timeMs,
+            )
+            .map(async (sample) => ({
+              timeMs: sample.timeMs,
+              pixelHash: await hashRgbaPixels(sample.pixels),
+            })),
+        );
         resolve({
           ok: true,
           fileName,
@@ -11213,6 +11663,16 @@ export default function Home() {
           width: currentProject.renderWidth,
           height: currentProject.renderHeight,
           bytes: blob.size,
+          renderer: renderStats.rendererIds.has('canvas-lbs-mesh-v1')
+            ? 'canvas-lbs-mesh-v1'
+            : renderStats.rendererIds.has('canvas-segmented-v1')
+              ? 'canvas-segmented-v1'
+              : 'canvas-rigid-v1',
+          rendererIds: [...renderStats.rendererIds],
+          meshFrameCount: renderStats.meshFrameCount,
+          fallbackFrameCount: renderStats.fallbackFrameCount,
+          renderIssueCount: renderStats.renderIssueCount,
+          sampleFrameHashes,
         });
       };
       updateProjectView((current) => ({ ...current, currentTime: 0 }));
@@ -11232,13 +11692,32 @@ export default function Home() {
           }
           sceneOffset += candidate.duration;
         }
-        drawRenderFrame(
+        const diagnostics = drawRenderFrame(
           outputContext,
           { ...scene, currentTime: localTime },
           output.width,
           output.height,
           imageMap,
         );
+        if (diagnostics.rendererIds.includes('canvas-lbs-mesh-v1'))
+          renderStats.meshFrameCount += 1;
+        diagnostics.rendererIds.forEach((renderer) =>
+          renderStats.rendererIds.add(renderer),
+        );
+        if (diagnostics.fallbackUsed) renderStats.fallbackFrameCount += 1;
+        renderStats.renderIssueCount += diagnostics.issues.length;
+        const pixels = outputContext.getImageData(
+          0,
+          0,
+          output.width,
+          output.height,
+        ).data;
+        const sample = {
+          timeMs: Math.round(frame),
+          pixels: new Uint8ClampedArray(pixels),
+        };
+        if (!renderStats.firstSample) renderStats.firstSample = sample;
+        renderStats.lastSample = sample;
         track.requestFrame();
         frame += 1000 / currentProject.fps;
         if (frame > totalDuration) {
@@ -12643,6 +13122,7 @@ export default function Home() {
                     project={project}
                     showSkeleton={showSkeleton}
                     showAlphaMask={showAlphaMask}
+                    showMeshWireframe={showMeshWireframe}
                     isolatedPartId={isolatedPartId}
                     interactionMode={
                       viewMode === 'preview' ? 'preview' : stageTool
@@ -13638,6 +14118,17 @@ export default function Home() {
                   >
                     {showAlphaMask ? 'Hide alpha mask' : 'Show alpha mask'}
                   </button>
+                  {selectedSkeleton.binding.method === 'mesh' && (
+                    <button
+                      type="button"
+                      onClick={() => setShowMeshWireframe((value) => !value)}
+                      aria-pressed={showMeshWireframe}
+                    >
+                      {showMeshWireframe
+                        ? 'Hide mesh wireframe'
+                        : 'Show mesh wireframe'}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => void runRigPreview()}
@@ -13677,6 +14168,16 @@ export default function Home() {
                         )
                         .join(' · ')}
                     </span>
+                    {rigPreviewReport.meshMetrics && (
+                      <span>
+                        {rigPreviewReport.renderer} ·{' '}
+                        {rigPreviewReport.meshMetrics.vertexCount} vertices ·{' '}
+                        {rigPreviewReport.meshMetrics.triangleCount} triangles ·{' '}
+                        {rigPreviewReport.meshMetrics.flippedCount} flips ·{' '}
+                        {rigPreviewReport.meshMetrics.degenerateCount}{' '}
+                        degenerate
+                      </span>
+                    )}
                   </div>
                 )}
                 <small className="transform-help">

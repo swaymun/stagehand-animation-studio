@@ -34,14 +34,55 @@ function findings(fixture) {
       )
   )
     result.push('VARIANT_TOPOLOGY_MISMATCH');
+  if (fixture.mesh) {
+    const vertices = Array.isArray(fixture.mesh.vertices)
+      ? fixture.mesh.vertices
+      : [];
+    for (const vertex of vertices) {
+      const total = Array.isArray(vertex.influences)
+        ? vertex.influences.reduce(
+            (sum, influence) => sum + Number(influence.weight),
+            0,
+          )
+        : 0;
+      if (!Number.isFinite(total) || Math.abs(total - 1) > 0.0001) {
+        result.push('MESH_WEIGHT_SUM');
+        break;
+      }
+    }
+    for (const triangle of fixture.mesh.triangles ?? []) {
+      if (
+        !Array.isArray(triangle) ||
+        triangle.length !== 3 ||
+        new Set(triangle).size !== 3 ||
+        triangle.some(
+          (index) =>
+            !Number.isInteger(index) || index < 0 || index >= vertices.length,
+        )
+      ) {
+        result.push('MESH_TRIANGLE_INDEX');
+        break;
+      }
+      const [first, second, third] = triangle.map((index) => vertices[index]);
+      const area =
+        ((second.x - first.x) * (third.y - first.y) -
+          (second.y - first.y) * (third.x - first.x)) /
+        2;
+      if (Math.abs(area) <= 1e-8) {
+        result.push('MESH_REST_DEGENERATE');
+        break;
+      }
+    }
+  }
+  if (fixture.preview?.flippedCount > 0) result.push('MESH_EVALUATED_FLIPPED');
   return result;
 }
 
 const files = (await readdir(fixtureDir)).filter((file) =>
   file.endsWith('.json'),
 );
-if (files.length !== 5)
-  throw new Error(`expected 5 golden fixtures, found ${files.length}`);
+if (files.length !== 10)
+  throw new Error(`expected 10 golden fixtures, found ${files.length}`);
 
 const results = [];
 for (const file of files) {
@@ -64,6 +105,9 @@ for (const required of [
   'rendered',
   'segmented',
   'experimental',
+  'MeshBindingV1',
+  'canvas-lbs-mesh-v1',
+  'motion-profile.md',
   'Preserve',
 ]) {
   if (!skill.includes(required))

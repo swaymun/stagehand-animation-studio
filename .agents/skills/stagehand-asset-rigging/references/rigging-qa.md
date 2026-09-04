@@ -15,3 +15,11 @@ Render the isolated character against transparency in at least these poses:
 Block approval when rendered pixels show new significant gaps, excessive overlaps, clipping, disconnected alpha islands beyond the validated rest baseline, inverted limbs, invalid draw order, or coordinate-space mismatches. Review the rendered output, not only metadata.
 
 After corrections, run `validate_skeleton`, approve separately from the asset, read back bone keyframes, inspect a representative frame, and run `validate_project` before export.
+
+## Mesh proof QA
+
+Before approval, require valid finite normalized rest positions and UVs, stable unique vertex IDs, valid indexed triangles, existing bone references, one to four positive influences per vertex, strict new-input weight sums within `1 ± 0.0001`, and a matching texture and skeleton version.
+
+Render rest, a 60-degree weighted bend, and the allowed extreme through `canvas-lbs-mesh-v1`. Block approval on a near-zero evaluated area, winding flip, missing renderer report, or `fallbackUsed: true`. Report vertex and triangle counts, maximum influences, maximum weight error, degenerate and flipped counts, and worst area ratio.
+
+For parity, disable editor guides and wireframes, render equal dimensions and timestamps, and compare RGBA SHA-256 hashes from `inspect_frame`, `export_frame`, and the WebM source-frame sample. The editor wireframe is a diagnostic overlay, not export content.

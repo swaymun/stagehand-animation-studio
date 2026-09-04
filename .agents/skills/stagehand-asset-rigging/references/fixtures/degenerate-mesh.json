@@ -1,0 +1,27 @@
+{
+  "case": "degenerate-mesh",
+  "mesh": {
+    "vertices": [
+      {
+        "id": "a",
+        "x": 0.1,
+        "y": 0.5,
+        "influences": [{ "boneId": "upper", "weight": 1 }]
+      },
+      {
+        "id": "b",
+        "x": 0.5,
+        "y": 0.5,
+        "influences": [{ "boneId": "upper", "weight": 1 }]
+      },
+      {
+        "id": "c",
+        "x": 0.9,
+        "y": 0.5,
+        "influences": [{ "boneId": "lower", "weight": 1 }]
+      }
+    ],
+    "triangles": [[0, 1, 2]]
+  },
+  "expected": ["MESH_REST_DEGENERATE"]
+}

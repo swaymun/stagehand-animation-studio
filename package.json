@@ -13,6 +13,7 @@
     "smoke": "node scripts/smoke.mjs",
     "smoke:native": "node scripts/native-webmcp-smoke.mjs",
     "smoke:skill": "node scripts/skill-forward-test.mjs",
+    "test:mesh": "node --experimental-strip-types scripts/mesh-regression.mts",
     "lint": "oxlint",
     "format": "oxfmt"
   },

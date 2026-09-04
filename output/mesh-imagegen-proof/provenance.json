@@ -1,0 +1,12 @@
+{
+  "generator": "OpenAI built-in image_gen",
+  "generatedOn": "2026-09-03",
+  "sourcePath": "output/mesh-imagegen-proof/assets/imagegen-robot-arm.png",
+  "sourceSha256": "87b392eb2b3f3de65069d3b7600c84311a7f5a3b06df48e1a410ab316eaaadd1",
+  "decodedWidth": 2172,
+  "decodedHeight": 724,
+  "hasAlpha": true,
+  "useCase": "stylized-concept",
+  "assetType": "experimental Stagehand weighted-mesh rig texture",
+  "prompt": "Create one clean, funny cartoon robot arm as a single continuous 2D texture for a two-bone shoulder-to-elbow-to-wrist deformation test. Use a genuinely transparent background. Show one horizontal arm only, extending straight from shoulder cap at the far left to a simple mitten-like robot hand at the far right; use a coral-red upper arm blending into teal at the elbow and golden yellow toward the hand; add a small circular elbow badge and two thin longitudinal highlight stripes so bending deformation is visually obvious. Use polished flat 2D animation art, a crisp silhouette, subtle texture, and straight-alpha edges. Center the full arm in a wide horizontal neutral bind pose with generous transparent padding and shoulder, elbow, and wrist on one axis. No body, detached pieces, labels, text, watermark, opaque background, baked shadow, cropping, bent pose, perspective foreshortening, extra limbs, separate sprite cells, or complex background."
+}

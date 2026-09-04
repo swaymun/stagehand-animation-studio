@@ -7,3 +7,7 @@ The public surface contains exactly these 38 tools, in this order:
 Each tool has a unique input-schema `$id`. Mutations made from a prior read include `expectedRevision` and a unique `idempotencyKey`. On a revision conflict, re-read with `inspect_project`; on an uncertain response, retry only with the same idempotency key.
 
 Use only `hold`, `linear`, or `ease-in-out` interpolation. Treat compatibility-only operations outside the public list as legacy adapters, never as additional public WebMCP registrations.
+
+`propose_skeleton` and `bind_skeleton_asset` accept canonical `mesh: MeshBindingV1` without adding a new public tool. Keep the legacy `vertices` and `weights` inputs readable. Mesh input is rejected before commit when structure, weights, texture identity, bone references, or skeleton version are invalid. A successful rebind increments the skeleton version and stores the mesh against that version atomically.
+
+`validate_skeleton`, `inspect_frame`, `export_frame`, and `render_webm` report `canvas-lbs-mesh-v1`, fallback use, vertex and triangle counts, maximum influences, maximum weight-sum error, degenerate and flipped counts, and worst area ratio when mesh rendering is active. Inspection and export may return RGBA hashes, but never image bytes.

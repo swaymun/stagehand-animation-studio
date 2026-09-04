@@ -12,4 +12,26 @@ Required structure:
 
 Inference must be bounded by decoded image dimensions and significant alpha components. It may suggest geometry, but it must not invent filenames, asset IDs, source URLs, authors, licenses, or approvals. Preserve legacy package geometry during migration.
 
-Mesh data is optional and experimental. Mark it explicitly and retain a segmented package fallback.
+Mesh data is optional and experimental. Mark it explicitly and retain a segmented package fallback. The canonical runtime binding is:
+
+```ts
+type MeshBindingV1 = {
+  version: 1;
+  id: string;
+  textureAssetId: string;
+  coordinateSpace: 'normalized-image';
+  vertices: Array<{
+    id: string;
+    x: number;
+    y: number;
+    u: number;
+    v: number;
+    influences: Array<{ boneId: string; weight: number }>;
+  }>;
+  triangles: Array<[number, number, number]>;
+  zIndex: number;
+  skeletonVersion: number;
+};
+```
+
+New writes use `SkeletonBinding.mesh`. Legacy `binding.vertices`, `binding.weights`, and package `experimentalMesh` may be adapted only when vertices, UVs, triangles, and weights are complete. Normalize positive legacy weights during adaptation, preserve the legacy fields, and never invent missing triangulation. Explicit new mesh input must already have weight sums within `1 ± 0.0001`.

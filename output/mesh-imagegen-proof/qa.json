@@ -1,0 +1,46 @@
+{
+  "status": "experimental-proof-passed",
+  "renderer": "canvas-lbs-mesh-v1",
+  "fallbackUsed": false,
+  "vertexCount": 8,
+  "triangleCount": 6,
+  "maximumInfluences": 2,
+  "maximumWeightSumError": 0,
+  "poses": {
+    "rest": {
+      "angleDegrees": 0,
+      "pixelHash": "18b3ee680f87e167ae71047f7e211464992f9860dc93f9cdeeebda208ae4880d",
+      "degenerateCount": 0,
+      "flippedCount": 0,
+      "worstAreaRatio": 1
+    },
+    "bend60": {
+      "angleDegrees": 60,
+      "pixelHash": "65fdfaed732770f4dbb5c64c9934b225253d19c764bc73cd7416e994e32c5c64",
+      "degenerateCount": 0,
+      "flippedCount": 0,
+      "worstAreaRatio": 0.6417468245269453
+    },
+    "bend105": {
+      "angleDegrees": 105,
+      "pixelHash": "f2c113666f068dfdc7b9c775d6676a9a46655484b37ed4517ce2876cac222139",
+      "degenerateCount": 0,
+      "flippedCount": 0,
+      "worstAreaRatio": 0.24984974916260622
+    }
+  },
+  "parity": {
+    "inspectFramePixelHash": "d9ecc04c22c04489c4d056faa6801e1787c3d57f675860d4c91adebfb7b4dfe3",
+    "exportFramePixelHash": "d9ecc04c22c04489c4d056faa6801e1787c3d57f675860d4c91adebfb7b4dfe3",
+    "webmSourceFramePixelHash": "d9ecc04c22c04489c4d056faa6801e1787c3d57f675860d4c91adebfb7b4dfe3"
+  },
+  "visualReview": {
+    "restReproduction": "pass",
+    "continuousTextureDeformation": "pass",
+    "visibleTriangleSeams": "none observed",
+    "clipping": "none observed",
+    "collapse": "none observed",
+    "windingFlips": "none",
+    "note": "The 105 degree pose has pronounced but continuous LBS squash around the elbow. This is acceptable for the experimental vertical slice and not production-quality weight painting."
+  }
+}

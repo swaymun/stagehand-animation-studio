@@ -1,5 +1,6 @@
 import { chromium } from 'playwright';
-import { readFile, stat } from 'node:fs/promises';
+import { mkdir, readFile, stat } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { deflateSync } from 'node:zlib';
 
 const PUBLIC_TOOL_NAMES = [
@@ -149,7 +150,41 @@ function segmentedPngFixture() {
   ]);
 }
 
+function meshArmPngFixture() {
+  const width = 320;
+  const height = 160;
+  const stride = width * 4 + 1;
+  const raw = Buffer.alloc(height * stride);
+  for (let y = 56; y < 104; y += 1) {
+    const row = y * stride;
+    for (let x = 32; x < 288; x += 1) {
+      const pixel = row + 1 + x * 4;
+      const blend = (x - 32) / 256;
+      raw[pixel] = Math.round(239 - blend * 107);
+      raw[pixel + 1] = Math.round(107 + blend * 77);
+      raw[pixel + 2] = Math.round(87 + blend * 56);
+      raw[pixel + 3] = 255;
+    }
+  }
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8;
+  header[9] = 6;
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    pngChunk('IHDR', header),
+    pngChunk('IDAT', deflateSync(raw)),
+    pngChunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
 const fixtureDataUrl = `data:image/png;base64,${segmentedPngFixture().toString('base64')}`;
+const meshTexturePath = process.env.STAGEHAND_MESH_TEXTURE_PATH;
+const meshTextureBytes = meshTexturePath
+  ? await readFile(meshTexturePath)
+  : meshArmPngFixture();
+const meshFixtureDataUrl = `data:image/png;base64,${meshTextureBytes.toString('base64')}`;
 
 const baseUrl = process.env.STAGEHAND_URL ?? 'http://localhost:3000';
 const browser = await chromium.launch({ headless: true });
@@ -438,7 +473,7 @@ if (unnamedNumberInputs.length > 0) {
 }
 
 const bridge = await page.evaluate(
-  async ({ fixtureDataUrl, publicToolNames }) => {
+  async ({ fixtureDataUrl, meshFixtureDataUrl, publicToolNames }) => {
     const tools = window.__stagehandTools;
     const legacyTools = window.__stagehandLegacyTools;
     const call = (name, input = {}) =>
@@ -644,6 +679,171 @@ const bridge = await page.evaluate(
     const statusAfterBone = await call('get_skeleton', { skeletonId });
     const skeletonValidation = await call('validate_skeleton', { skeletonId });
     const skeletonFrame = await call('inspect_frame', { timeMs: 3300 });
+    const meshChecklist = await call('get_asset_generation_checklist', {
+      kind: 'rigged-character',
+      bindingMethod: 'mesh',
+    });
+    const meshRequest = await call('create_asset_request', {
+      kind: 'rigged-character',
+      label: 'Two-bone arm mesh proof',
+      targetCharacterId: 'alice',
+      bindingMethod: 'mesh',
+    });
+    const meshCandidate = await call('attach_generated_asset', {
+      requestId: meshRequest.request.id,
+      dataUrl: meshFixtureDataUrl,
+      frameLayout: 'single',
+    });
+    const approvedMeshAsset = await call('approve_asset', {
+      assetId: meshCandidate.asset.id,
+      approved: true,
+    });
+    const boundMeshAsset = await call('bind_character_asset', {
+      characterId: 'alice',
+      assetId: meshCandidate.asset.id,
+    });
+    const meshJoints = [
+      {
+        id: 'root',
+        label: 'shoulder',
+        x: 10,
+        y: 50,
+        radius: 4,
+        confidence: 1,
+        locked: true,
+      },
+      {
+        id: 'elbow',
+        parentId: 'root',
+        label: 'elbow',
+        x: 50,
+        y: 50,
+        radius: 4,
+        confidence: 1,
+        locked: true,
+      },
+      {
+        id: 'wrist',
+        parentId: 'elbow',
+        label: 'wrist',
+        x: 90,
+        y: 50,
+        radius: 4,
+        confidence: 1,
+        locked: true,
+      },
+    ];
+    const meshBones = [
+      {
+        id: 'upper-arm',
+        parentJointId: 'root',
+        childJointId: 'elbow',
+        length: 40,
+        angleMin: -120,
+        angleMax: 120,
+      },
+      {
+        id: 'lower-arm',
+        parentJointId: 'elbow',
+        childJointId: 'wrist',
+        length: 40,
+        angleMin: -120,
+        angleMax: 120,
+      },
+    ];
+    const columns = [
+      { x: 0.1, upper: 1, lower: 0 },
+      { x: 0.4, upper: 0.75, lower: 0.25 },
+      { x: 0.6, upper: 0.25, lower: 0.75 },
+      { x: 0.9, upper: 0, lower: 1 },
+    ];
+    const meshVertices = columns.flatMap((column, columnIndex) =>
+      [0.35, 0.65].map((y, rowIndex) => ({
+        id: `v-${columnIndex}-${rowIndex}`,
+        x: column.x,
+        y,
+        u: column.x,
+        v: y,
+        influences: [
+          ...(column.upper > 0
+            ? [{ boneId: 'upper-arm', weight: column.upper }]
+            : []),
+          ...(column.lower > 0
+            ? [{ boneId: 'lower-arm', weight: column.lower }]
+            : []),
+        ],
+      })),
+    );
+    const mesh = {
+      version: 1,
+      id: 'two-bone-arm-proof',
+      textureAssetId: meshCandidate.asset.id,
+      coordinateSpace: 'normalized-image',
+      vertices: meshVertices,
+      triangles: [
+        [0, 2, 1],
+        [1, 2, 3],
+        [2, 4, 3],
+        [3, 4, 5],
+        [4, 6, 5],
+        [5, 6, 7],
+      ],
+      zIndex: 0,
+      skeletonVersion: 1,
+    };
+    const beforeInvalidMesh = await call('inspect_project');
+    const invalidMeshProposal = await call('propose_skeleton', {
+      assetId: meshCandidate.asset.id,
+      bindingMethod: 'mesh',
+      joints: meshJoints,
+      bones: meshBones,
+      mesh: {
+        ...mesh,
+        vertices: meshVertices.map((vertex, index) =>
+          index === 0
+            ? {
+                ...vertex,
+                influences: [{ boneId: 'upper-arm', weight: 0.8 }],
+              }
+            : vertex,
+        ),
+      },
+    });
+    const afterInvalidMesh = await call('inspect_project');
+    const meshProposal = await call('propose_skeleton', {
+      assetId: meshCandidate.asset.id,
+      bindingMethod: 'mesh',
+      joints: meshJoints,
+      bones: meshBones,
+      mesh,
+    });
+    const meshSkeletonId = meshProposal.skeleton?.id;
+    const approvedMeshSkeleton = await call('approve_skeleton', {
+      skeletonId: meshSkeletonId,
+      approved: true,
+    });
+    const meshRestKeyframe = await call('set_bone_keyframe', {
+      skeletonId: meshSkeletonId,
+      timeMs: 0,
+      transforms: [
+        { boneId: 'upper-arm', rotation: 0, x: 0, y: 0, scale: 1 },
+        { boneId: 'lower-arm', rotation: 0, x: 0, y: 0, scale: 1 },
+      ],
+    });
+    const meshBendKeyframe = await call('set_bone_keyframe', {
+      skeletonId: meshSkeletonId,
+      timeMs: 600,
+      transforms: [
+        { boneId: 'upper-arm', rotation: 0, x: 0, y: 0, scale: 1 },
+        { boneId: 'lower-arm', rotation: 60, x: 0, y: 0, scale: 1 },
+      ],
+    });
+    const meshRestFrame = await call('inspect_frame', { timeMs: 0 });
+    const meshBendFrame = await call('inspect_frame', { timeMs: 600 });
+    const meshValidation = await call('validate_skeleton', {
+      skeletonId: meshSkeletonId,
+    });
+    await call('set_playhead', { timeMs: 0 });
     const manifest = await call('get_asset_manifest');
     const prop = manifest.assets.find(
       (asset) => asset.kind === 'prop' && asset.source === 'imported',
@@ -697,7 +897,13 @@ const bridge = await page.evaluate(
     const redone = await call('redo_command');
     const duration = await call('set_scene_duration', { durationMs: 500 });
     const secondScene = await call('add_scene', { title: 'Smoke Outro' });
-    const responseLeaks = [candidate, candidateInspection, approvedAsset]
+    const responseLeaks = [
+      candidate,
+      candidateInspection,
+      approvedAsset,
+      meshCandidate,
+      approvedMeshAsset,
+    ]
       .map((result) => JSON.stringify(result))
       .filter(
         (value) => value.includes('data:image') || value.includes('base64,'),
@@ -784,6 +990,29 @@ const bridge = await page.evaluate(
           (item) => item.id === skeletonId,
         )?.boneTransforms?.length,
       },
+      meshProof: {
+        checklist: meshChecklist.checklist?.some((item) =>
+          item.includes('triangle mesh'),
+        ),
+        request: meshRequest.ok,
+        approvedAsset: approvedMeshAsset.reviewStatus,
+        boundAsset: boundMeshAsset.ok,
+        invalidCode: invalidMeshProposal.code,
+        invalidRevisionUnchanged:
+          beforeInvalidMesh.revision === afterInvalidMesh.revision,
+        proposed: meshProposal.ok,
+        skeletonId: meshSkeletonId,
+        approved: approvedMeshSkeleton.reviewStatus,
+        restKeyframe: meshRestKeyframe.ok,
+        bendKeyframe: meshBendKeyframe.ok,
+        valid: meshValidation.valid,
+        renderer: meshRestFrame.renderDiagnostics?.renderer,
+        fallbackUsed: meshRestFrame.renderDiagnostics?.fallbackUsed,
+        restMetrics: meshRestFrame.renderDiagnostics?.meshMetrics?.[0],
+        bendMetrics: meshBendFrame.renderDiagnostics?.meshMetrics?.[0],
+        restHash: meshRestFrame.pixelHash,
+        bendHash: meshBendFrame.pixelHash,
+      },
       prop: {
         id: prop.id,
         before: propReadBefore.propKeyframes.length,
@@ -806,7 +1035,11 @@ const bridge = await page.evaluate(
       },
     };
   },
-  { fixtureDataUrl, publicToolNames: PUBLIC_TOOL_NAMES },
+  {
+    fixtureDataUrl,
+    meshFixtureDataUrl,
+    publicToolNames: PUBLIC_TOOL_NAMES,
+  },
 );
 
 await page.waitForTimeout(650);
@@ -824,6 +1057,109 @@ if (
 ) {
   throw new Error(`local recovery mismatch: ${JSON.stringify(recovery)}`);
 }
+
+const meshProofOutput = process.env.STAGEHAND_MESH_OUTPUT_DIR
+  ? fileURLToPath(
+      new URL(`${process.env.STAGEHAND_MESH_OUTPUT_DIR}/`, import.meta.url),
+    )
+  : fileURLToPath(new URL('../output/mesh-proof/', import.meta.url));
+await mkdir(meshProofOutput, { recursive: true });
+await page.evaluate(
+  async ({ skeletonId }) => {
+    const tools = window.__stagehandTools;
+    await tools.get('set_current_scene').execute({ sceneId: 'scene-01' });
+    await tools.get('set_playhead').execute({ timeMs: 0 });
+    await tools.get('set_bone_keyframe').execute({
+      skeletonId,
+      timeMs: 125,
+      transforms: [
+        { boneId: 'upper-arm', rotation: 0, x: 0, y: 0, scale: 1 },
+        { boneId: 'lower-arm', rotation: 60, x: 0, y: 0, scale: 1 },
+      ],
+    });
+    await tools.get('set_bone_keyframe').execute({
+      skeletonId,
+      timeMs: 250,
+      transforms: [
+        { boneId: 'upper-arm', rotation: 0, x: 0, y: 0, scale: 1 },
+        { boneId: 'lower-arm', rotation: 105, x: 0, y: 0, scale: 1 },
+      ],
+    });
+  },
+  { skeletonId: bridge.meshProof.skeletonId },
+);
+await page.waitForTimeout(160);
+await page.locator('.stage-canvas').screenshot({
+  path: `${meshProofOutput}/rest.png`,
+});
+const stageBox = await page.locator('.stage-canvas').boundingBox();
+if (!stageBox) throw new Error('mesh proof canvas bounds unavailable');
+const meshDetailClip = {
+  x: stageBox.x + stageBox.width * 0.25,
+  y: stageBox.y + stageBox.height * 0.4,
+  width: stageBox.width * 0.25,
+  height: stageBox.height * 0.35,
+};
+await page.screenshot({
+  path: `${meshProofOutput}/rest-detail.png`,
+  clip: meshDetailClip,
+});
+await page.evaluate(async () => {
+  await window.__stagehandTools.get('set_playhead').execute({ timeMs: 125 });
+});
+await page.waitForTimeout(160);
+await page.locator('.stage-canvas').screenshot({
+  path: `${meshProofOutput}/bend-60.png`,
+});
+await page.screenshot({
+  path: `${meshProofOutput}/bend-60-detail.png`,
+  clip: meshDetailClip,
+});
+const wireframeToggle = page.getByRole('button', {
+  name: 'Show mesh wireframe',
+  exact: true,
+});
+await wireframeToggle.click();
+await page.waitForTimeout(100);
+await page.locator('.stage-canvas').screenshot({
+  path: `${meshProofOutput}/bend-60-wireframe.png`,
+});
+await page.screenshot({
+  path: `${meshProofOutput}/bend-60-wireframe-detail.png`,
+  clip: meshDetailClip,
+});
+await page.getByRole('button', { name: 'Hide mesh wireframe' }).click();
+
+const extremeInspection = await page.evaluate(async () => {
+  const tools = window.__stagehandTools;
+  await tools.get('set_playhead').execute({ timeMs: 250 });
+  return tools.get('inspect_frame').execute({ timeMs: 250 });
+});
+await page.waitForTimeout(160);
+await page.locator('.stage-canvas').screenshot({
+  path: `${meshProofOutput}/bend-105.png`,
+});
+await page.screenshot({
+  path: `${meshProofOutput}/bend-105-detail.png`,
+  clip: meshDetailClip,
+});
+await wireframeToggle.click();
+await page.waitForTimeout(100);
+await page.locator('.stage-canvas').screenshot({
+  path: `${meshProofOutput}/bend-105-wireframe.png`,
+});
+await page.screenshot({
+  path: `${meshProofOutput}/bend-105-wireframe-detail.png`,
+  clip: meshDetailClip,
+});
+await page.getByRole('button', { name: 'Hide mesh wireframe' }).click();
+
+const parityInspection = await page.evaluate(async () => {
+  const tools = window.__stagehandTools;
+  await tools.get('set_current_scene').execute({ sceneId: 'scene-01' });
+  await tools.get('set_playhead').execute({ timeMs: 0 });
+  return tools.get('inspect_frame').execute({ timeMs: 0 });
+});
 
 const downloadPromise = page.waitForEvent('download', { timeout: 15000 });
 const rendered = await page.evaluate(() =>
@@ -1135,6 +1471,19 @@ const result = {
     sceneCount: recovery.sceneCount,
     assetCount: recovery.assetCount,
   },
+  parityInspection: {
+    ok: parityInspection.ok,
+    pixelHash: parityInspection.pixelHash,
+    renderer: parityInspection.renderDiagnostics?.renderer,
+    fallbackUsed: parityInspection.renderDiagnostics?.fallbackUsed,
+  },
+  extremeInspection: {
+    ok: extremeInspection.ok,
+    pixelHash: extremeInspection.pixelHash,
+    renderer: extremeInspection.renderDiagnostics?.renderer,
+    fallbackUsed: extremeInspection.renderDiagnostics?.fallbackUsed,
+    meshMetrics: extremeInspection.renderDiagnostics?.meshMetrics?.[0],
+  },
   bridge,
   render: {
     ok: rendered.ok,
@@ -1145,6 +1494,11 @@ const result = {
     downloadedBytes: await downloadBytes,
     webmHeader,
     suggestedFilename: download.suggestedFilename(),
+    renderer: rendered.renderer,
+    meshFrameCount: rendered.meshFrameCount,
+    fallbackFrameCount: rendered.fallbackFrameCount,
+    renderIssueCount: rendered.renderIssueCount,
+    sampleFrameHashes: rendered.sampleFrameHashes,
   },
   frameExport: {
     ok: frameExported.ok,
@@ -1153,6 +1507,10 @@ const result = {
     downloadedBytes: await frameDownloadedBytes,
     pngHeader,
     suggestedFilename: frameDownload.suggestedFilename(),
+    pixelHash: frameExported.pixelHash,
+    renderer: frameExported.renderDiagnostics?.renderer,
+    fallbackUsed: frameExported.renderDiagnostics?.fallbackUsed,
+    meshMetrics: frameExported.renderDiagnostics?.meshMetrics?.[0],
   },
   humanAudioVolume,
   humanAudioStart,
@@ -1208,6 +1566,15 @@ if (
   result.recovery.name !== 'Smoke Project' ||
   result.recovery.sceneCount !== 2 ||
   result.recovery.assetCount < 5 ||
+  !parityInspection.ok ||
+  parityInspection.renderDiagnostics?.renderer !== 'canvas-lbs-mesh-v1' ||
+  parityInspection.renderDiagnostics?.fallbackUsed ||
+  !extremeInspection.ok ||
+  extremeInspection.renderDiagnostics?.renderer !== 'canvas-lbs-mesh-v1' ||
+  extremeInspection.renderDiagnostics?.fallbackUsed ||
+  extremeInspection.renderDiagnostics?.meshMetrics?.[0]?.flippedCount !== 0 ||
+  extremeInspection.renderDiagnostics?.meshMetrics?.[0]?.degenerateCount !==
+    0 ||
   !bridge.audio.ok ||
   bridge.audio.volume !== 0.03 ||
   bridge.audio.libraryCount < 4 ||
@@ -1230,6 +1597,27 @@ if (
   !bridge.generatedRig.boneAtReveal ||
   !bridge.generatedRig.valid ||
   bridge.generatedRig.inspectedTransforms < 2 ||
+  !bridge.meshProof.checklist ||
+  !bridge.meshProof.request ||
+  bridge.meshProof.approvedAsset !== 'approved' ||
+  !bridge.meshProof.boundAsset ||
+  bridge.meshProof.invalidCode !== 'INVALID_MESH_BINDING' ||
+  !bridge.meshProof.invalidRevisionUnchanged ||
+  !bridge.meshProof.proposed ||
+  bridge.meshProof.approved !== 'approved' ||
+  !bridge.meshProof.restKeyframe ||
+  !bridge.meshProof.bendKeyframe ||
+  !bridge.meshProof.valid ||
+  bridge.meshProof.renderer !== 'canvas-lbs-mesh-v1' ||
+  bridge.meshProof.fallbackUsed ||
+  bridge.meshProof.restMetrics?.vertexCount !== 8 ||
+  bridge.meshProof.restMetrics?.triangleCount !== 6 ||
+  bridge.meshProof.restMetrics?.flippedCount !== 0 ||
+  bridge.meshProof.restMetrics?.degenerateCount !== 0 ||
+  bridge.meshProof.bendMetrics?.flippedCount !== 0 ||
+  bridge.meshProof.bendMetrics?.degenerateCount !== 0 ||
+  !bridge.meshProof.restHash ||
+  bridge.meshProof.restHash === bridge.meshProof.bendHash ||
   !bridge.inspected.ok ||
   bridge.inspected.timeMs !== 125 ||
   bridge.inspected.width !== 1920 ||
@@ -1258,10 +1646,19 @@ if (
   rendered.durationMs < 1000 ||
   !bridge.secondScene.ok ||
   rendered.bytes <= 0 ||
+  rendered.renderer !== 'canvas-lbs-mesh-v1' ||
+  rendered.meshFrameCount < 1 ||
+  rendered.fallbackFrameCount !== 0 ||
+  rendered.renderIssueCount !== 0 ||
+  rendered.sampleFrameHashes?.[0]?.pixelHash !== parityInspection.pixelHash ||
   webmHeader !== '1a45dfa3' ||
   !frameExported.ok ||
   frameExported.width !== 720 ||
   frameExported.height !== 405 ||
+  frameExported.renderDiagnostics?.renderer !== 'canvas-lbs-mesh-v1' ||
+  frameExported.renderDiagnostics?.fallbackUsed ||
+  frameExported.renderDiagnostics?.meshMetrics?.[0]?.flippedCount !== 0 ||
+  frameExported.pixelHash !== parityInspection.pixelHash ||
   frameDownloadedBytes <= 0 ||
   pngHeader !== '89504e47' ||
   !frameDownload.suggestedFilename().endsWith('.png') ||

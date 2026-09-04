@@ -6,5 +6,5 @@
 - Failed rendered QA: identify the affected pose and defect, correct pivots, anchors, bounds, overlap, parent assignment, draw order, or joint placement, then rerun the full stress set.
 - Low-confidence critical joint: require human correction and keep the skeleton unapproved.
 - Variant drift: compare stable part-ID and bone-ID topology; reject incompatible motion transfer or create a mapped variant.
-- Experimental mesh failure: return to the segmented production fallback.
+- Experimental mesh failure: preserve the mesh revision and structured metrics, correct the named UV, weight, topology, version, or pose defect, and rerun the full mesh stress set. If it still fails, explicitly select the segmented production fallback; never draw the undeformed rectangle while reporting mesh success.
 - Missing audio payload or unclear license: block attachment or export for that audio path until evidence is complete.
