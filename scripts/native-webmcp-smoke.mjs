@@ -2,6 +2,7 @@ import { chromium } from 'playwright';
 
 const PUBLIC_TOOL_NAMES = [
   'inspect_project',
+  'create_project',
   'edit_project',
   'get_timeline',
   'set_playhead',
@@ -90,7 +91,7 @@ await page.goto(`${baseUrl}?qa=native-webmcp`, {
 });
 await page.waitForTimeout(900);
 await page.waitForFunction(
-  () => window.__nativeWebMcpTools?.length === 38,
+  () => window.__nativeWebMcpTools?.length === 39,
   null,
   { timeout: 10000 },
 );
@@ -98,9 +99,23 @@ await page.waitForFunction(
 const result = await page.evaluate(async (publicToolNames) => {
   const tools = window.__nativeWebMcpTools;
   const summaryTool = tools.find((tool) => tool.name === 'inspect_project');
+  const createProjectTool = tools.find(
+    (tool) => tool.name === 'create_project',
+  );
   const timelineTool = tools.find((tool) => tool.name === 'get_timeline');
   const playheadTool = tools.find((tool) => tool.name === 'set_playhead');
   const before = await summaryTool.execute({});
+  const invalidCreate = await createProjectTool.execute({ durationMs: 100 });
+  const afterInvalidCreate = await summaryTool.execute({});
+  const created = await createProjectTool.execute({
+    name: 'Native Blank Project',
+    durationMs: 12000,
+    fps: 12,
+    renderPreset: '720p',
+    expectedRevision: before.revision,
+    idempotencyKey: 'native-create-project-1',
+  });
+  const afterCreate = await summaryTool.execute({});
   const beforeTimeline = await timelineTool.execute({});
   const invalid = await playheadTool.execute({ timeMs: 'not-a-number' });
   const moved = await playheadTool.execute({ timeMs: 250 });
@@ -124,6 +139,17 @@ const result = await page.evaluate(async (publicToolNames) => {
     lastTool: tools.at(-1)?.name,
     invalid,
     moved,
+    invalidCreate,
+    afterInvalidCreateRevision: afterInvalidCreate.revision,
+    created,
+    createdProject: {
+      revision: afterCreate.revision,
+      name: afterCreate.name,
+      durationMs: afterCreate.durationMs,
+      fps: afterCreate.fps,
+      renderSize: afterCreate.renderSize,
+      canUndo: afterCreate.canUndo,
+    },
     beforeRevision: before.revision,
     afterRevision: after.revision,
     beforeTimeMs: beforeTimeline.currentTimeMs,
@@ -137,16 +163,25 @@ await browser.close();
 
 if (
   result.status !== 'available' ||
-  result.toolCount !== 38 ||
-  result.uniqueToolCount !== 38 ||
+  result.toolCount !== 39 ||
+  result.uniqueToolCount !== 39 ||
   !result.exactOrder ||
   !result.uniqueSchemaIds ||
   result.unguardedMutations.length > 0 ||
   result.registrationErrors.length > 0 ||
+  result.invalidCreate?.code !== 'INVALID_INPUT' ||
+  result.afterInvalidCreateRevision !== result.beforeRevision ||
+  result.created?.ok !== true ||
+  result.createdProject.name !== 'Native Blank Project' ||
+  result.createdProject.durationMs !== 12000 ||
+  result.createdProject.fps !== 12 ||
+  result.createdProject.renderSize?.width !== 720 ||
+  result.createdProject.renderSize?.height !== 405 ||
+  !result.createdProject.canUndo ||
   result.invalid?.code !== 'INVALID_INPUT' ||
   result.moved?.ok !== true ||
   result.afterTimeMs !== 250 ||
-  result.afterRevision !== result.beforeRevision + 1 ||
+  result.afterRevision !== result.createdProject.revision + 1 ||
   pageErrors.length > 0
 ) {
   throw new Error('native WebMCP smoke failed');

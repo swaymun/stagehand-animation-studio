@@ -5,6 +5,7 @@ import { deflateSync } from 'node:zlib';
 
 const PUBLIC_TOOL_NAMES = [
   'inspect_project',
+  'create_project',
   'edit_project',
   'get_timeline',
   'set_playhead',
@@ -224,7 +225,7 @@ await page.waitForTimeout(700);
 await page.evaluate(() => localStorage.clear());
 await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
 await page.waitForTimeout(700);
-await page.waitForFunction(() => window.__stagehandTools?.size === 38);
+await page.waitForFunction(() => window.__stagehandTools?.size === 39);
 const h1 = page.locator('h1');
 if (
   (await h1.count()) !== 1 ||
@@ -266,6 +267,33 @@ const freshBlank = await page.evaluate(async () => ({
   project: await window.__stagehandTools.get('inspect_project').execute({}),
   audio: await window.__stagehandTools.get('list_asset_audio').execute({}),
 }));
+const createProjectContract = await page.evaluate(async () => {
+  const tools = window.__stagehandTools;
+  const before = await tools.get('inspect_project').execute({});
+  const invalid = await tools.get('create_project').execute({
+    durationMs: 100,
+    expectedRevision: before.revision,
+  });
+  const afterInvalid = await tools.get('inspect_project').execute({});
+  const created = await tools.get('create_project').execute({
+    name: 'Blank MCP Project',
+    durationMs: 12000,
+    fps: 12,
+    renderPreset: '720p',
+    expectedRevision: before.revision,
+    idempotencyKey: 'smoke-create-project-1',
+  });
+  const replay = await tools.get('create_project').execute({
+    name: 'Blank MCP Project',
+    durationMs: 12000,
+    fps: 12,
+    renderPreset: '720p',
+    expectedRevision: before.revision,
+    idempotencyKey: 'smoke-create-project-1',
+  });
+  const after = await tools.get('inspect_project').execute({});
+  return { before, invalid, afterInvalid, created, replay, after };
+});
 const blankCanvasState = {
   label: await page.locator('.stage-canvas').getAttribute('aria-label'),
   emptyState: await page
@@ -297,18 +325,35 @@ if (
     `fresh projects should open on the blank template: ${JSON.stringify({ freshBlank, blankCanvasState })}`,
   );
 }
-await page.getByRole('button', { name: 'More actions', exact: true }).click();
-await page.getByRole('menuitem', { name: 'Templates', exact: true }).click();
-const templateDialog = page.locator('dialog[aria-modal="true"]');
-await templateDialog.waitFor({ state: 'visible', timeout: 5000 });
-const blankTemplateCount = await templateDialog
-  .getByRole('button', { name: /Blank project/ })
-  .count();
-if (blankTemplateCount !== 1) {
-  throw new Error('templates should expose one explicit blank project choice');
+if (
+  createProjectContract.invalid.ok !== false ||
+  createProjectContract.invalid.code !== 'INVALID_INPUT' ||
+  createProjectContract.afterInvalid.revision !==
+    createProjectContract.before.revision ||
+  !createProjectContract.created.ok ||
+  createProjectContract.created.revision !==
+    createProjectContract.before.revision + 1 ||
+  !createProjectContract.replay.idempotentReplay ||
+  createProjectContract.after.revision !==
+    createProjectContract.created.revision ||
+  createProjectContract.after.name !== 'Blank MCP Project' ||
+  createProjectContract.after.durationMs !== 12000 ||
+  createProjectContract.after.fps !== 12 ||
+  createProjectContract.after.renderSize?.width !== 720 ||
+  createProjectContract.after.renderSize?.height !== 405 ||
+  !createProjectContract.after.canUndo
+) {
+  throw new Error(
+    `create_project contract failed: ${JSON.stringify(createProjectContract)}`,
+  );
 }
-await templateDialog.getByRole('button', { name: 'Close dialog' }).click();
 await page.getByRole('button', { name: 'More actions', exact: true }).click();
+const removedTemplateMenu = await page
+  .getByRole('menuitem', { name: 'Templates', exact: true })
+  .count();
+if (removedTemplateMenu !== 0) {
+  throw new Error('retired starter templates should not remain in the menu');
+}
 await page
   .getByRole('menuitem', { name: 'Load demo project', exact: true })
   .click();
@@ -1109,7 +1154,7 @@ const bridge = await page.evaluate(
 await page.waitForTimeout(650);
 await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
 await page.waitForTimeout(700);
-await page.waitForFunction(() => window.__stagehandTools?.size === 38);
+await page.waitForFunction(() => window.__stagehandTools?.size === 39);
 const recovery = await page.evaluate(() =>
   window.__stagehandTools.get('inspect_project').execute({}),
 );
@@ -1359,7 +1404,7 @@ const emptied = await page.evaluate(async () => {
 await page.waitForTimeout(650);
 await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
 await page.waitForTimeout(700);
-await page.waitForFunction(() => window.__stagehandTools?.size === 38);
+await page.waitForFunction(() => window.__stagehandTools?.size === 39);
 const emptyStatePersistence = await page.evaluate(() =>
   window.__stagehandTools.get('inspect_project').execute({}),
 );
@@ -1612,8 +1657,8 @@ const result = {
 };
 
 if (
-  result.toolCount !== 38 ||
-  bridge.legacyToolCount < 38 ||
+  result.toolCount !== 39 ||
+  bridge.legacyToolCount < 39 ||
   JSON.stringify(bridge.registeredNames) !==
     JSON.stringify(PUBLIC_TOOL_NAMES) ||
   bridge.responseLeaks.length !== 0 ||

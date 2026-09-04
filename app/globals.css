@@ -3094,53 +3094,6 @@ button {
 .dialog-copy p {
   margin: 0 0 14px;
 }
-.template-dialog-grid {
-  display: grid;
-  gap: 7px;
-}
-.template-dialog-grid button {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  color: var(--ink);
-  background: #fffaf2;
-  text-align: left;
-}
-.template-dialog-grid button:hover,
-.template-dialog-grid button:focus-visible {
-  border-color: var(--coral);
-  background: #fff6eb;
-  outline: none;
-}
-.template-dialog-grid button > span {
-  display: grid;
-  flex: 1;
-  gap: 2px;
-}
-.template-dialog-grid strong {
-  font-size: 12px;
-}
-.template-dialog-grid small {
-  color: var(--muted);
-  font-size: 10px;
-  line-height: 1.35;
-}
-.template-dialog-grid em {
-  flex: 0 0 auto;
-  color: var(--violet);
-  font:
-    8px ui-monospace,
-    monospace;
-  text-transform: uppercase;
-}
-.template-dialog-grid .blank-template-card {
-  border-color: var(--blue);
-  background: #e7f0ee;
-}
 .dialog-copy dl,
 .setting-line {
   display: grid;

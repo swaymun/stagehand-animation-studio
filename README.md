@@ -24,16 +24,16 @@ npm run smoke:native
 STAGEHAND_URL=https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site npm run smoke
 ```
 
-The regular smoke gate injects a model-context bridge, verifies the exact ordered set of 38 public tools and unique schema IDs, checks concurrency guards and the explicit legacy adapter, then exercises the asset, rig, motion, audio, recovery, PNG, and WebM paths. `smoke:native` launches Chromium with its experimental WebMCP flag and verifies the same 38-tool contract through browser-native registration. `smoke:skill` checks the downloadable skill and five golden rigging fixtures. ChatGPT Site tools themselves require no separate connection; in the ChatGPT desktop app they are account/model-gated and controlled by the Enable site tools permission.
+The regular smoke gate injects a model-context bridge, verifies the exact ordered set of 39 public tools and unique schema IDs, checks concurrency guards and the explicit legacy adapter, then exercises blank-project creation, assets, rigging, motion, audio, recovery, PNG, and WebM paths. `smoke:native` launches Chromium with its experimental WebMCP flag and verifies the same 39-tool contract through browser-native registration. `smoke:skill` checks the downloadable skill and ten golden rigging fixtures. ChatGPT Site tools themselves require no separate connection; in the ChatGPT desktop app they are account/model-gated and controlled by the Enable site tools permission.
 
 ## Studio map
 
-- **Scenes / Board / Assets**: scene management, editable storyboard beats, starter templates, asset import, visual briefs, per-asset style direction, palette chips, stage/library placement, and imported-prop motion. Assets stay scannable in the rail; the selected asset’s full style editor lives in Inspector.
+- **Scenes / Board / Assets**: blank-project creation, scene management, editable storyboard beats, asset import, visual briefs, per-asset style direction, palette chips, stage/library placement, and imported-prop motion. Assets stay scannable in the rail; the selected asset’s full style editor lives in Inspector.
 - **Animate**: canvas, character and camera Inspector, captions, non-voice mix, style bible, and a semantic timeline of camera, pose, prop, dialogue, music, and SFX events. Show details reveals the precise draggable keyframes; Inspector groups can collapse independently.
 - **Storyboard**: renderer-backed beat thumbnails that move the shared playhead; beats can be promoted into trimmed scenes.
 - **Preview**: primary review action using the same deterministic evaluator as export; editing chrome is hidden while transport, a compact scrubber, and scene context remain available.
-- **Render**: deterministic project-sequence WebM export with captions and cue-based audio. PNG frame export, project import/export, templates, settings, help, and guides live under More actions.
-- **WebMCP surface**: exactly 38 public tools expose the complete project, asset, audio, skeleton, motion, validation, and export loop. Narrow mutations share the human command path and revisioned undo/redo history. Every mutation accepts optional `expectedRevision` and `idempotencyKey`; older granular operations remain available only through an explicit in-page legacy adapter.
+- **Render**: deterministic project-sequence WebM export with captions and cue-based audio. PNG frame export, project import/export, settings, help, and guides live under More actions.
+- **WebMCP surface**: exactly 39 public tools expose blank-project creation plus the complete project, asset, audio, skeleton, motion, validation, and export loop. Narrow mutations share the human command path and revisioned undo/redo history. Every mutation accepts optional `expectedRevision` and `idempotencyKey`; older granular operations remain available only through an explicit in-page legacy adapter.
 
 ## Architecture
 

@@ -480,6 +480,7 @@ type ModelContext = {
 };
 const PUBLIC_WEBMCP_TOOL_NAMES = [
   'inspect_project',
+  'create_project',
   'edit_project',
   'get_timeline',
   'set_playhead',
@@ -976,37 +977,6 @@ const starterStyleBible: StyleBible = {
   palette: ['coral', 'diner teal', 'mustard', 'warm paper'],
   notes: 'Keep silhouettes readable and leave room for captions.',
 };
-const starterTemplates: Array<{
-  id: TemplateId;
-  title: string;
-  description: string;
-  tag: string;
-}> = [
-  {
-    id: 'first-meeting',
-    title: 'First meeting',
-    description: 'Alice waits. Bob arrives behind her.',
-    tag: 'canonical',
-  },
-  {
-    id: 'coffee-spill',
-    title: 'Coffee spill',
-    description: 'A tiny accident makes the silence worse.',
-    tag: 'reaction',
-  },
-  {
-    id: 'wrong-booth',
-    title: 'Wrong booth',
-    description: 'They both thought the other picked the table.',
-    tag: 'blocking',
-  },
-  {
-    id: 'the-apology',
-    title: 'The apology',
-    description: 'One sentence arrives much too late.',
-    tag: 'caption-led',
-  },
-];
 const starterAudioCues: AudioCue[] = [
   {
     id: 'music-low',
@@ -1566,73 +1536,6 @@ function isBlankProject(project: Project) {
   );
 }
 
-function makeTemplateScene(templateId: TemplateId, id: string): SceneMeta {
-  const base = copy(starterProject);
-  const variants: Record<
-    TemplateId,
-    {
-      title: string;
-      description: string;
-      captions: string[];
-      cameraZoom: number;
-      cameraPanX: number;
-    }
-  > = {
-    'first-meeting': {
-      title: 'Diner · first meeting',
-      description: 'Alice waits. Bob arrives behind her.',
-      captions: ['You actually came', 'I almost didn’t'],
-      cameraZoom: 1.16,
-      cameraPanX: -4,
-    },
-    'coffee-spill': {
-      title: 'Diner · coffee spill',
-      description: 'A tiny accident makes the silence worse.',
-      captions: ['That was my coffee', 'I panicked'],
-      cameraZoom: 1.22,
-      cameraPanX: -2,
-    },
-    'wrong-booth': {
-      title: 'Diner · wrong booth',
-      description: 'They both thought the other picked the table.',
-      captions: ['I reserved this booth', 'For someone else?'],
-      cameraZoom: 1.1,
-      cameraPanX: 2,
-    },
-    'the-apology': {
-      title: 'Diner · the apology',
-      description: 'One sentence arrives much too late.',
-      captions: ['I’m sorry I vanished', 'You did wave first'],
-      cameraZoom: 1.2,
-      cameraPanX: -3,
-    },
-  };
-  const variant = variants[templateId];
-  const cameraKeyframes = base.cameraKeyframes.map((frame) => ({ ...frame }));
-  cameraKeyframes.forEach((frame) => {
-    if (frame.time >= 3100 && frame.time < base.duration) {
-      frame.zoom = variant.cameraZoom;
-      frame.panX = variant.cameraPanX;
-    }
-  });
-  return {
-    id,
-    title: variant.title,
-    description: variant.description,
-    duration: base.duration,
-    templateId,
-    characters: base.characters,
-    keyframes: base.keyframes,
-    propKeyframes: base.propKeyframes,
-    cameraKeyframes,
-    captions: base.captions.map((caption, index) => ({
-      ...caption,
-      text: variant.captions[index] ?? caption.text,
-    })),
-    audioCues: base.audioCues,
-  };
-}
-
 function makeBeatScene(
   project: Project,
   beat: StoryBeat,
@@ -1797,6 +1700,21 @@ function makeSplitScenes(
 }
 
 const copy = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+function makeBlankProject(options?: {
+  name?: string;
+  durationMs?: number;
+  fps?: 12 | 24;
+  renderPreset?: '720p' | '1080p';
+}) {
+  const project = copy(blankProject);
+  project.name = options?.name ?? blankProject.name;
+  project.duration = options?.durationMs ?? blankProject.duration;
+  project.fps = options?.fps ?? blankProject.fps;
+  project.renderWidth = options?.renderPreset === '720p' ? 720 : 1920;
+  project.renderHeight = options?.renderPreset === '720p' ? 405 : 1080;
+  project.scenes[0].duration = project.duration;
+  return project;
+}
 const timecode = (ms: number) => `${(ms / 1000).toFixed(2).padStart(4, '0')}s`;
 const poseLabel = (pose: Pose) =>
   pose.replace('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -5522,9 +5440,7 @@ export default function Home() {
     [stageTool, setStageTool] = useState<'select' | 'pan'>('select'),
     [viewportZoom, setViewportZoom] = useState(100),
     [viewportPan, setViewportPan] = useState({ x: 0, y: 0 }),
-    [dialog, setDialog] = useState<'help' | 'settings' | 'templates' | null>(
-      null,
-    ),
+    [dialog, setDialog] = useState<'help' | 'settings' | null>(null),
     [rendering, setRendering] = useState(false),
     [notice, setNotice] = useState(''),
     [saved, setSaved] = useState(true),
@@ -8935,55 +8851,6 @@ export default function Home() {
       },
     );
     register(
-      'apply_template',
-      'Apply starter template',
-      'Create a new editable scene from a starter recipe without overwriting existing scenes.',
-      {
-        type: 'object',
-        required: ['templateId'],
-        additionalProperties: false,
-        properties: {
-          templateId: {
-            type: 'string',
-            enum: [
-              'first-meeting',
-              'coffee-spill',
-              'wrong-booth',
-              'the-apology',
-            ],
-          },
-        },
-      },
-      (input) => {
-        const current = projectRef.current;
-        if (
-          input.templateId !== 'first-meeting' &&
-          input.templateId !== 'coffee-spill' &&
-          input.templateId !== 'wrong-booth' &&
-          input.templateId !== 'the-apology'
-        )
-          return { ok: false, code: 'INVALID_INPUT' };
-        const scene = makeTemplateScene(
-          input.templateId,
-          nextSceneId(current.scenes),
-        );
-        commitRef.current(
-          (next) => {
-            next.scenes.push(scene);
-            loadSceneContent(next, scene.id);
-          },
-          `Apply ${scene.title}`,
-          true,
-        );
-        return {
-          ok: true,
-          revision: current.revision + 1,
-          scene,
-          changedEntityIds: [scene.id],
-        };
-      },
-    );
-    register(
       'promote_storyboard_beat',
       'Promote storyboard beat',
       'Create a new editable scene from one storyboard beat while preserving the source scene.',
@@ -10064,6 +9931,87 @@ export default function Home() {
       { type: 'object', properties: {}, additionalProperties: false },
       () => callInternal('get_project_summary'),
       true,
+    );
+    register(
+      'create_project',
+      'Create blank project',
+      'Replace the active browser project with a new blank Stagehand project while keeping the previous state available to undo.',
+      {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          name: { type: 'string', minLength: 1, maxLength: 80 },
+          durationMs: { type: 'number', minimum: 500, maximum: 60000 },
+          fps: { type: 'number', enum: [12, 24] },
+          renderPreset: { type: 'string', enum: ['720p', '1080p'] },
+        },
+      },
+      (input) => {
+        const current = projectRef.current;
+        const name =
+          input.name === undefined
+            ? blankProject.name
+            : typeof input.name === 'string'
+              ? input.name.trim()
+              : '';
+        const durationMs =
+          input.durationMs === undefined
+            ? blankProject.duration
+            : input.durationMs;
+        const fps = input.fps === undefined ? blankProject.fps : input.fps;
+        const renderPreset =
+          input.renderPreset === undefined ? '1080p' : input.renderPreset;
+        if (
+          !name ||
+          name.length > 80 ||
+          typeof durationMs !== 'number' ||
+          !Number.isFinite(durationMs) ||
+          durationMs < 500 ||
+          durationMs > 60000 ||
+          (fps !== 12 && fps !== 24) ||
+          (renderPreset !== '720p' && renderPreset !== '1080p')
+        ) {
+          return { ok: false, code: 'INVALID_INPUT' };
+        }
+        const created = makeBlankProject({
+          name,
+          durationMs: Math.round(durationMs),
+          fps,
+          renderPreset,
+        });
+        created.revision = current.revision;
+        commitRef.current(
+          (next) => Object.assign(next, created),
+          `Create blank project ${name}`,
+          true,
+        );
+        return {
+          ok: true,
+          revision: current.revision + 1,
+          project: {
+            name: created.name,
+            durationMs: created.duration,
+            fps: created.fps,
+            renderSize: {
+              width: created.renderWidth,
+              height: created.renderHeight,
+            },
+            activeSceneId: created.activeSceneId,
+            characterSlots: created.characters.map((character) => ({
+              id: character.id,
+              name: character.name,
+              bound: Boolean(character.assetId),
+            })),
+            bundledAudioCount: created.assets.filter(
+              (asset) => asset.kind === 'audio',
+            ).length,
+          },
+          changedEntityIds: [
+            created.activeSceneId,
+            ...created.characters.map((character) => character.id),
+          ],
+        };
+      },
     );
     register(
       'edit_history',
@@ -11361,30 +11309,6 @@ export default function Home() {
       'Demo project loaded',
     );
   };
-  const applyTemplate = (template: (typeof starterTemplates)[number]) => {
-    if (isBlankProject(project)) {
-      const scene = makeTemplateScene(template.id, 'scene-01');
-      const templatedProject = copy(starterProject);
-      templatedProject.revision = 1;
-      templatedProject.currentTime = 0;
-      templatedProject.scenes = [scene];
-      templatedProject.activeSceneId = scene.id;
-      loadSceneContent(templatedProject, scene.id);
-      replaceProject(
-        templatedProject,
-        `apply_template(${template.id})`,
-        `${scene.title} ready`,
-      );
-      return;
-    }
-    const scene = makeTemplateScene(template.id, nextSceneId(project.scenes));
-    commit((next) => {
-      next.scenes.push(scene);
-      loadSceneContent(next, scene.id);
-    }, `Apply ${scene.title}`);
-    setPanel('scenes');
-    setDialog(null);
-  };
   const addStoryboardBeat = () => {
     const startMs = Math.min(
       project.currentTime,
@@ -12210,16 +12134,6 @@ export default function Home() {
                     }}
                   >
                     <Save size={14} /> Export project
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setTopMenuOpen(false);
-                      setDialog('templates');
-                    }}
-                  >
-                    <Layers3 size={14} /> Templates
                   </button>
                   <button
                     type="button"
@@ -14634,11 +14548,7 @@ export default function Home() {
               <div>
                 <span className="eyebrow">STAGEHAND</span>
                 <h2 id="studio-dialog-title">
-                  {dialog === 'help'
-                    ? 'Help & shortcuts'
-                    : dialog === 'settings'
-                      ? 'Studio settings'
-                      : 'Starter templates'}
+                  {dialog === 'help' ? 'Help & shortcuts' : 'Studio settings'}
                 </h2>
               </div>
               <button
@@ -14689,7 +14599,7 @@ export default function Home() {
                   </div>
                 </dl>
               </div>
-            ) : dialog === 'settings' ? (
+            ) : (
               <div className="dialog-copy">
                 <p>Project data stays in this browser until you export it.</p>
                 <div className="setting-line">
@@ -14723,38 +14633,6 @@ export default function Home() {
                 <div className="setting-line">
                   <span>Storage</span>
                   <strong>Local browser project</strong>
-                </div>
-              </div>
-            ) : (
-              <div className="dialog-copy">
-                <p>Begin empty or add a focused story beat to this project.</p>
-                <div className="template-dialog-grid">
-                  <button
-                    className="blank-template-card"
-                    type="button"
-                    onClick={startBlankProject}
-                  >
-                    <span>
-                      <strong>Blank project</strong>
-                      <small>
-                        One empty scene with two open actor slots and no cues.
-                      </small>
-                    </span>
-                    <em>blank</em>
-                  </button>
-                  {starterTemplates.map((template) => (
-                    <button
-                      type="button"
-                      key={template.id}
-                      onClick={() => applyTemplate(template)}
-                    >
-                      <span>
-                        <strong>{template.title}</strong>
-                        <small>{template.description}</small>
-                      </span>
-                      <em>{template.tag}</em>
-                    </button>
-                  ))}
                 </div>
               </div>
             )}
