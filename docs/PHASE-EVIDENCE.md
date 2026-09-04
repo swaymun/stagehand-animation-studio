@@ -13,7 +13,7 @@ Keep current screenshots only in `docs/evidence/`.
 
 - [x] format [x] lint [x] typecheck [x] build
 - [x] test:frames [x] test:tool-ui [x] smoke [x] smoke:native
-- [ ] hosted smoke with `STAGEHAND_URL`
+- [x] hosted smoke with `STAGEHAND_URL`
 
 ## WebMCP
 

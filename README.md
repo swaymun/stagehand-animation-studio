@@ -68,3 +68,7 @@ For hosted verification, set `STAGEHAND_URL` to the deployed URL. Current refere
 `app/stagehand-model.ts` defines the version-2 schema; `app/stagehand-renderer.ts` draws evaluated frames and mixes generated dialogue, optional music, and procedural SFX. Automatic rigging, skeletal deformation, mesh skinning, IK, phoneme extraction, and MP4/GIF export are out of scope.
 
 Released under the MIT License; see [LICENSE](LICENSE).
+
+## Submission demo
+
+Watch the 2:48 Stagehand demo: https://www.youtube.com/watch?v=bOg6uA2fGfY
