@@ -72,3 +72,5 @@ Released under the MIT License; see [LICENSE](LICENSE).
 ## Submission demo
 
 Watch the 2:48 Stagehand demo: https://www.youtube.com/watch?v=bOg6uA2fGfY
+
+Submitted to the WebMCP Challenge: https://devpost.com/software/stagehand-i5xuht

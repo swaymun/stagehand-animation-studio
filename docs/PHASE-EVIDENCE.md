@@ -37,3 +37,9 @@ Keep current screenshots only in `docs/evidence/`.
 ## Boundaries
 
 Record missing gates explicitly. Rigging, mesh, IK, phoneme extraction, cloud voice, and MP4/GIF are out of scope.
+
+## Submission
+
+- Devpost: https://devpost.com/software/stagehand-i5xuht
+- Demo: https://www.youtube.com/watch?v=bOg6uA2fGfY
+- Submitted: 2026-09-04 03:31 EDT
