@@ -1,8 +1,0 @@
-{
-  "generator": "OpenAI built-in image generation",
-  "assembledPromptSummary": "Transparent assembled neutral front-facing courier rabbit reference designed for a 15-part jointed cutout.",
-  "atlasPromptSummary": "Exploded 5-by-3 humanoid-jointed-v1 atlas derived from the assembled rabbit, with rounded 20-30% hidden joint geometry.",
-  "correctionPromptSummary": "Remove only the baked checkerboard and preserve every atlas part.",
-  "rights": "Generated for this Stagehand Phase 4.1 acceptance pass.",
-  "sourceFilesPreserved": true
-}

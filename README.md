@@ -1,64 +1,70 @@
 # Stagehand Animation Studio
 
-Stagehand is a WebMCP-native 2D animation studio for making short, editable paper-cutout scenes together with a person and ChatGPT. The current cut is a deterministic 15-second, six-beat diner comedy scene with generated/imported asset handoff, review-gated skeleton proposals, segmented 2D binding plus an experimental mesh data path, renderer-applied visual treatments, animated props, camera work, captions, CC0/imported audio cues, storyboard beats, multi-scene preview, PNG export, and audio-capable WebM export.
+Stagehand is a local-first, WebMCP-native 2D frame-by-frame animation studio. It combines scenes, storyboard editing, authored drawing exposures, captions, estimated lip-sync, local voice, procedural sound effects, and deterministic PNG/WebM export.
 
-## Run it
+## Run
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open `http://localhost:3000` in a desktop browser. The project stores its editable state in local browser storage; use More actions → Export project to save a JSON project file and More actions → Import project to recover it.
+Open http://localhost:3000. Editable project state is recovered from local browser storage.
 
-## Verify it
+## Current product
 
-```bash
-npm run format
-npm run lint
-npm run typecheck
-npm run build
-npm run smoke:skill
-npm run smoke
-npm run smoke:native
-STAGEHAND_URL=https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site npm run smoke
+The shipped build has three multi-scene demos: **Ship the Brick**, **One More Deploy**, and **Land Money**. Discrete drawings are held on integer frames at 12 or 24 fps. The shared evaluator powers canvas, storyboard thumbnails, Preview, frame inspection, PNG export, and WebM export; it does not interpolate drawings.
+
+- **Scenes / Storyboard**: create, rename, delete, reorder, and select scenes and beats.
+- **Frames**: edit, duplicate, delete, and expose authored drawings on character, prop, camera, and overlay tracks.
+- **Dialogue / lip-sync**: captions regenerate estimated X/A/B/C/D/E/F/G/H mouth cues. Optional private local voice uses `npm run voice:local`.
+- **Sound**: bundled OmniVoice dialogue, local voice/music cue editing, and deterministic Web Audio SFX recipes.
+- **Assets**: provenance-first requests, bounded image attachment, inspection, approval, and frame/mouth-pack assets.
+- **Proof / export**: validation, exact-frame inspection, PNG export, and sequence WebM rendering.
+
+## WebMCP contract
+
+Exactly 27 public tools are registered. Reads are marked `readOnlyHint`; mutations accept optional `expectedRevision` and `idempotencyKey`.
+
+```js
+document.modelContext.registerTool(
+  {
+    name: 'set_playhead',
+    title: 'Set playhead',
+    description: 'Move to an exact integer frame in the active scene.',
+    inputSchema: {
+      type: 'object',
+      required: ['frame'],
+      properties: {
+        frame: { type: 'integer', minimum: 0 },
+        sceneId: { type: 'string' },
+        expectedRevision: { type: 'integer', minimum: 1 },
+        idempotencyKey: { type: 'string', minLength: 1, maxLength: 120 },
+      },
+    },
+    annotations: { readOnlyHint: false },
+    execute: async ({ frame, sceneId }) => ({
+      ok: true,
+      revision: 3,
+      sceneId,
+      frame,
+    }),
+  },
+  { signal },
+);
 ```
 
-The regular smoke gate injects a model-context bridge, verifies the exact ordered set of 39 public tools and unique schema IDs, checks concurrency guards and the explicit legacy adapter, then exercises blank-project creation, assets, rigging, motion, audio, recovery, PNG, and WebM paths. `smoke:native` launches Chromium with its experimental WebMCP flag and verifies the same 39-tool contract through browser-native registration. `smoke:skill` checks the downloadable skill and ten golden rigging fixtures. ChatGPT Site tools themselves require no separate connection; in the ChatGPT desktop app they are account/model-gated and controlled by the Enable site tools permission.
+Names, order, and unique schema IDs are asserted by `scripts/smoke.mjs` and `scripts/native-webmcp-smoke.mjs`. The public surface has no skeleton, bone, mesh, or rigging tools.
 
-## Studio map
+## Verification
 
-- **Scenes / Board / Assets**: blank-project creation, scene management, editable storyboard beats, asset import, visual briefs, per-asset style direction, palette chips, stage/library placement, and imported-prop motion. Assets stay scannable in the rail; the selected asset’s full style editor lives in Inspector.
-- **Animate**: canvas, character and camera Inspector, captions, non-voice mix, style bible, and a semantic timeline of camera, pose, prop, dialogue, music, and SFX events. Show details reveals the precise draggable keyframes; Inspector groups can collapse independently.
-- **Storyboard**: renderer-backed beat thumbnails that move the shared playhead; beats can be promoted into trimmed scenes.
-- **Preview**: primary review action using the same deterministic evaluator as export; editing chrome is hidden while transport, a compact scrubber, and scene context remain available.
-- **Render**: deterministic project-sequence WebM export with captions and cue-based audio. PNG frame export, project import/export, settings, help, and guides live under More actions.
-- **WebMCP surface**: exactly 39 public tools expose blank-project creation plus the complete project, asset, audio, skeleton, motion, validation, and export loop. Narrow mutations share the human command path and revisioned undo/redo history. Every mutation accepts optional `expectedRevision` and `idempotencyKey`; older granular operations remain available only through an explicit in-page legacy adapter.
+```bash
+npm run format && npm run lint && npm run typecheck && npm run build
+npm run test:frames && npm run test:tool-ui && npm run smoke && npm run smoke:native
+```
 
-## Architecture
+For hosted verification, set `STAGEHAND_URL` to the deployed URL. Current reference: https://stagehand-animation-studio.saimun-h-shahee.chatgpt.site
 
-The app is intentionally local-first and currently implemented as one client-side studio surface in `app/page.tsx`:
+`app/stagehand-model.ts` defines the version-2 schema; `app/stagehand-renderer.ts` draws evaluated frames and mixes generated dialogue, optional music, and procedural SFX. Automatic rigging, skeletal deformation, mesh skinning, IK, phoneme extraction, and MP4/GIF export are out of scope.
 
-1. Structured `Project` state contains scenes, characters, assets, prop/character/camera keyframes, captions, cues, and style direction.
-2. `commit()` is the shared command path for human and agent mutations; it snapshots history, increments revisions, syncs the active scene, and persists recovery state.
-3. `evaluateCharacters()`, `evaluateProps()`, and `evaluateCamera()` are deterministic timestamp evaluators shared by the canvas, thumbnails, Preview, frame inspection, and WebM renderer; imported asset treatments are applied at draw time so Preview and export stay visually aligned.
-4. Human scrubbing, beat jumps, and canvas selection synchronize the current project snapshot that WebMCP reads, so agent commands never act on a stale playhead or selection.
-5. `document.modelContext.registerTool()` registers the imperative WebMCP surface when the host provides it, with a `navigator.modelContext` compatibility fallback for current experimental Chromium builds; the native registration gate covers both local and hosted URLs.
-6. Sites packages the validated `dist/` output from the exact pushed commit and deploys it as a public ChatGPT Site.
-
-TTS, voice cloning, dialogue recording, phoneme extraction, and lip-sync are explicitly out of scope for this MVP.
-
-## Blank-project path
-
-1. Create a configurable blank project with two unbound actor slots and the bundled CC0 audio library.
-2. Create a rig-ready asset request with a motion profile and `humanoid-jointed-v1` topology.
-3. Attach the assembled neutral reference and matching 15-part exploded rig atlas.
-4. Inspect decoded overlap, reconstruction, anchor, and stress-pose diagnostics before asset approval.
-5. Use Setup, Binding, Animate, and QA to edit the live rig, add bone keyframes, and validate it.
-6. Inspect the frame diagnostics, then export PNG and WebM from the same evaluated state.
-
-When the studio is used beside a ChatGPT or Codex conversation, Agent Live records each WebMCP command, revision, outcome, affected entities, and the matching editor surface. The public surface contains 40 tools, including `edit_skeleton`, and every tool has a typed visible UI contract. V2 asset packages are rejected; jointed characters require strict `StagehandAssetPackageV3`.
-
-See [`AGENTS.md`](AGENTS.md) for the repo-local asset/rigging contract, [`SPEC.md`](SPEC.md) for the phase gates, and [`docs/PHASE-EVIDENCE.md`](docs/PHASE-EVIDENCE.md) for the current verification record.
-
-The installable `stagehand-asset-rigging` Codex skill is available from the app's Help dialog or directly as [`stagehand-asset-rigging-v1.0.0.zip`](public/downloads/stagehand-asset-rigging-v1.0.0.zip), with an adjacent SHA-256 checksum.
+Released under the MIT License; see [LICENSE](LICENSE).

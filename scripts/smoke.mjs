@@ -1,51 +1,42 @@
+import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 
 const PUBLIC_TOOL_NAMES = [
   'inspect_project',
   'create_project',
-  'edit_project',
-  'get_timeline',
-  'set_playhead',
-  'edit_scene',
+  'load_demo',
   'edit_storyboard',
   'set_current_scene',
-  'set_pose',
-  'set_keyframe',
-  'set_bone_keyframe',
-  'delete_keyframe',
-  'get_bone_keyframes',
-  'set_character_variant',
-  'validate_project',
-  'undo',
-  'redo',
-  'edit_history',
+  'get_timeline',
+  'set_playhead',
+  'get_animation_frames',
+  'edit_animation_frame',
+  'get_lip_sync',
+  'generate_lip_sync',
+  'probe_local_voice',
+  'generate_voice',
+  'edit_audio',
+  'generate_sfx',
   'list_assets',
   'get_asset_generation_checklist',
   'create_asset_request',
   'attach_generated_asset',
   'inspect_asset_candidate',
   'approve_asset',
-  'list_asset_audio',
-  'import_asset_audio',
-  'attach_imported_audio',
-  'add_audio_clip',
-  'set_audio_clip',
-  'inspect_audio_clip',
-  'propose_skeleton',
-  'get_skeleton',
-  'edit_skeleton',
-  'approve_skeleton',
-  'validate_skeleton',
-  'bind_skeleton_asset',
-  'apply_motion_clip',
+  'validate_project',
   'inspect_frame',
   'export_frame',
   'render_webm',
+  'undo',
+  'redo',
 ];
 
 const baseUrl = process.env.STAGEHAND_URL ?? 'http://localhost:3000';
 const browser = await chromium.launch({ headless: true });
-const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
+const page = await browser.newPage({
+  viewport: { width: 1440, height: 960 },
+  acceptDownloads: true,
+});
 const pageErrors = [];
 page.on('pageerror', (error) => pageErrors.push(error.message));
 await page.addInitScript(() => {
@@ -57,399 +48,228 @@ await page.addInitScript(() => {
   };
 });
 
-await page.goto(`${baseUrl}?qa=phase-4-1`, {
+await page.goto(`${baseUrl}?qa=frames`, {
   waitUntil: 'domcontentloaded',
-  timeout: 15000,
+  timeout: 20_000,
 });
 await page.evaluate(() => localStorage.clear());
-await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
-await page.waitForFunction(() => window.__stagehandTools?.size === 40);
+await page.reload({ waitUntil: 'domcontentloaded', timeout: 20_000 });
+await page.waitForFunction(() => window.__stagehandTools?.size === 27, null, {
+  timeout: 12_000,
+});
+await page.waitForSelector('canvas[aria-label="Animation stage preview"]');
 
-const registered = await page.evaluate(() => [
-  ...window.__stagehandTools.keys(),
-]);
-if (JSON.stringify(registered) !== JSON.stringify(PUBLIC_TOOL_NAMES))
-  throw new Error(`public tool order mismatch: ${registered.join(', ')}`);
-await page.getByRole('button', { name: /Agent Live/ }).click();
-if ((await page.locator('[data-tool-ui]').count()) !== 40)
-  throw new Error('expected 40 visible tool UI contract markers');
-await page.getByRole('button', { name: 'Close Agent Live' }).click();
+const contract = await page.evaluate(() => {
+  const tools = [...window.__stagehandTools.values()];
+  return {
+    names: tools.map((tool) => tool.name),
+    schemaIds: tools.map((tool) => tool.inputSchema?.$id),
+    unguarded: tools
+      .filter((tool) => !tool.annotations?.readOnlyHint)
+      .filter(
+        (tool) =>
+          !tool.inputSchema?.properties?.expectedRevision ||
+          !tool.inputSchema?.properties?.idempotencyKey,
+      )
+      .map((tool) => tool.name),
+  };
+});
+assert.deepEqual(
+  contract.names,
+  PUBLIC_TOOL_NAMES,
+  'public tool order should be intentional',
+);
+assert.equal(new Set(contract.names).size, 27, 'tool names should be unique');
+assert.equal(
+  new Set(contract.schemaIds).size,
+  27,
+  'tool schema IDs should be unique',
+);
+assert.deepEqual(
+  contract.unguarded,
+  [],
+  'all project mutations need revision and retry guards',
+);
 
 const call = (name, input = {}) =>
   page.evaluate(
-    async ({ name, input }) => {
-      const tool = window.__stagehandTools.get(name);
-      if (!tool) throw new Error(`missing tool ${name}`);
-      return tool.execute(input);
-    },
+    async ({ name, input }) => window.__stagehandTools.get(name).execute(input),
     { name, input },
   );
 
 const initial = await call('inspect_project');
-if (!initial.ok || initial.assetCount !== 4 || initial.skeletonCount !== 0)
-  throw new Error(`blank project mismatch: ${JSON.stringify(initial)}`);
-const created = await call('create_project', {
-  name: 'Phase 4.1 QA',
-  durationMs: 6000,
-  fps: 24,
-  renderPreset: '720p',
-  idempotencyKey: 'create-qa',
+assert.equal(initial.ok, true);
+assert.equal(initial.name, 'One More Deploy');
+assert.equal(initial.sceneCount, 5);
+assert.ok(initial.assetCount >= 7);
+assert.ok(initial.drawingCount >= 20);
+assert.ok(initial.lipSyncCueCount > 20);
+assert.equal(
+  'skeletonCount' in initial,
+  false,
+  'rigging state should not leak into the frame model',
+);
+
+const validated = await call('validate_project');
+assert.equal(validated.ok, true, JSON.stringify(validated.issues));
+assert.deepEqual(
+  validated.issues.filter((issue) => issue.severity === 'error'),
+  [],
+);
+
+const firstTimeline = await call('get_timeline');
+assert.equal(firstTimeline.ok, true);
+assert.ok(firstTimeline.scene.tracks.length >= 3);
+const characterTrack = firstTimeline.scene.tracks.find(
+  (track) => track.kind === 'character',
+);
+assert.ok(characterTrack);
+
+const moved = await call('set_playhead', {
+  frame: 12,
+  expectedRevision: initial.revision,
+  idempotencyKey: 'move-frame-12',
 });
-if (!created.ok || created.project.name !== 'Phase 4.1 QA')
-  throw new Error('create_project failed');
+assert.equal(moved.ok, true);
+assert.equal(moved.frame, 12);
+const replayed = await call('set_playhead', {
+  frame: 12,
+  expectedRevision: initial.revision,
+  idempotencyKey: 'move-frame-12',
+});
+assert.deepEqual(
+  replayed,
+  moved,
+  'idempotent retry should return the first result',
+);
+const afterMove = await call('inspect_project');
+assert.equal(afterMove.revision, initial.revision + 1);
+
+const stale = await call('set_playhead', {
+  frame: 3,
+  expectedRevision: initial.revision,
+});
+assert.equal(stale.code, 'REVISION_CONFLICT');
+assert.equal((await call('inspect_project')).revision, afterMove.revision);
+
+const duplicated = await call('edit_animation_frame', {
+  action: 'duplicate',
+  trackId: characterTrack.id,
+  celId: characterTrack.cels[0].id,
+  frame: 13,
+  expectedRevision: afterMove.revision,
+  idempotencyKey: 'duplicate-drawing-13',
+});
+assert.equal(duplicated.ok, true);
+assert.ok(duplicated.cels.some((cel) => cel.frame === 13));
+const duplicateScene = (await call('get_timeline')).scene;
+const editedTrack = duplicateScene.tracks.find(
+  (track) => track.id === characterTrack.id,
+);
+const heldBefore = editedTrack.cels.filter((cel) => cel.frame <= 12).at(-1);
+const switchesAt = editedTrack.cels.find((cel) => cel.frame === 13);
+assert.ok(
+  heldBefore && switchesAt && heldBefore.id !== switchesAt.id,
+  'held drawing should switch only on authored frame',
+);
+
+const sync = await call('generate_lip_sync', {
+  allScenes: true,
+  expectedRevision: duplicated.revision,
+  idempotencyKey: 'sync-all-scenes',
+});
+assert.equal(sync.ok, true);
+assert.ok(sync.cueCount > 20);
+assert.equal(sync.timingQuality, 'estimated');
+
+const sfx = await call('generate_sfx', {
+  recipe: 'success',
+  label: 'QA chime',
+  startFrame: 14,
+  durationFrames: 5,
+  expectedRevision: sync.revision,
+  idempotencyKey: 'qa-sfx',
+});
+assert.equal(sfx.ok, true);
+assert.equal(sfx.cue.recipe, 'success');
 
 const checklist = await call('get_asset_generation_checklist', {
-  kind: 'rigged-character',
-  bindingMethod: 'segmented',
+  kind: 'character',
 });
-if (
-  !checklist.ok ||
-  !checklist.checklist.some((line) => line.includes('20–30%'))
-)
-  throw new Error('rig-ready checklist missing overlap contract');
+assert.equal(checklist.ok, true);
+assert.ok(checklist.checklist.some((line) => line.includes('transparent')));
+assert.deepEqual(checklist.workflow, [
+  'create_asset_request',
+  'attach_generated_asset',
+  'inspect_asset_candidate',
+  'approve_asset',
+]);
 
-const requestResult = await call('create_asset_request', {
-  kind: 'rigged-character',
-  label: 'Courier rabbit',
-  targetCharacterId: 'actor-a',
-  bindingMethod: 'segmented',
-  idempotencyKey: 'request-rabbit',
-});
-if (
-  !requestResult.ok ||
-  requestResult.request.requiredDeliverables.length !== 2
-)
-  throw new Error('two-deliverable request failed');
-const requestId = requestResult.request.id;
+const frameA = await call('inspect_frame', { frame: 12 });
+const frameB = await call('inspect_frame', { frame: 13 });
+assert.equal(frameA.interpolation, 'none');
+assert.notDeepEqual(frameA.evaluated.characters, frameB.evaluated.characters);
 
-const images = await page.evaluate(() => {
-  const make = (atlas) => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 500;
-    canvas.height = 300;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, 500, 300);
-    ctx.fillStyle = '#e56b52';
-    if (atlas) {
-      for (let i = 0; i < 15; i += 1) {
-        const x = (i % 5) * 96 + 12;
-        const y = Math.floor(i / 5) * 92 + 12;
-        ctx.beginPath();
-        ctx.roundRect(x, y, 72, 72, 18);
-        ctx.fill();
-      }
-    } else {
-      ctx.beginPath();
-      ctx.arc(250, 68, 38, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.roundRect(205, 100, 90, 95, 30);
-      ctx.fill();
-      ctx.lineWidth = 28;
-      ctx.lineCap = 'round';
-      for (const [x1, y1, x2, y2] of [
-        [215, 120, 160, 185],
-        [285, 120, 340, 185],
-        [225, 180, 205, 260],
-        [275, 180, 295, 260],
-      ]) {
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.strokeStyle = '#e56b52';
-        ctx.stroke();
-      }
-    }
-    return canvas.toDataURL('image/png');
-  };
-  return { assembled: make(false), atlas: make(true) };
-});
+const png = await call('export_frame', { frame: 13, download: false });
+assert.equal(png.ok, true);
+assert.ok(png.bytes > 1_000);
+assert.equal(png.downloaded, false);
+assert.equal(png.width, 1280);
+assert.equal(png.height, 720);
 
-const partIds = [
-  'pelvis',
-  'torso',
-  'head',
-  'left-upper-arm',
-  'left-forearm',
-  'left-hand',
-  'right-upper-arm',
-  'right-forearm',
-  'right-hand',
-  'left-thigh',
-  'left-shin',
-  'left-foot',
-  'right-thigh',
-  'right-shin',
-  'right-foot',
-];
-const attachments = [
-  ['pelvis-torso', 'pelvis', 'torso', 'spine'],
-  ['torso-head', 'torso', 'head', 'neck'],
-  ...['left', 'right'].flatMap((side) => [
-    [`${side}-shoulder`, 'torso', `${side}-upper-arm`, `${side}-shoulder`],
-    [`${side}-elbow`, `${side}-upper-arm`, `${side}-forearm`, `${side}-elbow`],
-    [`${side}-wrist`, `${side}-forearm`, `${side}-hand`, `${side}-wrist`],
-    [`${side}-hip`, 'pelvis', `${side}-thigh`, `${side}-hip`],
-    [`${side}-knee`, `${side}-thigh`, `${side}-shin`, `${side}-knee`],
-    [`${side}-ankle`, `${side}-shin`, `${side}-foot`, `${side}-ankle`],
-  ]),
-].map(([id, parentPartId, childPartId, jointId], drawOrder) => ({
-  id,
-  parentPartId,
-  childPartId,
-  jointId,
-  parentAnchor: { x: 0.5, y: 0.25 },
-  childAnchor: { x: 0.5, y: 0.25 },
-  pivot: { x: 0.5, y: 0.25 },
-  drawOrder,
-  requiredOverlap: 0.25,
-}));
-const makePackage = (cleanCut = false) => ({
-  version: 3,
-  atlasWidth: 500,
-  atlasHeight: 300,
-  source: 'manifest',
-  sourceAsset: {
-    assetId: 'rabbit-atlas',
-    immutable: true,
-    provenance: { author: 'smoke fixture' },
-  },
-  deliverables: {
-    'assembled-reference': 'rabbit-reference',
-    'rig-atlas': 'rabbit-atlas',
-  },
-  image: { width: 500, height: 300, colorspace: 'sRGB', alpha: 'straight' },
-  canvasAnchor: { x: 0.5, y: 0.82 },
-  motionProfile: {
-    version: 1,
-    rigClass: 'jointed-cutout',
-    intendedActions: ['wave'],
-    articulationPoints: ['elbows', 'knees'],
-    requiredViews: ['front'],
-    requiredSwaps: [],
-    acceptancePoses: ['rest', 'elbow 90'],
-    deformationStrategy: '20-30% overlap',
-  },
-  topologyProfile: {
-    version: 1,
-    id: 'humanoid-jointed-v1',
-    kind: 'humanoid-jointed-v1',
-    partIds,
-    deformationModes: Object.fromEntries(
-      partIds.map((id) => [id, 'segmented']),
-    ),
-    attachments,
-  },
-  parts: partIds.map((id, index) => {
-    const x = (index % 5) * 0.2 + 0.02,
-      y = Math.floor(index / 5) / 3 + 0.02,
-      width = 0.16,
-      height = 0.28;
-    return {
-      id,
-      label: id,
-      boneId: 'bone-root-hip',
-      x,
-      y,
-      width,
-      height,
-      pivotX: 0.5,
-      pivotY: 0.25,
-      attachX: 0.5,
-      attachY: 0.25,
-      confidence: 1,
-      zIndex: index,
-      overlapPx: 21,
-      bounds: { x, y, width, height },
-      pivot: { x: 0.5, y: 0.25 },
-      parentAnchor: { x: 0.5, y: 0.25 },
-      drawOrder: index,
-      deformationMode: 'segmented',
-      attachmentMargins: { top: 21, right: 8, bottom: 8, left: 8 },
-    };
-  }),
-  diagnostics: {
-    minimumOverlapDepth: cleanCut ? 0.1 : 0.25,
-    silhouetteIou: 0.95,
-    anchorResidual: 0.01,
-    restJointCoverage: 0.94,
-    stressJointCoverage: 0.86,
-    disconnectedComponentsAdded: 0,
-    clippedPixels: 0,
-    invertedHierarchy: false,
-    transparentCorridors: 0,
-  },
-  alignment: { connected: true, seamCount: 14, minConfidence: 1, warnings: [] },
-  skeleton: {
-    confidence: 1,
-    minCriticalConfidence: 0.8,
-    criticalJointIds: ['root', 'hip', 'chest', 'head'],
-  },
+const loaded = await call('load_demo', {
+  demoId: 'no-clams-no-patty',
+  expectedRevision: sfx.revision,
+  idempotencyKey: 'load-land-money',
 });
-
-const assembled = await call('attach_generated_asset', {
-  requestId,
-  deliverableRole: 'assembled-reference',
-  dataUrl: images.assembled,
-  frameLayout: 'single',
-  idempotencyKey: 'attach-reference',
-});
-if (!assembled.ok)
-  throw new Error(`assembled attach failed: ${JSON.stringify(assembled)}`);
-const rejectedAtlas = await call('attach_generated_asset', {
-  requestId,
-  deliverableRole: 'rig-atlas',
-  dataUrl: images.atlas,
-  frameLayout: 'parts-sheet',
-  assetPackage: makePackage(true),
-  idempotencyKey: 'attach-clean-cut',
-});
-if (
-  !rejectedAtlas.ok ||
-  !rejectedAtlas.asset.packageIssues.some((issue) =>
-    issue.includes('CLEAN_CUT_JOINT'),
-  )
-)
-  throw new Error('clean-cut candidate was not preserved and blocked');
-const rejectedApproval = await call('approve_asset', {
-  assetId: rejectedAtlas.asset.id,
-  approved: true,
-  idempotencyKey: 'approve-clean-cut',
-});
-if (rejectedApproval.ok || rejectedApproval.code !== 'ASSET_REVIEW_REQUIRED')
-  throw new Error('clean-cut asset approved');
-
-const validRequest = await call('create_asset_request', {
-  kind: 'rigged-character',
-  label: 'Courier rabbit valid',
-  targetCharacterId: 'actor-a',
-  bindingMethod: 'segmented',
-  idempotencyKey: 'request-valid',
-});
-await call('attach_generated_asset', {
-  requestId: validRequest.request.id,
-  deliverableRole: 'assembled-reference',
-  dataUrl: images.assembled,
-  frameLayout: 'single',
-  idempotencyKey: 'valid-reference',
-});
-const atlas = await call('attach_generated_asset', {
-  requestId: validRequest.request.id,
-  deliverableRole: 'rig-atlas',
-  dataUrl: images.atlas,
-  frameLayout: 'parts-sheet',
-  assetPackage: makePackage(false),
-  idempotencyKey: 'valid-atlas',
-});
-if (!atlas.ok || atlas.asset.packageIssues.length)
-  throw new Error(`valid atlas rejected: ${JSON.stringify(atlas)}`);
-const approvedAtlas = await call('approve_asset', {
-  assetId: atlas.asset.id,
-  approved: true,
-  idempotencyKey: 'approve-valid-atlas',
-});
-if (!approvedAtlas.ok)
-  throw new Error(
-    `valid atlas approval failed: ${JSON.stringify(approvedAtlas)}`,
-  );
-
-const proposed = await call('propose_skeleton', {
-  assetId: atlas.asset.id,
-  bindingMethod: 'segmented',
-  idempotencyKey: 'propose-rig',
-});
-if (
-  !proposed.ok ||
-  proposed.skeleton.joints.length < 16 ||
-  proposed.skeleton.bones.length < 15
-)
-  throw new Error(
-    `real articulated skeleton missing: ${JSON.stringify(proposed)}`,
-  );
-const edited = await call('edit_skeleton', {
-  skeletonId: proposed.skeleton.id,
-  operation: 'set_joint',
-  joint: {
-    ...proposed.skeleton.joints.find((joint) => joint.id === 'left-elbow'),
-    x: 29,
-    y: 52,
-  },
-  idempotencyKey: 'move-elbow',
-});
-if (
-  !edited.ok ||
-  edited.changedEntityIds[0] !== 'left-elbow' ||
-  !edited.qaInvalidated
-)
-  throw new Error(`edit_skeleton failed: ${JSON.stringify(edited)}`);
-const validation = await call('validate_skeleton', {
-  skeletonId: proposed.skeleton.id,
-});
-if (!validation.ok)
-  throw new Error('validate_skeleton did not return diagnostics');
-
-const audioImport = await call('import_asset_audio', {
-  label: 'QA click',
-  kind: 'stinger',
-  sourceUrl: 'https://example.com/qa-click.ogg',
-  author: 'QA',
-  license: 'CC0',
-  licenseUrl: 'https://creativecommons.org/public-domain/cc0',
-  durationMs: 500,
-  loopable: false,
-  idempotencyKey: 'audio-import',
-});
-if (!audioImport.ok) throw new Error('audio provenance import failed');
-const audioAttached = await call('attach_imported_audio', {
-  assetId: audioImport.asset.id,
-  dataUrl: 'data:audio/ogg;base64,T2dnUw==',
-  mimeType: 'audio/ogg',
-  idempotencyKey: 'audio-attach',
-});
-if (!audioAttached.ok) throw new Error('audio payload attachment failed');
-const clip = await call('add_audio_clip', {
-  assetId: audioImport.asset.id,
-  label: 'QA click',
-  kind: 'stinger',
-  startMs: 500,
-  endMs: 900,
-  volume: 0.3,
-  idempotencyKey: 'audio-clip',
-});
-if (!clip.ok) throw new Error('audio clip creation failed');
-
-const projectValidation = await call('validate_project');
-const frame = await call('inspect_frame', { timeMs: 0 });
-if (!projectValidation.ok || !frame.ok)
-  throw new Error(
-    `project/frame inspection failed: ${JSON.stringify({ projectValidation, frame })}`,
-  );
+assert.equal(loaded.ok, true);
+assert.equal(loaded.project.name, 'Land Money');
+assert.equal(loaded.project.sceneCount, 5);
 
 await page.getByRole('button', { name: /Agent Live/ }).click();
-await page.waitForSelector('.agent-activity');
-const statuses = await page.locator('.agent-activity').allTextContents();
-if (
-  !statuses.some((value) => value.includes('edit_skeleton')) ||
-  !statuses.some((value) => value.includes('failed'))
-)
-  throw new Error('Agent Live did not surface mutations and failures');
+assert.equal(await page.locator('[data-tool-ui]').count(), 27);
+await page.getByRole('button', { name: 'Close Agent Live' }).last().click();
+
+const canvasPixels = await page.locator('canvas').evaluate((canvas) => {
+  const context = canvas.getContext('2d');
+  const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+  let nonTransparent = 0;
+  for (let index = 3; index < pixels.length; index += 4 * 97)
+    if (pixels[index] > 0) nonTransparent += 1;
+  return { width: canvas.width, height: canvas.height, nonTransparent };
+});
+assert.deepEqual(
+  { width: canvasPixels.width, height: canvasPixels.height },
+  { width: 1280, height: 720 },
+);
+assert.ok(
+  canvasPixels.nonTransparent > 1000,
+  'stage should render visible pixels',
+);
 
 await page.setViewportSize({ width: 390, height: 844 });
-if ((await page.evaluate(() => document.documentElement.scrollWidth)) > 390)
-  throw new Error('mobile layout overflows');
-if (pageErrors.length)
-  throw new Error(`page errors: ${pageErrors.join(' | ')}`);
+await page.waitForTimeout(250);
+assert.equal(
+  await page.getByRole('button', { name: 'Inspect' }).isVisible(),
+  true,
+);
+assert.equal(
+  await page.getByRole('button', { name: /Render film/ }).isVisible(),
+  true,
+);
 
+assert.deepEqual(pageErrors, [], `page errors: ${pageErrors.join('; ')}`);
 console.log(
   JSON.stringify(
     {
       ok: true,
-      toolCount: registered.length,
-      blankAssetCount: initial.assetCount,
-      rejectedCleanCut: true,
-      jointCount: proposed.skeleton.joints.length,
-      boneCount: proposed.skeleton.bones.length,
-      agentActivityCount: statuses.length,
-      projectIssueCount: projectValidation.issues?.length ?? 0,
+      url: baseUrl,
+      toolCount: contract.names.length,
+      scenes: loaded.project.sceneCount,
+      assets: loaded.project.assetCount,
+      lipSyncCues: sync.cueCount,
+      canvas: canvasPixels,
+      responsive: '390x844 pass',
     },
     null,
     2,

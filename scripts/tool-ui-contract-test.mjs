@@ -6,29 +6,33 @@ const source = await readFile(
   'utf8',
 );
 const list = source.match(
-  /const PUBLIC_WEBMCP_TOOL_NAMES = \[([\s\S]*?)\] as const;/,
+  /export const PUBLIC_WEBMCP_TOOL_NAMES = \[([\s\S]*?)\] as const;/,
 )?.[1];
 assert(list, 'public tool list exists');
 const names = [...list.matchAll(/'([a-z0-9_]+)'/g)].map((match) => match[1]);
 assert.equal(
   names.length,
-  40,
-  `expected 40 public tools, found ${names.length}`,
+  27,
+  `expected 27 focused public tools, found ${names.length}`,
 );
-assert.equal(names[names.indexOf('get_skeleton') + 1], 'edit_skeleton');
-assert.equal(new Set(names).size, 40, 'tool names are unique');
-for (const name of names) {
-  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  assert(
-    new RegExp(`${escapedName}:\\s*toolUi\\(\\s*'${escapedName}'`).test(source),
-    `${name} has a typed UI contract`,
-  );
-  assert(
-    source.includes('data-tool-ui={name}'),
-    'UI contract markers are rendered',
-  );
-}
+assert.equal(new Set(names).size, 27, 'tool names are unique');
+assert.equal(names[0], 'inspect_project');
+assert.equal(names.at(-1), 'redo');
 assert(
-  source.includes('satisfies Record<PublicWebMcpToolName, ToolUiContract>'),
+  !names.some((name) => /bone|skeleton|mesh|rig/.test(name)),
+  'retired rigging calls must not remain public',
 );
-console.log('tool-ui contract: 40/40 pass');
+assert(
+  source.includes('data-tool-ui={name}'),
+  'Agent Live renders one contract marker per public tool',
+);
+assert(
+  source.includes('TOOL_GROUPS'),
+  'tools are grouped for a scannable agent surface',
+);
+for (const name of names)
+  assert(
+    new RegExp(`add\\(\\s*['"]${name}['"]`).test(source),
+    `${name} has an executable registration`,
+  );
+console.log('tool-ui contract: 27/27 focused frame-animation tools pass');

@@ -1,0 +1,84 @@
+{
+  "generatedAt": "2026-09-04T01:20:00-04:00",
+  "generator": "OpenAI built-in imagegen",
+  "checklistApplied": [
+    "No text, logos, trademarks, or watermarks",
+    "Opaque backgrounds are 16:9 and leave negative space for characters and captions",
+    "Character atlases use genuine transparency, generous padding, full-body views, visible hands, feet, and faces, and four columns for pose swaps",
+    "Prop-state rows use transparent 720p-readable silhouettes"
+  ],
+  "assets": [
+    {
+      "id": "brick-bg",
+      "selectedPath": "/tmp/stagehand-demo-assets/brick/brick-rocket-lab-bg.png",
+      "sourcePath": "/Users/saimun/.codex/generated_images/01a06ad2-92f9-7051-97c5-1817b9f65fb1/exec-6d6fccb8-5093-491e-ba70-a6dba9bb9c23.png",
+      "sha256": "f9a16f9e081715ce8189393a99e8dfad2a06e5c6f5e8a05b768cf9f66f952a9a",
+      "reviewStatus": "accepted-background",
+      "prompt": "Use case: stylized-concept. Asset type: 16:9 animation background plate for a deterministic frame-by-frame comedy. Primary request: an original miniature world built entirely from generic interlocking plastic toy bricks, showing a cramped overnight hackathon workbench that doubles as a tiny rocket launch pad. Scene/backdrop: brick-built workbench with a small monitor at left, a partly assembled red-and-cream rocket centered-right, cables, coffee mug, and pegboard shapes; everything is clearly made of plastic studs and blocks. Style/medium: premium stop-motion toy photography look, tactile injection-molded plastic, slightly imperfect practical lighting, original design. Composition/framing: straight-on wide stage, 16:9, clean floor line, rocket and monitor readable, generous empty space for two minifigure-like performers and lower-third captions. Lighting/mood: warm desk lamp against cool midnight blue, playful cinematic contrast. Color palette: midnight blue, warm cream, safety red, lemon yellow, charcoal. Constraints: background only, no people or characters, no logos, no brand marks, no readable text, no watermark, no baked speech bubbles, no famous toy sets or recognizable franchise designs."
+    },
+    {
+      "id": "brick-atlas",
+      "selectedPath": "/tmp/stagehand-demo-assets/brick/brick-cast-props-atlas.png",
+      "sourcePath": "/Users/saimun/.codex/generated_images/01a06ad2-92f9-7051-97c5-1817b9f65fb1/exec-36e21ae0-6b4f-4101-89ff-add509e5b529.png",
+      "sha256": "0b7b94dbda5b440085b3fe54b07625ddbaddb3ba465a955e9d8ee555751f493c",
+      "reviewStatus": "accepted-master-atlas",
+      "derivedSheets": [
+        "/tmp/stagehand-demo-assets/brick/mina-stagehand-sheet.png",
+        "/tmp/stagehand-demo-assets/brick/gus-stagehand-sheet.png",
+        "/tmp/stagehand-demo-assets/brick/rocket-intact.png",
+        "/tmp/stagehand-demo-assets/brick/rocket-wobble.png",
+        "/tmp/stagehand-demo-assets/brick/rocket-rubble.png",
+        "/tmp/stagehand-demo-assets/brick/brick-launch.png"
+      ],
+      "prompt": "Use case: stylized-concept. Asset type: production sprite atlas for deterministic 2D animation; three horizontal four-column strips on one canvas. Primary request: create a clean atlas for an original interlocking-plastic-brick stop-motion comedy called Ship the Brick. Scene/backdrop: genuinely transparent background, no floor, no shadows outside each sprite. Style/medium: tactile premium stop-motion toy photography; generic interlocking plastic minifigure proportions and molded parts; original characters, not any branded toy or licensed set. Composition/framing: exact 3 rows by 4 equal columns, twelve isolated cells, consistent registration and scale within each character row, generous padding, no cell borders and no labels. Subject: row 1 is Mina, the same yellow plastic engineer in every cell, black molded curly hair, navy jumpsuit, red utility belt: neutral closed; speaking small-open with raised hand; pointing wide-open; shocked O. Row 2 is Gus, the same yellow plastic engineer, blue hardhat, cream shirt, orange safety vest: idle closed; speaking small-open with loose gray brick; foot lifted and wide-open; sheepish closed shrug. Row 3: intact rocket; wobbling rocket; collapsed exact rocket; lone gray brick blasting upward. Palette: midnight blue, warm cream, safety red, lemon yellow, charcoal. Constraints: actual transparent alpha; every full body fully visible and centered; hands, feet, and faces unobstructed; four columns exactly; consistent identity, clothing, proportions, camera, lighting, and scale; one silhouette per cell; no text, logo, trademark, watermark, famous toy likeness, background plate, or checkerboard."
+    },
+    {
+      "id": "hackathon-bg",
+      "selectedPath": "/tmp/stagehand-demo-assets/hackathon/maker-shed-bg.png",
+      "sourcePath": "/Users/saimun/.codex/generated_images/01a06ad2-92f9-7051-97c5-1817b9f65fb1/exec-035fba21-8eb9-4282-b717-c258d16d7045.png",
+      "sha256": "dd1d5b8b75681c8c60c6b5e5330173715267ed43c8ef8d8155d6d95d696f05cd",
+      "reviewStatus": "accepted-background",
+      "prompt": "Use case: illustration-story. Asset type: 16:9 animation background plate for an original deadpan workplace-cartoon hackathon parody. Primary request: a shabby municipal maker shed converted into a frantic overnight web-app hackathon station. Scene/backdrop: folding table, old desktop monitor, laptop, crooked clock, cables, unreadable sticky notes, utility shelves, fluorescent light, and a back door onto a quiet park at night. Style/medium: original 2D cel animation, dry surreal workplace comedy, hand-inked uneven outlines, flat muted colors; broad early-2010s deadpan TV-cartoon mood without copying an existing show. Composition: straight-on 16:9 stage with left/right performer zones, central monitor, open lower third. Lighting: stale fluorescent plus moonlight. Palette: dusty mint, dull mauve, old-paper beige, midnight navy, alert red. Constraints: background only, no characters, logos, brand marks, readable text, watermark, or recognizable copyrighted location."
+    },
+    {
+      "id": "hackathon-atlas",
+      "selectedPath": "/tmp/stagehand-demo-assets/hackathon/one-more-deploy-atlas.png",
+      "sourcePath": "/Users/saimun/.codex/generated_images/01a06ad2-92f9-7051-97c5-1817b9f65fb1/exec-0dfd5bb5-729f-4273-9633-5de8de07541c.png",
+      "sha256": "d8d8f82b465d2cdc90dcc0612fa8027fc2e8c3ea3360d69b891209a5d4348218",
+      "reviewStatus": "accepted-master-atlas",
+      "derivedSheets": [
+        "/tmp/stagehand-demo-assets/hackathon/coil-stagehand-sheet.png",
+        "/tmp/stagehand-demo-assets/hackathon/stub-stagehand-sheet.png",
+        "/tmp/stagehand-demo-assets/hackathon/laptop.png",
+        "/tmp/stagehand-demo-assets/hackathon/puppet-arm-fail.png",
+        "/tmp/stagehand-demo-assets/hackathon/revision-conflict.png",
+        "/tmp/stagehand-demo-assets/hackathon/deploy-button.png"
+      ],
+      "prompt": "Use case: illustration-story. Asset type: production sprite atlas for deterministic 2D animation; three horizontal four-column strips. Original deadpan workplace-cartoon hackathon parody called One More Deploy. Transparent background. Original hand-inked cel animation with uneven outlines, flat muted colors, restrained acting, and no copied character or silhouette. Exact 3 by 4 grid. Row 1 Coil: same tall turquoise anthropomorphic power-strip creature, three sockets, cord arms, red sneakers, cream cap: exhausted closed; speaking small-open and pointing to monitor; horrified wide-open; deadpan closed side-eye. Row 2 Stub: same short crumpled purple receipt creature, yellow hoodie, no printed words: confident closed grin; speaking small-open over deploy button; shocked O holding detached puppet arm; guilty closed freeze. Row 3: abstract-interface laptop; coral puppet with detached left arm; red revision-conflict cloud with eyes and no words; unlabeled red deploy button. Palette: dusty mint, dull mauve, old-paper beige, midnight navy, alert red. Constraints: genuine alpha, full bodies, visible extremities, exact four columns, consistent identity/scale/line weight, no text, logo, trademark, watermark, recognizable copyrighted character, background, or checkerboard."
+    },
+    {
+      "id": "undersea-bg",
+      "selectedPath": "/tmp/stagehand-demo-assets/undersea/snack-shack-bg.png",
+      "sourcePath": "/Users/saimun/.codex/generated_images/01a06ad2-92f9-7051-97c5-1817b9f65fb1/exec-eb610170-8fc9-4ead-a3ac-ede6b59fdd2a.png",
+      "sha256": "426b3f37ffbdecb5fb8d0848c4fc7af3173601bcfff4d3d158717150e37e84cc",
+      "reviewStatus": "accepted-background",
+      "prompt": "Use case: illustration-story. Asset type: 16:9 mixed-media animation background plate. Primary request: interior of an original cartoon undersea snack shack where a realistic human cutout can wake and try to buy a burger. Sandy floor, coral-pipe walls, curved shell counter, abstract unreadable menu panels, portholes with jellyfish and bubbles, kitchen pass-through, empty booth. Original watercolor-gouache undersea cartoon with chunky outlines and broad undersea sitcom-parody mood, but no copied franchise elements. Straight-on 16:9 stage with open floor left, cashier right, negative space for captions. Bright aquamarine caustics. Palette: aqua, coral pink, kelp green, mustard, sand, violet. Constraints: background only; no creatures, logos, readable text, watermark, or recognizable copyrighted buildings or props."
+    },
+    {
+      "id": "undersea-atlas",
+      "selectedPath": "/tmp/stagehand-demo-assets/undersea/land-money-atlas.png",
+      "sourcePath": "/Users/saimun/.codex/generated_images/01a06ad2-92f9-7051-97c5-1817b9f65fb1/exec-13f536d6-e3d8-48e7-a0f2-f67c3dab1662.png",
+      "sha256": "5d77b4b53be0c377739f297e8ff6bf4f9ee60fff286e9344163f95ddb011b1cc",
+      "reviewStatus": "accepted-master-atlas",
+      "derivedSheets": [
+        "/tmp/stagehand-demo-assets/undersea/dev-stagehand-sheet.png",
+        "/tmp/stagehand-demo-assets/undersea/raya-stagehand-sheet.png",
+        "/tmp/stagehand-demo-assets/undersea/burger.png",
+        "/tmp/stagehand-demo-assets/undersea/sand-dollars.png",
+        "/tmp/stagehand-demo-assets/undersea/wet-phone.png",
+        "/tmp/stagehand-demo-assets/undersea/empty-tray.png"
+      ],
+      "prompt": "Use case: illustration-story. Asset type: production mixed-media sprite atlas; three horizontal four-column strips. Original undersea sitcom parody called Land Money. Transparent background. Human is photorealistic magazine cutout with bold white sticker border; cashier and props are original watercolor-gouache cartoon sprites. Exact 3 by 4 grid. Row 1 Dev: same fictional adult South Asian man, short dark wavy hair, gray hoodie, teal shirt, plaid sleep pants, barefoot: asleep closed; groggy small-open; holding soggy generic banknote wide-open; empty pockets shocked O. Row 2 Raya: same original lavender manta-ray cashier, freckles, kelp visor, coral apron: service smile closed; small-open speaking; closed unimpressed side-eye; wide-open sliding empty tray. Row 3: generic burger on shell plate; sand dollars; wet unbranded phone; empty shell tray. Palette: aqua, coral, kelp, mustard, sand, violet. Constraints: genuine alpha, full bodies, strong intact white border, visible extremities, exact four columns, consistent identity and scale, readable 720p prop silhouettes, no text, logo, trademark, watermark, recognizable copyrighted character, currency design, restaurant item, background, or checkerboard."
+    }
+  ]
+}

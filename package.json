@@ -1,5 +1,5 @@
 {
-  "name": "sites-project",
+  "name": "stagehand-animation-studio",
   "version": "0.1.0",
   "private": true,
   "engines": {
@@ -12,10 +12,9 @@
     "start": "wrangler dev --config dist/server/wrangler.json",
     "smoke": "node scripts/smoke.mjs",
     "smoke:native": "node scripts/native-webmcp-smoke.mjs",
-    "smoke:skill": "node scripts/skill-forward-test.mjs",
-    "test:mesh": "node --experimental-strip-types scripts/mesh-regression.mts",
-    "test:rig": "node --experimental-strip-types scripts/rig-v3-regression.mts",
+    "test:frames": "node --experimental-strip-types scripts/frame-animation-regression.mts",
     "test:tool-ui": "node scripts/tool-ui-contract-test.mjs",
+    "voice:local": "node scripts/stagehand-voice-server.mjs",
     "lint": "oxlint",
     "format": "oxfmt"
   },

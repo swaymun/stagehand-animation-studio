@@ -1,46 +1,17 @@
-# Stagehand MVP
+# Stagehand MVP specification
 
-Stagehand is a WebMCP-native 2D animation studio where a person and ChatGPT can storyboard, hand off generated assets, review skeleton proposals, animate rigid or segmented characters, experiment with mesh bindings, edit timing and camera work, layer CC0/imported audio, validate scenes, and render a structured cartoon together.
+Stagehand is a WebMCP-native 2D animation studio for editable, deterministic frame-by-frame sequences. The current release has three multi-scene demos, storyboard/video-editing controls, authored drawing exposures, captions, estimated lip-sync, optional local voice, procedural SFX, asset provenance and approval, validation, PNG export, and WebM export.
 
-## Current cut
+Projects use `schemaVersion: 2`: scenes, storyboard beats, assets, asset requests, revision/history, fps (12 or 24), render dimensions, and active scene/playhead. Each scene contains character/prop/camera/overlay tracks; tracks contain sorted integer-frame cels with drawing, optional asset/frame reference, transform, and exposure. Captions, lip-sync, audio, and SFX are scene-local frame ranges.
 
-The current cut is a deterministic, local-first 15-second, six-beat Paper Cutout Comedy scene with two production-ready segmented character packs, `StagehandAssetPackageV2`, approval-gated asset and skeleton review, rendered stress-pose validation, editable binding corrections, bone animation, CC0/imported audio, PNG/WebM export, and exactly 38 public WebMCP tools. Older granular operations remain behind an explicit legacy adapter and are not registered publicly. TTS, voice cloning, dialogue recording, phoneme extraction, and lip-sync remain explicitly out of scope.
+The evaluator holds the most recent cel at or before the requested frame and never interpolates drawings. Preview, `inspect_frame`, PNG, and WebM use the same evaluator. Sequence WebM renders scenes in order and schedules generated dialogue, optional music, and procedural SFX; missing audio payloads are validation warnings.
 
-## Product rules
+Exactly 27 tools are public: project/demo, storyboard/scene, timeline/playhead/frame editing, lip-sync, local voice, audio, SFX, assets, validation, frame inspection, PNG/WebM export, undo, and redo. Tool schema IDs are unique. Mutations use optimistic revision and idempotency guards and return structured `{ ok, revision, ... }` results. Registration is `document.modelContext.registerTool(tool, { signal })`; the concrete example is in `README.md`.
 
-- The artifact is editable: scenes, assets, poses, timing, captions, and camera work remain structured data.
-- Human and agent actions share one command model. Mutations are revisioned and undoable.
-- Broad reads and narrow writes are preferred. Agent writes must preserve unrelated manual edits.
-- Preview, frame inspection, and final render must share one deterministic evaluator for character motion and camera framing.
-- Human view changes such as scrubbing, beat jumps, and canvas selection must update the same current project snapshot read by WebMCP tools before the next command runs.
-- Character motion is stored as explicit keyframes and interpolated at the playhead; human and agent edits use the same keyframe command path.
-- Camera framing is stored as explicit zoom, pan, and rotation keyframes and interpolated at the playhead; human and agent edits use the same camera command path.
-- Asset style direction is structured per asset as role, treatment, silhouette, palette, and notes; human and agent edits use the same command path.
-- Imported asset treatments affect the canvas, thumbnails, Preview, and WebM draw path; `get_asset_manifest` also reports whether an asset is bound, on stage, or library-only plus its prop keyframe count.
-- Browser 2D studio first; desktop Chrome is the initial target.
-- Mutating WebMCP tools accept an optional `expectedRevision` and reject stale
-  writes with a structured conflict result so an agent must reread before
-  overwriting a human's newer work.
+## Verification gate
 
-## Canonical demo
+Run format, lint, typecheck, build, frame regression, UI contract, regular smoke, and native smoke. Hosted smoke runs separately against the deployed URL. Evidence records commit, URL, tool count/order, schema uniqueness, guarded mutation result, frame holds, lip-sync/SFX, validation, PNG dimensions, WebM bytes/duration, and responsive viewports.
 
-Start from Paper Cutout Comedy. Alice waits nervously in a diner; Bob enters behind her. Captions are “You actually came” and “I almost didn’t.” The tone is awkward, with an uncomfortable pause, a quick reaction punch-in, footsteps, and quiet music. A human moves Alice closer and raises her arm. The agent preserves that blocking and camera work while smoothing the arm, holding the reaction longer, and lowering music under captions.
+## Non-goals
 
-## Roadmap gates
-
-1. Feasibility spikes — complete: deterministic timestamp evaluation, playable WebM, imperative WebMCP registration, and imported-project recovery are proven.
-2. Editable vertical slice — complete: model, persistence, commands, one scene, rig editing, timeline, preview, import/export.
-3. Multi-scene animation core — complete for the current cut: a 15-second six-beat starter arc, independent scene content, scene operations, split-at-playhead trimming, interpolated camera framing, renderer-backed scene poster frames, editable storyboard beats, renderer-backed clickable storyboard beat-board mode, storyboard-beat promotion into trimmed scenes, and concatenated sequence WebM rendering with per-scene audio/caption timing are verified.
-4. Agent-native control — complete for the sprint: exactly 38 registered public tools, unique schemas, revision and idempotency guards, explicit legacy adapters, structured validation, rendered frame inspection, asset and skeleton approval gates, bone-keyframe readback, audio parity, PNG/WebM export, and browser-native registration in experimental Chromium are present; ChatGPT in-app tool discovery remains host/model-gated.
-5. Mixed media/templates — complete for the current cut: structured asset add/remove, generated/imported asset requests with provenance and review state, persisted asset briefs and per-asset style direction, renderer-applied asset treatments, palette and placement cues, local image import, deterministic character/background/prop compositing, imported-prop animation with human and agent controls, human and agent character-art binding, automatic four-column pose-sheet detection and crop selection, four reusable scene templates, and an editable style bible are present; broader arbitrary-asset ingest remains.
-6. Captions/audio/validation/render — in progress: captions, deterministic validation, a bundled CC0 audio library plus user/link import, cue-based music/SFX routing with human and agent level/timing edits, audio-capable concatenated multi-scene WebM export, current-frame PNG export, direct bounded scene-duration editing, and persisted 12/24 fps plus 720p/1080p controls are present; MP4/GIF and voice workflows remain deferred.
-7. UX/challenge polish — ongoing: accessibility, recovery, performance, readable scene-segment labels, supported desktop-width shell stability, Animate/Storyboard as the only top-level editor modes, Preview as a review action with hidden editing chrome, semantic timeline event bands with optional raw-keyframe details, collapsible Inspector groups, sequence preview playback, direct timeline retiming with lock-aware feedback, responsive project/Inspector drawers, README, architecture, and demo script continue through the implementation loop.
-8. Skeletal character rigs — working foundation: accept a generated/imported character reference or parts/pose sheet, propose an editable bone graph and segmented/mesh-capable binding, require review of joints and confidence, then drive approved bone keyframes through the existing command, timeline, Preview, validation, and WebM export paths. Segmented regions are the reliable path; mesh vertices/weights are an experimental prototype. The current six-pose rig remains the rigid fallback when a reference cannot be safely interpreted.
-
-## Phase evidence contract
-
-Each phase closes only after Implement → local tests → Sites deployment → real hosted WebMCP test where available (Playwright fallback is labeled separately) → UI roast → fixes → second review. Evidence records the deployed URL, test commands, screenshots, tool calls/results, roast findings, fixes, and warnings.
-
-## Repeatable local gate
-
-With the local dev server running on `http://localhost:3000`, run `npm run lint`, `npm run typecheck`, `npm run build`, `npm run smoke:skill`, `npm run smoke`, and `npm run smoke:native`. The Playwright gates assert the exact ordered 38-tool public surface, unique schemas, guarded mutations, no returned media payloads, approval and stale-write failures, package and skeleton validation, bone output evaluation, recovery, responsive UI, PNG export, and audio-capable WebM export. The native gate repeats registration and callback checks in experimental Chromium.
+No skeletal rigs, bone keyframes, mesh skinning, automatic segmentation, IK, phoneme extraction, cloud voice generation, MP4/GIF export, or deployment automation are included.
